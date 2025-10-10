@@ -111,11 +111,7 @@ public enum ExprTokenParser {
 
     // After '(' and function name consumed
     public static func Function2Parse(_ env: inout Environment, _ logicalName: String, _ name: String) throws -> ExpressionNode {
-        // Verifica funzione esistente nel registro
-        if Functions.find(env, name) == nil {
-            // In CLIPS gestisce moduli e generic/deffunction; qui segnaliamo errore semplice
-            throw ExprTokenParseError.missingFunctionDeclaration(name)
-        }
+        // Non forziamo l'esistenza della funzione: costrutti come (person ...) in deffacts non sono funzioni.
         let top = Expressions.GenConstant(.fcall, name)
         return try CollectArguments(&env, top, logicalName)
     }

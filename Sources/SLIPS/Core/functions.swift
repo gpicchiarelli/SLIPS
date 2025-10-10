@@ -40,6 +40,9 @@ public enum Functions {
         env.functionTable["value"] = FunctionDefinitionSwift(name: "value", impl: builtin_value)
         env.functionTable["facts"] = FunctionDefinitionSwift(name: "facts", impl: builtin_facts)
         env.functionTable["templates"] = FunctionDefinitionSwift(name: "templates", impl: builtin_templates)
+        env.functionTable["watch"] = FunctionDefinitionSwift(name: "watch", impl: builtin_watch)
+        env.functionTable["unwatch"] = FunctionDefinitionSwift(name: "unwatch", impl: builtin_unwatch)
+        env.functionTable["clear"] = FunctionDefinitionSwift(name: "clear", impl: builtin_clear)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -231,12 +234,37 @@ private func builtin_assert(_ env: inout Environment, _ args: [Value]) throws ->
     while let key = it.next()?.stringValue, let val = it.next() { slotMap[key] = val }
     let id = env.nextFactId; env.nextFactId += 1
     env.facts[id] = Environment.FactRec(id: id, name: name, slots: slotMap)
+    RuleEngine.onAssert(&env, env.facts[id]!)
+    if env.watchFacts {
+        Router.WriteString(&env, Router.STDOUT, "==> (")
+        Router.WriteString(&env, Router.STDOUT, name)
+        for (k,v) in slotMap {
+            Router.WriteString(&env, Router.STDOUT, " ")
+            Router.WriteString(&env, Router.STDOUT, k)
+            Router.WriteString(&env, Router.STDOUT, " ")
+            PrintUtil.PrintAtom(&env, Router.STDOUT, v)
+        }
+        Router.Writeln(&env, ")")
+    }
     return .int(Int64(id))
 }
 
 private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let id = args.first?.intValue else { return .none }
-    if env.facts.removeValue(forKey: Int(id)) != nil { return .boolean(true) }
+    if let fact = env.facts.removeValue(forKey: Int(id)) {
+        if env.watchFacts {
+            Router.WriteString(&env, Router.STDOUT, "<== (")
+            Router.WriteString(&env, Router.STDOUT, fact.name)
+            for (k,v) in fact.slots {
+                Router.WriteString(&env, Router.STDOUT, " ")
+                Router.WriteString(&env, Router.STDOUT, k)
+                Router.WriteString(&env, Router.STDOUT, " ")
+                PrintUtil.PrintAtom(&env, Router.STDOUT, v)
+            }
+            Router.Writeln(&env, ")")
+        }
+        return .boolean(true)
+    }
     return .boolean(false)
 }
 
@@ -273,6 +301,31 @@ private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws
     }
     return .int(Int64(env.templates.count))
 }
+
+private func builtin_watch(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let what = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch what {
+    case "facts": env.watchFacts = true; return .boolean(true)
+    case "rules": env.watchRules = true; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let what = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch what {
+    case "facts": env.watchFacts = false; return .boolean(true)
+    case "rules": env.watchRules = false; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_clear(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll()
+    return .boolean(true)
+}
+
+// load come builtin non implementato per evitare dipendenze con MainActor.
 
 // Helper per ottenere env corrente
 // removed CLIPSInternal helper; builtins receive env by inout

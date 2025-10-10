@@ -3,6 +3,7 @@ import Foundation
 public struct Activation: Codable, Equatable {
     public var priority: Int
     public var ruleName: String
+    public var bindings: [String: Value]?
 }
 
 public struct Agenda: Codable, Equatable {
@@ -12,7 +13,10 @@ public struct Agenda: Codable, Equatable {
 
     public mutating func add(_ a: Activation) {
         queue.append(a)
-        // TODO: ordinamento per salience come in CLIPS
+        queue.sort { lhs, rhs in
+            if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
+            return lhs.ruleName < rhs.ruleName
+        }
     }
 
     public mutating func next() -> Activation? {
@@ -21,5 +25,6 @@ public struct Agenda: Codable, Equatable {
     }
 
     public var isEmpty: Bool { queue.isEmpty }
-}
 
+    public func contains(_ a: Activation) -> Bool { queue.contains(a) }
+}

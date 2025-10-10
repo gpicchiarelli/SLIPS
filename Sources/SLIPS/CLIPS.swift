@@ -47,12 +47,21 @@ public final class Environment {
     public var localBindings: [String: Value] = [:]
     public var globalBindings: [String: Value] = [:]
 
+    // Watch flags
+    public var watchFacts: Bool = false
+    public var watchRules: Bool = false
+
+    // Deffacts archivio: nome -> lista di fatti (ognuno è lista di Values come argomenti per assert)
+    public var deffacts: [String: [[Value]]] = [:]
+
     // Costrutti minimi: template e fatti
     public struct Template { public let name: String; public let slots: [String] }
     public var templates: [String: Template] = [:]
     public struct FactRec { public let id: Int; public let name: String; public let slots: [String: Value] }
     public var facts: [Int: FactRec] = [:]
     public var nextFactId: Int = 1
+    public var rules: [Rule] = []
+    public var agendaQueue: Agenda = Agenda()
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
@@ -123,17 +132,26 @@ public enum CLIPS {
         var env = env0
         env.localBindings.removeAll()
         env.globalBindings.removeAll()
-        env.templates.removeAll()
         env.facts.removeAll()
         env.nextFactId = 1
+        // Reassert deffacts
+        if let assertFn = env.functionTable["assert"] {
+            for (_, factsList) in env.deffacts {
+                for factArgs in factsList {
+                    _ = try? assertFn.impl(&env, factArgs)
+                }
+            }
+        }
         currentEnv = env
     }
 
     @discardableResult
     public static func run(limit: Int? = nil) -> Int {
-        // In CLIPS: esegue il motore di inferenza fino al limite di attivazioni.
-        // TODO: Implementare RETE/Agenda. Per ora ritorna 0 attivazioni eseguite.
-        return 0
+        guard let env0 = currentEnv else { return 0 }
+        var env = env0
+        let fired = RuleEngine.run(&env, limit: limit)
+        currentEnv = env
+        return fired
     }
 
     public static func assert(fact: String) {

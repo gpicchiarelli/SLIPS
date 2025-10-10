@@ -34,6 +34,76 @@ public enum Evaluator {
             return .boolean((node.value?.value as? Bool) ?? false)
         case .fcall:
             let name = (node.value?.value as? String) ?? ""
+            if name == "defrule" {
+                // defrule parsing: (defrule name <patterns> => <actions...>)
+                var cur = node.argList
+                guard let nameNode = cur else { return .boolean(false) }
+                let nameVal = try eval(&env, nameNode)
+                let ruleName: String
+                switch nameVal {
+                case .string(let s): ruleName = s
+                case .symbol(let s): ruleName = s
+                default: ruleName = "rule"
+                }
+                cur = nameNode.nextArg
+                var patterns: [Pattern] = []
+                var salience = 0
+                // Collect LHS until '=>' symbol
+                while let n = cur {
+                    if n.type == .symbol, (n.value?.value as? String) == "=>" { cur = n.nextArg; break }
+                    if n.type == .fcall, (n.value?.value as? String) == "declare" {
+                        // parse (declare (salience N))
+                        var dn = n.argList
+                        while let slotNode = dn {
+                            if slotNode.type == .fcall, (slotNode.value?.value as? String) == "salience" {
+                                if let valNode = slotNode.argList, case .int(let v) = try eval(&env, valNode) { salience = Int(v) }
+                            }
+                            dn = slotNode.nextArg
+                        }
+                        cur = n.nextArg
+                        continue
+                    }
+                    if n.type == .fcall {
+                        if let p = parseSimplePattern(&env, n) { patterns.append(p) }
+                    }
+                    cur = n.nextArg
+                }
+                // RHS actions: remaining nodes are expressions
+                var rhs: [ExpressionNode] = []
+                while let n = cur { rhs.append(n); cur = n.nextArg }
+                let rule = Rule(name: ruleName, patterns: patterns, rhs: rhs, salience: salience)
+                RuleEngine.addRule(&env, rule)
+                return .symbol(ruleName)
+            }
+            if name == "deffacts" {
+                // Special form: non valutare come chiamata normale; salva i fatti
+                var cur = node.argList
+                guard let nameNode = cur else { return .int(0) }
+                let nameVal = try eval(&env, nameNode)
+                let dfName: String
+                switch nameVal {
+                case .string(let s): dfName = s
+                case .symbol(let s): dfName = s
+                default: dfName = "deffacts"
+                }
+                cur = nameNode.nextArg
+                var list: [[Value]] = []
+                while let f = cur {
+                    if f.type == .fcall {
+                        let fname = (f.value?.value as? String) ?? ""
+                        var argsVals: [Value] = [.symbol(fname)]
+                        var a = f.argList
+                        while let an = a {
+                            argsVals.append(try eval(&env, an))
+                            a = an.nextArg
+                        }
+                        list.append(argsVals)
+                    }
+                    cur = f.nextArg
+                }
+                env.deffacts[dfName] = list
+                return .int(Int64(list.count))
+            }
             // Special handling for bind to access variable tokens
             if name == "bind" {
                 // first arg is variable token node
@@ -123,6 +193,30 @@ public enum Evaluator {
         case .instanceName:
             return .symbol((node.value?.value as? String) ?? "")
         }
+    }
+
+    // Parse a simple pattern of form (entity slot val slot val ...)
+    private static func parseSimplePattern(_ env: inout Environment, _ node: ExpressionNode) -> Pattern? {
+        guard node.type == .fcall else { return nil }
+        let pname = (node.value?.value as? String) ?? ""
+        var slots: [String: PatternTest] = [:]
+        var arg = node.argList
+        while let snameNode = arg {
+            guard snameNode.type == .symbol, let sname = (snameNode.value?.value as? String) else { break }
+            guard let valNode = snameNode.nextArg else { break }
+            let test: PatternTest
+            switch valNode.type {
+            case .integer: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+            case .float: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+            case .string: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+            case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+            case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
+            default: test = PatternTest(kind: .constant(.none))
+            }
+            slots[sname] = test
+            arg = valNode.nextArg
+        }
+        return Pattern(name: pname, slots: slots)
     }
 
     public static func EvaluateExpression(_ env: inout Environment, _ node: ExpressionNode) -> Value {
