@@ -43,7 +43,7 @@ public enum RuleEngine {
                 }
             }
             let pool = candidateFacts.isEmpty ? facts : candidateFacts
-            let matches = hasNeg
+            let matches: [PartialMatch] = hasNeg
                 ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
             for m in matches {
@@ -58,6 +58,33 @@ public enum RuleEngine {
                 }
             }
         }
+    }
+
+    // Esecuzione join semplice (fase 1): solo pattern positivi, stesso comportamento del backtracking
+    private static func computeMatchesJoin(env: inout Environment, compiled: CompiledRule, facts: [Environment.FactRec]) -> [PartialMatch] {
+        let patterns = compiled.patterns.map { $0.original }
+        guard !patterns.isEmpty else { return [] }
+        var tokens: [PartialMatch] = [PartialMatch(bindings: [:], usedFacts: [])]
+        for pat in patterns {
+            var next: [PartialMatch] = []
+            for tok in tokens {
+                for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) {
+                    if var b = match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
+                        var ok = true
+                        for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                        if !ok { continue }
+                        for (k,v) in tok.bindings { b[k] = v }
+                        var used = tok.usedFacts; used.insert(f.id)
+                        next.append(PartialMatch(bindings: b, usedFacts: used))
+                    }
+                }
+            }
+            tokens = next
+            if tokens.isEmpty { break }
+        }
+        // Applica tests LHS (inclusi predicati propagati)
+        tokens = tokens.filter { applyTests(&env, tests: compiled.tests, with: $0.bindings) }
+        return tokens
     }
 
     public static func run(_ env: inout Environment, limit: Int?) -> Int {
