@@ -50,10 +50,11 @@ public struct ReteNetwork {
 public enum ReteCompiler {
     // Flag opzionale: riordina i pattern per aumentare la selettività (euristica)
     nonisolated(unsafe) public static var enableHeuristicOrder: Bool = false
+    nonisolated(unsafe) public static var heuristicWhitelist: Set<String> = []
     public static func compile(_ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
         let order: [Int]
-        if enableHeuristicOrder {
+        if enableHeuristicOrder || heuristicWhitelist.contains(rule.name) {
             order = heuristicOrder(rule.patterns)
         } else {
             order = Array(0..<cps.count)

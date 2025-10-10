@@ -56,6 +56,9 @@ public enum Functions {
         env.functionTable["get-join-activate"] = FunctionDefinitionSwift(name: "get-join-activate", impl: builtin_get_join_activate)
         env.functionTable["set-join-heuristic"] = FunctionDefinitionSwift(name: "set-join-heuristic", impl: builtin_set_join_heuristic)
         env.functionTable["get-join-heuristic"] = FunctionDefinitionSwift(name: "get-join-heuristic", impl: builtin_get_join_heuristic)
+        env.functionTable["add-join-heuristic-rule"] = FunctionDefinitionSwift(name: "add-join-heuristic-rule", impl: builtin_add_join_heuristic_rule)
+        env.functionTable["remove-join-heuristic-rule"] = FunctionDefinitionSwift(name: "remove-join-heuristic-rule", impl: builtin_remove_join_heuristic_rule)
+        env.functionTable["get-join-heuristic-rules"] = FunctionDefinitionSwift(name: "get-join-heuristic-rules", impl: builtin_get_join_heuristic_rules)
         env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
@@ -487,6 +490,23 @@ private func builtin_set_join_heuristic(_ env: inout Environment, _ args: [Value
 
 private func builtin_get_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .boolean(ReteCompiler.enableHeuristicOrder)
+}
+
+private func builtin_add_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    ReteCompiler.heuristicWhitelist.insert(name)
+    return .boolean(true)
+}
+
+private func builtin_remove_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    ReteCompiler.heuristicWhitelist.remove(name)
+    return .boolean(true)
+}
+
+private func builtin_get_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let arr = ReteCompiler.heuristicWhitelist.sorted().map { Value.symbol($0) }
+    return .multifield(arr)
 }
 
 // Whitelist helpers

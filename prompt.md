@@ -4,7 +4,7 @@ Considera inoltre la cartella clips_core_tests_642
 Fai in modo che sia un repository git scritto in italiano, bellissimo da leggere e vedere.
 
 ## Obiettivo
-Traduci integralmente il motore CLIPS scritto in C nel linguaggio Swift 6.2, creando un progetto chiamato **SLIPS** (Swift Logical Inference Production System).  
+Traduci integralmente il motore CLIPS scritto in C nel linguaggio Swift 6.2, creando un progetto chiamato **SLIPS** (Swift Language Implementation of Production Systems).  
 Il risultato deve essere **funzionalmente equivalente** a CLIPS, mantenendo lo stesso comportamento del motore di inferenza, ma espresso in **codice Swift moderno e sicuro**, sfruttando solo le astrazioni necessarie per sostituire la gestione manuale della memoria, i puntatori e le macro C.
 
 Linee guida principali

@@ -1,4 +1,4 @@
-# SLIPS – Swift Logical Inference Production System
+# SLIPS – Swift Language Implementation of Production Systems
 
 [![License](https://img.shields.io/github/license/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/blob/main/LICENSE)
 [![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)

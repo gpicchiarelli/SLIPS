@@ -294,6 +294,8 @@ extension BetaEngine {
             let t0 = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
             let pat = patterns[pidx]
             var next: [BetaToken] = []
+            var leftCount = current.count
+            var factsFiltered = 0
             // Hash-join preparation
             let boundNames = boundVarNames(for: compiled, upTo: levels.count)
             let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
@@ -306,6 +308,7 @@ extension BetaEngine {
                 }
                 // Iterate facts filtered by template and constants
                 for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                    factsFiltered += 1
                     let hf = hashFromFact(f, spec: spec)
                     guard let lefts = bucket[hf] else { continue }
                     for tok in lefts where !tok.usedFacts.contains(f.id) {
@@ -323,6 +326,7 @@ extension BetaEngine {
                 // Fallback nested loops
                 for tok in current {
                     for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) && factPassesConstants(f, pattern: pat) {
+                        factsFiltered += 1
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
                             for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
@@ -345,10 +349,17 @@ extension BetaEngine {
             current = uniq
             if current.isEmpty { break }
             if env.watchReteProfile {
+                let lvlIdx = levels.count - 1
                 let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
-                if let rn = ruleName { Router.Writeln(&env, "RETE time \(rn)/L\(levels.count-1) \(ms)ms") }
-                else { Router.Writeln(&env, "RETE time L\(levels.count-1) \(ms)ms") }
+                if let rn = ruleName {
+                    Router.Writeln(&env, "RETE time \(rn)/L\(lvlIdx) \(ms)ms")
+                    Router.Writeln(&env, "RETE stats \(rn)/L\(lvlIdx) left=\(leftCount) facts=\(factsFiltered) out=\(uniq.count)")
+                } else {
+                    Router.Writeln(&env, "RETE time L\(lvlIdx) \(ms)ms")
+                    Router.Writeln(&env, "RETE stats L\(lvlIdx) left=\(leftCount) facts=\(factsFiltered) out=\(uniq.count)")
+                }
             }
+            // timing stampato sopra con stats
         }
         // Nodo filtro post-join: applica predicate CE (test ...)
         if let filter = compiled.filterNode, !filter.tests.isEmpty, !current.isEmpty {
@@ -369,8 +380,13 @@ extension BetaEngine {
             levels.append(uniq)
             if env.watchReteProfile {
                 let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
-                if let rn = ruleName { Router.Writeln(&env, "RETE time \(rn)/L\(levels.count-1) (filter) \(ms)ms") }
-                else { Router.Writeln(&env, "RETE time L\(levels.count-1) (filter) \(ms)ms") }
+                if let rn = ruleName {
+                    Router.Writeln(&env, "RETE time \(rn)/L\(levels.count-1) (filter) \(ms)ms")
+                    Router.Writeln(&env, "RETE stats \(rn)/L\(levels.count-1) (filter) out=\(uniq.count)")
+                } else {
+                    Router.Writeln(&env, "RETE time L\(levels.count-1) (filter) \(ms)ms")
+                    Router.Writeln(&env, "RETE stats L\(levels.count-1) (filter) out=\(uniq.count)")
+                }
             }
         }
         return levels
