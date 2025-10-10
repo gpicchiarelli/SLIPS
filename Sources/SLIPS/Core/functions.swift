@@ -263,6 +263,8 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             }
             Router.Writeln(&env, ")")
         }
+        // Rebuild agenda to remove obsolete activations
+        RuleEngine.rebuildAgenda(&env)
         return .boolean(true)
     }
     return .boolean(false)
