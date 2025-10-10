@@ -57,6 +57,18 @@ public enum RuleEngine {
         return fired
     }
 
+    public static func rebuildAgenda(_ env: inout Environment) {
+        env.agendaQueue.clear()
+        let facts = Array(env.facts.values)
+        for rule in env.rules {
+            let matches = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts)
+            for b in matches {
+                let act = Activation(priority: rule.salience, ruleName: rule.name, bindings: b)
+                if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
+            }
+        }
+    }
+
     private static func match(pattern: Pattern, fact: Environment.FactRec) -> [String: Value]? {
         guard pattern.name == fact.name else { return nil }
         var bindings: [String: Value] = [:]
