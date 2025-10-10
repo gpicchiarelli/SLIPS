@@ -235,7 +235,7 @@ public enum Evaluator {
             slots[sname] = test
             arg = valNode.nextArg
         }
-        return Pattern(name: pname, slots: slots)
+        return Pattern(name: pname, slots: slots, negated: false)
     }
 
     public static func EvaluateExpression(_ env: inout Environment, _ node: ExpressionNode) -> Value {
