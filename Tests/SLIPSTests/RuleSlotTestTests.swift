@@ -3,8 +3,7 @@ import XCTest
 
 @MainActor
 final class RuleSlotTestTests: XCTestCase {
-    func testSlotInternalTestUsesBoundVar() throws {
-        throw XCTSkip("Valutazione test interno di slot: attivazione su join da ancorare")
+    func testSlotInternalTestUsesBoundVar() {
         _ = CLIPS.createEnvironment()
         _ = CLIPS.eval(expr: "(deftemplate rec (slot a) (slot b))")
         _ = CLIPS.eval(expr: "(defrule r (rec a ?x b (test (> ?x 10))) => (printout t \"OK\" crlf))")
