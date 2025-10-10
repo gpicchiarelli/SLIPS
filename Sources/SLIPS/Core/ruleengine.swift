@@ -48,14 +48,27 @@ public enum RuleEngine {
                 : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale
-            if !hasNeg, env.experimentalJoinCheck, let cr = env.rete.rules[rule.name] {
-                BetaEngine.updateOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
+            if !hasNeg, (env.experimentalJoinCheck || env.experimentalJoinActivate), let cr = env.rete.rules[rule.name] {
+                let added = BetaEngine.updateOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
-                    if !equivalentMatchesStatic(matches, jList) {
+                    if env.experimentalJoinCheck, !equivalentMatchesStatic(matches, jList) {
                         if env.watchRules {
                             Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
                             logMatchDiff(&env, lhs: matches, rhs: jList)
+                        }
+                    }
+                }
+                if env.experimentalJoinActivate {
+                    // Genera attivazioni dai token aggiunti
+                    for t in added {
+                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: t.bindings)
+                        act.factIDs = t.usedFacts
+                        if !env.agendaQueue.contains(act) {
+                            env.agendaQueue.add(act)
+                            if env.watchRules {
+                                Router.Writeln(&env, "==> Activation \(rule.name)")
+                            }
                         }
                     }
                 }

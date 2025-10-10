@@ -33,21 +33,25 @@ public enum BetaEngine {
 
 extension BetaEngine {
     // Aggiorna BetaMemory in modo incrementale: aggiunge token derivati dall'anchor fact
-    public static func updateOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) {
+    // Ritorna i token aggiunti (nuovi) per consentire attivazioni incrementali
+    public static func updateOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
         let inc = computeIncremental(&env, compiled: compiled, facts: facts, anchor: anchor)
         let mem = env.rete.beta[ruleName] ?? BetaMemory()
         var keys = Set(mem.tokens.map(keyForToken))
         var toks = mem.tokens
+        var added: [BetaToken] = []
         for m in inc {
             let k = keyForMatch(m)
             if !keys.contains(k) {
                 keys.insert(k)
-                var bt = BetaToken(bindings: m.bindings, usedFacts: m.usedFacts)
+                let bt = BetaToken(bindings: m.bindings, usedFacts: m.usedFacts)
                 toks.append(bt)
+                added.append(bt)
             }
         }
         let newMem = BetaMemory(); newMem.tokens = toks
         env.rete.beta[ruleName] = newMem
+        return added
     }
 
     public static func updateOnRetract(_ env: inout Environment, ruleName: String, factID: Int) {

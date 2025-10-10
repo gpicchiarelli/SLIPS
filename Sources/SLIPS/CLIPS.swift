@@ -82,6 +82,8 @@ public final class Environment {
     public var rete: ReteNetwork = ReteNetwork()
     // Flag sperimentale: confronta join vs matcher corrente senza influenzare attivazioni
     public var experimentalJoinCheck: Bool = false
+    // Flag sperimentale: usa i token Beta per attivazioni (solo regole senza not)
+    public var experimentalJoinActivate: Bool = false
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SLIPS - Implementazione Swift di CLIPS. Traduzione semantica di CLIPS 6.40 in Swift 6.2">
+    <title>SLIPS - Documentazione in Italiano</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="stars"></div>
+    <div class="twinkling"></div>
+    
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">⚡</span>
+                <a href="../" style="text-decoration: none; color: inherit;">
+                    <span class="brand-name">SLIPS</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <div class="lang-switch">
+                    <button data-lang="en" onclick="window.location.href='../en/'">EN</button>
+                    <button data-lang="it" class="active">IT</button>
+                </div>
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="doc-container">
+        <div class="doc-header">
+            <h1 class="doc-title">Documentazione SLIPS</h1>
+            <p class="doc-subtitle">Swift Language Implementation of Production Systems</p>
+        </div>
+
+        <div class="doc-nav">
+            <h2>📚 Indice</h2>
+            <ul>
+                <li><a href="#intro">Introduzione</a></li>
+                <li><a href="#quickstart">Inizio Rapido</a></li>
+                <li><a href="#architecture">Architettura</a></li>
+                <li><a href="#api">API Reference</a></li>
+                <li><a href="#examples">Esempi</a></li>
+                <li><a href="#rete">Algoritmo RETE</a></li>
+                <li><a href="#contributing">Contribuire</a></li>
+            </ul>
+        </div>
+
+        <div class="doc-content">
+            <section id="intro">
+                <h2>🎯 Introduzione</h2>
+                <p>
+                    <strong>SLIPS</strong> (Swift Language Implementation of Production Systems) è una traduzione semantica 
+                    fedele di CLIPS 6.40 in Swift 6.2. Il progetto mantiene la filosofia, gli algoritmi e l'architettura 
+                    originale di CLIPS, adattandola alle caratteristiche di sicurezza e tipo del linguaggio Swift moderno.
+                </p>
+
+                <div class="alert alert-info">
+                    <strong>📌 Nota:</strong> Questo progetto non è una semplice wrapper o binding, ma una traduzione 
+                    completa file-per-file del sorgente C di CLIPS in Swift idiomatico.
+                </div>
+
+                <h3>Perché SLIPS?</h3>
+                <ul>
+                    <li><strong>Type Safety:</strong> Sfrutta il sistema di tipi robusto di Swift 6.2</li>
+                    <li><strong>Memory Safety:</strong> Gestione automatica della memoria senza malloc/free manuali</li>
+                    <li><strong>Modern Syntax:</strong> Codice idiomatico Swift moderno e manutenibile</li>
+                    <li><strong>Faithful Translation:</strong> Preserva algoritmi RETE, salience, strategie agenda</li>
+                    <li><strong>Well Documented:</strong> Ogni file Swift traccia il corrispondente file C originale</li>
+                </ul>
+
+                <h3>Cos'è CLIPS?</h3>
+                <p>
+                    CLIPS (C Language Integrated Production System) è un expert system shell sviluppato dalla NASA. 
+                    Utilizza un motore a regole basato sull'algoritmo RETE per il pattern matching efficiente e 
+                    supporta programmazione procedurale, orientata agli oggetti e guidata da regole.
+                </p>
+            </section>
+
+            <section id="quickstart">
+                <h2>🚀 Inizio Rapido</h2>
+                
+                <h3>Installazione</h3>
+                <p>Aggiungi SLIPS al tuo <code>Package.swift</code>:</p>
+                <pre><code>dependencies: [
+    .package(url: "https://github.com/gpicchiarelli/SLIPS.git", from: "0.1.0")
+]</code></pre>
+
+                <h3>Primo Programma</h3>
+                <pre><code>import SLIPS
+
+// Crea un environment
+let env = CLIPS.createEnvironment()
+
+// Definisci un template
+CLIPS.eval(expr: """
+(deftemplate persona
+    (slot nome)
+    (slot età (type INTEGER)))
+""")
+
+// Definisci una regola
+CLIPS.eval(expr: """
+(defrule saluta-adulto
+    (persona (nome ?n) (età ?e&:(>= ?e 18)))
+    =>
+    (printout t "Ciao " ?n ", sei maggiorenne!" crlf))
+""")
+
+// Asserisci fatti
+CLIPS.eval(expr: "(assert (persona (nome \"Mario\") (età 25)))")
+CLIPS.eval(expr: "(assert (persona (nome \"Luigi\") (età 16)))")
+
+// Esegui le regole
+let fired = CLIPS.run(limit: nil)
+print("Regole eseguite: \(fired)")</code></pre>
+
+                <h3>Esecuzione CLI</h3>
+                <pre><code>swift run slips-cli
+SLIPS> (facts)
+SLIPS> (rules)
+SLIPS> (run)</code></pre>
+            </section>
+
+            <section id="architecture">
+                <h2>🏗️ Architettura</h2>
+                
+                <h3>Componenti Principali</h3>
+                <ul>
+                    <li><strong>Environment:</strong> Contesto di esecuzione (fatti, regole, agenda)</li>
+                    <li><strong>Parser:</strong> Analisi lessicale e sintattica delle espressioni CLIPS</li>
+                    <li><strong>Evaluator:</strong> Valutazione di espressioni e chiamate a funzioni</li>
+                    <li><strong>RETE Network:</strong> Rete di pattern matching per efficienza</li>
+                    <li><strong>Agenda:</strong> Gestione attivazioni con strategie (depth, breadth, LEX, MEA)</li>
+                    <li><strong>Router System:</strong> I/O flessibile con callback personalizzabili</li>
+                </ul>
+
+                <h3>Mapping C → Swift</h3>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <tr style="background: var(--bg-darker); border-bottom: 2px solid var(--border);">
+                        <th style="padding: 0.75rem; text-align: left;">C (CLIPS)</th>
+                        <th style="padding: 0.75rem; text-align: left;">Swift (SLIPS)</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;"><code>struct</code></td>
+                        <td style="padding: 0.75rem;"><code>struct</code></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;"><code>union</code> + type tag</td>
+                        <td style="padding: 0.75rem;"><code>enum</code> con associated values</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;"><code>#define</code> macro</td>
+                        <td style="padding: 0.75rem;"><code>static let</code> o computed property</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;"><code>malloc/free</code></td>
+                        <td style="padding: 0.75rem;"><code>Array</code>, <code>Dictionary</code>, ARC</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">Puntatori</td>
+                        <td style="padding: 0.75rem;">Reference types, <code>Unsafe*</code> quando necessario</td>
+                    </tr>
+                </table>
+
+                <h3>Struttura File</h3>
+                <pre><code>Sources/SLIPS/
+├── Core/
+│   ├── envrnmnt.swift      (environment.c)
+│   ├── evaluator.swift     (evaluatn.c)
+│   ├── expressn.swift      (expressn.c)
+│   ├── scanner.swift       (scanner.c)
+│   ├── router.swift        (router.c)
+│   └── functions.swift     (funzioni built-in)
+├── Rete/
+│   ├── AlphaNetwork.swift  (alpha memory)
+│   ├── BetaEngine.swift    (beta network)
+│   └── Nodes.swift         (nodi RETE)
+├── Agenda/
+│   └── Agenda.swift        (agenda.c)
+└── CLIPS.swift             (facciata pubblica)</code></pre>
+            </section>
+
+            <section id="api">
+                <h2>📖 API Reference</h2>
+                
+                <h3>CLIPS (Facciata Principale)</h3>
+                <pre><code>// Creazione environment
+static func createEnvironment() -> Environment
+
+// Caricamento file
+static func load(_ path: String) -> Bool
+
+// Reset environment
+static func reset()
+
+// Esecuzione regole
+static func run(limit: Int?) -> Int
+
+// Assert fatti
+static func assert(fact: String) -> Int
+
+// Retract fatti
+static func retract(id: Int) -> Bool
+
+// Valutazione espressioni
+static func eval(expr: String) -> Value
+
+// Command loop interattivo
+static func commandLoop()</code></pre>
+
+                <h3>Environment</h3>
+                <pre><code>struct Environment {
+    var facts: [Int: FactRec]           // Base di fatti
+    var rules: [Rule]                    // Regole definite
+    var templates: [String: Template]    // Template deftemplate
+    var agendaQueue: AgendaQueue         // Coda attivazioni
+    var rete: ReteNetwork                // Rete RETE
+    var watchFacts: Bool                 // Watch fatti
+    var watchRules: Bool                 // Watch regole
+    var experimentalJoinCheck: Bool      // Beta engine sperimentale
+}</code></pre>
+
+                <h3>Value (Tipi di Dato)</h3>
+                <pre><code>enum Value: Codable, Equatable {
+    case none
+    case int(Int64)
+    case float(Double)
+    case string(String)
+    case symbol(String)
+    case boolean(Bool)
+    case multifield([Value])
+    case factAddress(Int)
+    case instanceAddress(String)
+    case externalAddress(String)
+}</code></pre>
+            </section>
+
+            <section id="examples">
+                <h2>💡 Esempi</h2>
+                
+                <h3>Sistema Esperto: Diagnosi Auto</h3>
+                <pre><code>(deftemplate problema
+    (slot tipo)
+    (slot descrizione))
+
+(deftemplate sintomo
+    (slot nome)
+    (slot gravità (type INTEGER)))
+
+(defrule diagnosi-batteria
+    (sintomo (nome "motore-non-parte"))
+    (sintomo (nome "luci-deboli"))
+    =>
+    (assert (problema 
+        (tipo "batteria-scarica")
+        (descrizione "La batteria necessita ricarica o sostituzione")))
+    (printout t "Diagnosi: Batteria scarica" crlf))
+
+(defrule diagnosi-alternatore
+    (problema (tipo "batteria-scarica"))
+    (sintomo (nome "batteria-si-scarica-rapidamente"))
+    =>
+    (printout t "Possibile guasto alternatore" crlf))</code></pre>
+
+                <h3>Pattern Matching Avanzato</h3>
+                <pre><code>(deftemplate ordine
+    (slot id)
+    (slot cliente)
+    (slot importo (type FLOAT))
+    (slot urgente (type SYMBOL)))
+
+(defrule ordine-prioritario
+    (ordine (id ?id) 
+            (cliente ?c) 
+            (importo ?i&:(> ?i 1000.0))
+            (urgente SI))
+    =>
+    (printout t "PRIORITÀ ALTA: Ordine " ?id 
+                " da " ?c " per €" ?i crlf))
+
+(defrule sconto-cliente-fedele
+    (ordine (id ?id) (cliente ?c) (importo ?i))
+    (cliente-premium (nome ?c) (anni ?a&:(>= ?a 5)))
+    =>
+    (bind ?sconto (* ?i 0.15))
+    (printout t "Sconto 15% per " ?c ": €" ?sconto crlf))</code></pre>
+
+                <h3>Negazione e Pattern NOT</h3>
+                <pre><code>(defrule cliente-senza-ordini
+    (cliente (id ?id) (nome ?n))
+    (not (ordine (cliente-id ?id)))
+    =>
+    (printout t "Cliente " ?n " non ha mai ordinato" crlf))
+
+(defrule stock-esaurito
+    (prodotto (codice ?c) (nome ?n))
+    (not (magazzino (prodotto ?c) (quantità ?q&:(> ?q 0))))
+    =>
+    (printout t "ALERT: " ?n " esaurito!" crlf))</code></pre>
+            </section>
+
+            <section id="rete">
+                <h2>⚡ Algoritmo RETE</h2>
+                
+                <h3>Cos'è il RETE?</h3>
+                <p>
+                    Il RETE è un algoritmo di pattern matching sviluppato da Charles Forgy nel 1979. 
+                    Ottimizza il matching di regole evitando di ricontrollare condizioni invariate ad ogni ciclo.
+                </p>
+
+                <h3>Componenti RETE in SLIPS</h3>
+                <ul>
+                    <li><strong>Alpha Network:</strong> Indice per template, filtra fatti per costanti</li>
+                    <li><strong>Beta Network:</strong> Join incrementali tra pattern, mantiene token parziali</li>
+                    <li><strong>Beta Memory:</strong> Cache di match intermedi per efficienza</li>
+                    <li><strong>Join Nodes:</strong> Nodi di congiunzione tra pattern (WIP)</li>
+                </ul>
+
+                <div class="alert alert-warning">
+                    <strong>⚠️ Stato Implementazione:</strong> Il RETE è in fase 1. Attualmente supporta:
+                    <ul style="margin-top: 0.5rem;">
+                        <li>✅ Alpha indexing per template</li>
+                        <li>✅ Beta engine per pattern positivi</li>
+                        <li>✅ Aggiornamento incrementale su assert/retract</li>
+                        <li>⏳ Pattern negati (semplificato, non usa NCC completo)</li>
+                        <li>⏳ Test predicati in join</li>
+                        <li>❌ Nodi RETE espliciti (alpha/beta/join nodes)</li>
+                    </ul>
+                </div>
+
+                <h3>Flag Sperimentale</h3>
+                <pre><code>// Abilita confronto tra backtracking classico e beta engine
+CLIPS.eval(expr: "(set-join-check on)")
+
+// Verifica lo stato
+let status = CLIPS.eval(expr: "(get-join-check)")
+// Ritorna: boolean(true)</code></pre>
+
+                <p>
+                    Quando <code>join-check</code> è attivo, SLIPS esegue <strong>entrambi</strong> gli algoritmi 
+                    e logga eventuali divergenze su STDERR. Questo aiuta a validare l'implementazione incrementale.
+                </p>
+            </section>
+
+            <section id="contributing">
+                <h2>🤝 Contribuire</h2>
+                
+                <h3>Linee Guida</h3>
+                <p>Consulta il file <code>AGENTS.md</code> nella root del repository per le regole complete. In sintesi:</p>
+                
+                <ul>
+                    <li>Traduzione semantica fedele, non semplificare algoritmi</li>
+                    <li>Mapping file-per-file: ogni <code>.c/.h</code> → <code>.swift</code> corrispondente</li>
+                    <li>Evitare force unwrap, preferire <code>guard let</code> e pattern matching</li>
+                    <li>Commentare in italiano, citare nomi funzioni C originali</li>
+                    <li>Aggiungere test per ogni modulo tradotto</li>
+                </ul>
+
+                <h3>Setup Sviluppo</h3>
+                <pre><code>git clone https://github.com/gpicchiarelli/SLIPS.git
+cd SLIPS
+swift build
+swift test</code></pre>
+
+                <h3>Eseguire Test</h3>
+                <pre><code># Tutti i test
+swift test
+
+# Test specifico
+swift test --filter ReteJoinCheckTests
+
+# Con verbose
+swift test --verbose</code></pre>
+
+                <h3>Struttura Moduli da Tradurre</h3>
+                <p>Riferimento sorgenti CLIPS originali:</p>
+                <pre><code>clips_core_source_642/core/
+├── agenda.c/h          → Agenda/Agenda.swift ✅
+├── drive.c/h           → Rete/BetaEngine.swift 🚧
+├── pattern.c/h         → (da tradurre)
+├── reteutil.c/h        → (da tradurre)
+├── network.c/h         → (da tradurre)
+└── ...</code></pre>
+
+                <h3>Roadmap</h3>
+                <p>Consulta <code>docs/ROADMAP.md</code> per la pianificazione dettagliata delle fasi:</p>
+                <ul>
+                    <li><strong>Fase 1 (corrente):</strong> Core + Parser + RETE base</li>
+                    <li><strong>Fase 2:</strong> RETE completo + NCC</li>
+                    <li><strong>Fase 3:</strong> COOL (Object-Oriented)</li>
+                    <li><strong>Fase 4:</strong> Ottimizzazioni + Features avanzate</li>
+                </ul>
+
+                <div class="alert alert-success">
+                    <strong>💚 Contributi Benvenuti!</strong> 
+                    Le pull request sono sempre apprezzate. Per modifiche importanti, apri prima una issue per discutere cosa vorresti cambiare.
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>SLIPS - Traduzione semantica di CLIPS 6.40 in Swift 6.2</p>
+            <p class="footer-links">
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank">GitHub</a> · 
+                <a href="https://github.com/gpicchiarelli/SLIPS/blob/main/README.md" target="_blank">README</a> · 
+                <a href="../en/">English Docs</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+</body>
+</html>
+
