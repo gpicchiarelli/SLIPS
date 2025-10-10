@@ -297,6 +297,8 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             }
             Router.Writeln(&env, ")")
         }
+        // Aggiorna indice alpha
+        env.rete.alpha.remove(fact)
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)
         env.agendaQueue.removeByFactID(fact.id)
         return .boolean(true)

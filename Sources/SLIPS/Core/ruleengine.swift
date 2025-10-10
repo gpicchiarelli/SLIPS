@@ -24,16 +24,28 @@ public struct Rule: Codable {
 public enum RuleEngine {
     public static func addRule(_ env: inout Environment, _ rule: Rule) {
         env.rules.append(rule)
+        let cr = ReteCompiler.compile(rule)
+        env.rete.rules[rule.name] = cr
     }
 
     public static func onAssert(_ env: inout Environment, _ fact: Environment.FactRec) {
         // Revaluta regole contro i fatti ancorando sul fatto nuovo
+        env.rete.alpha.add(fact)
         let facts = Array(env.facts.values)
         for rule in env.rules {
             let hasNeg = rule.patterns.contains { $0.negated }
+            // Usa indice alpha per limitare i candidati ai soli template della regola
+            let usedTemplates = Set(rule.patterns.map { $0.name })
+            var candidateFacts: [Environment.FactRec] = []
+            for t in usedTemplates {
+                for id in env.rete.alpha.ids(for: t) {
+                    if let f = env.facts[id] { candidateFacts.append(f) }
+                }
+            }
+            let pool = candidateFacts.isEmpty ? facts : candidateFacts
             let matches = hasNeg
-                ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts)
-                : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts, anchor: fact)
+                ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
             for m in matches {
                 var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                 act.factIDs = m.usedFacts

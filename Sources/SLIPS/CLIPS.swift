@@ -79,6 +79,7 @@ public final class Environment {
     public var nextFactId: Int = 1
     public var rules: [Rule] = []
     public var agendaQueue: Agenda = Agenda()
+    public var rete: ReteNetwork = ReteNetwork()
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
