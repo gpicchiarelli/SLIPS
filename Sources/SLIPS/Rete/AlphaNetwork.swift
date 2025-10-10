@@ -36,6 +36,8 @@ public struct ReteNetwork {
     public var alpha: AlphaIndex = AlphaIndex()
     public var rules: [String: CompiledRule] = [:]
     public var beta: [String: BetaMemory] = [:]
+    // Memorie beta per livello di join: ruleName -> (levelIndex -> BetaMemory)
+    public var betaLevels: [String: [Int: BetaMemory]] = [:]
     public init() {}
 }
 
