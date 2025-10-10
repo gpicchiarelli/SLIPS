@@ -34,6 +34,7 @@ public struct CompiledRule {
 public struct ReteNetwork {
     public var alpha: AlphaIndex = AlphaIndex()
     public var rules: [String: CompiledRule] = [:]
+    public var beta: [String: BetaMemory] = [:]
     public init() {}
 }
 

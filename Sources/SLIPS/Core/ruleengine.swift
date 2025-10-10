@@ -49,7 +49,7 @@ public enum RuleEngine {
 
             // Confronto sperimentale: join vs matcher corrente (solo senza not)
             if !hasNeg, env.experimentalJoinCheck, let cr = env.rete.rules[rule.name] {
-                let jMatches = computeMatchesJoin(env: &env, compiled: cr, facts: pool)
+                let jMatches = BetaEngine.computeMatches(&env, compiled: cr, facts: pool)
                 if !equivalentMatchesStatic(matches, jMatches) {
                     if env.watchRules {
                         Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
@@ -129,7 +129,7 @@ public enum RuleEngine {
         }
     }
 
-    private static func match(env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> [String: Value]? {
+    static func match(env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> [String: Value]? {
         guard pattern.name == fact.name else { return nil }
         var bindings: [String: Value] = [:]
         // Per stabilità: prima variabili, poi costanti, infine predicate
@@ -206,7 +206,7 @@ public enum RuleEngine {
         return true
     }
 
-    private struct PartialMatch { let bindings: [String: Value]; let usedFacts: Set<Int> }
+    public struct PartialMatch { let bindings: [String: Value]; let usedFacts: Set<Int> }
 
     private static func generateMatches(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec]) -> [PartialMatch] {
         guard !patterns.isEmpty else { return [] }
@@ -285,7 +285,7 @@ public enum RuleEngine {
         return results
     }
 
-    private static func applyTests(_ env: inout Environment, tests: [ExpressionNode], with binding: [String: Value]) -> Bool {
+    static func applyTests(_ env: inout Environment, tests: [ExpressionNode], with binding: [String: Value]) -> Bool {
         let old = env.localBindings
         for (k,v) in binding { env.localBindings[k] = v }
         var okAll = true
@@ -303,16 +303,16 @@ public enum RuleEngine {
         env.localBindings = old
         return okAll
     }
-}
 
-// Helper: confronto insiemi di match (bindings + usedFacts)
-private static func equivalentMatchesStatic(_ lhs: [PartialMatch], _ rhs: [PartialMatch]) -> Bool {
-    func key(_ m: PartialMatch) -> String {
-        let b = m.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-        let f = m.usedFacts.sorted().map { String($0) }.joined(separator: ",")
-        return b + "|" + f
+    // Helper: confronto insiemi di match (bindings + usedFacts)
+    private static func equivalentMatchesStatic(_ lhs: [PartialMatch], _ rhs: [PartialMatch]) -> Bool {
+        func key(_ m: PartialMatch) -> String {
+            let b = m.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            let f = m.usedFacts.sorted().map { String($0) }.joined(separator: ",")
+            return b + "|" + f
+        }
+        let ls = Set(lhs.map(key))
+        let rs = Set(rhs.map(key))
+        return ls == rs
     }
-    let ls = Set(lhs.map(key))
-    let rs = Set(rhs.map(key))
-    return ls == rs
 }
