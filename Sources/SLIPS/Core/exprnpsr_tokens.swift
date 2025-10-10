@@ -141,7 +141,8 @@ public enum ExprTokenParser {
         // ')' => nessun argomento
         if theToken.tknType == .RIGHT_PARENTHESIS_TOKEN { return nil }
         switch theToken.tknType {
-        case .SYMBOL_TOKEN, .STRING_TOKEN, .INTEGER_TOKEN, .FLOAT_TOKEN:
+        case .SYMBOL_TOKEN, .STRING_TOKEN, .INTEGER_TOKEN, .FLOAT_TOKEN,
+             .SF_VARIABLE_TOKEN, .MF_VARIABLE_TOKEN, .GBL_VARIABLE_TOKEN, .MF_GBL_VARIABLE_TOKEN, .INSTANCE_NAME_TOKEN:
             return tokenToConstant(theToken)
         case .LEFT_PARENTHESIS_TOKEN:
             return try Function1Parse(&env, logicalName)

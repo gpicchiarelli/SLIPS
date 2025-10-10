@@ -27,16 +27,22 @@ public enum RuleEngine {
     }
 
     public static func onAssert(_ env: inout Environment, _ fact: Environment.FactRec) {
-        // Revaluta regole contro tutti i fatti per gestire join multi-pattern (naive)
+        // Revaluta regole contro i fatti ancorando sul fatto nuovo
         let facts = Array(env.facts.values)
         for rule in env.rules {
-            let matches = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts, anchor: fact)
+            let hasNeg = rule.patterns.contains { $0.negated }
+            let matches = hasNeg
+                ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts)
+                : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts, anchor: fact)
             for m in matches {
                 var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                 act.factIDs = m.usedFacts
                 if !env.agendaQueue.contains(act) {
                     env.agendaQueue.add(act)
-                    if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.name)") }
+                    if env.watchRules {
+                        Router.Writeln(&env, "==> Activation \(rule.name)")
+                        Router.WriteString(&env, "t", "ACT \(rule.name)\n")
+                    }
                 }
             }
         }
@@ -50,7 +56,10 @@ public enum RuleEngine {
             guard let rule = env.rules.first(where: { $0.name == act.ruleName }) else { continue }
             let oldBindings = env.localBindings
             if let b = act.bindings { for (k,v) in b { env.localBindings[k] = v } }
-            if env.watchRules { Router.Writeln(&env, "FIRE \(rule.name)") }
+            if env.watchRules {
+                Router.Writeln(&env, "FIRE \(rule.name)")
+                Router.WriteString(&env, "t", "FIRE \(rule.name)\n")
+            }
             for exp in rule.rhs { _ = Evaluator.EvaluateExpression(&env, exp) }
             env.localBindings = oldBindings
             fired += 1
@@ -92,16 +101,19 @@ public enum RuleEngine {
             guard let fval = fact.slots[slot] else { return nil }
             if case .constant(let v) = test.kind { if v != fval { return nil } }
         }
-        // predicate
-        for (slot, test) in predEntries {
-            guard fact.slots[slot] != nil else { return nil }
-            if case .predicate(let expr) = test.kind {
+        // predicati
+        for (_, test) in predEntries {
+            if case .predicate(let exprNode) = test.kind {
                 let old = env.localBindings
-                // unisci binding corrente + nuovi
                 for (k,v) in current { env.localBindings[k] = v }
                 for (k,v) in bindings { env.localBindings[k] = v }
-                // valuta predicato
-                let res = Evaluator.EvaluateExpression(&env, expr)
+                let exprToEval: ExpressionNode
+                if exprNode.type == .fcall, (exprNode.value?.value as? String) == "test", let a = exprNode.argList {
+                    exprToEval = a
+                } else {
+                    exprToEval = exprNode
+                }
+                let res = Evaluator.EvaluateExpression(&env, exprToEval)
                 env.localBindings = old
                 switch res {
                 case .boolean(let b): if !b { return nil }
@@ -111,6 +123,38 @@ public enum RuleEngine {
             }
         }
         return bindings
+    }
+
+    // Matching per CE negato: ignora variabili non ancora bound
+    private static func matchesNegative(env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> Bool {
+        guard pattern.name == fact.name else { return false }
+        for (slot, test) in pattern.slots {
+            guard let fval = fact.slots[slot] else { return false }
+            switch test.kind {
+            case .constant(let v):
+                if v != fval { return false }
+            case .variable(let name):
+                if let existing = current[name] { if existing != fval { return false } }
+                // se non bound: wildcard, nessun vincolo
+            case .predicate(let exprNode):
+                let old = env.localBindings
+                for (k,v) in current { env.localBindings[k] = v }
+                let exprToEval: ExpressionNode
+                if exprNode.type == .fcall, (exprNode.value?.value as? String) == "test", let a = exprNode.argList {
+                    exprToEval = a
+                } else {
+                    exprToEval = exprNode
+                }
+                let res = Evaluator.EvaluateExpression(&env, exprToEval)
+                env.localBindings = old
+                switch res {
+                case .boolean(let b): if !b { return false }
+                case .int(let i): if i == 0 { return false }
+                default: return false
+                }
+            }
+        }
+        return true
     }
 
     private struct PartialMatch { let bindings: [String: Value]; let usedFacts: Set<Int> }
@@ -128,13 +172,10 @@ public enum RuleEngine {
             }
             let pat = patterns[idx]
             if pat.negated {
-                // Fail if any fact matches with current binding
+                // Fail if any fact matches with current binding (ignore new variables)
                 var any = false
                 for f in facts where f.name == pat.name {
-                    if let _ = match(env: &env, pattern: pat, fact: f, current: current) {
-                        // Check consistency with current binding
-                        any = true; break
-                    }
+                    if matchesNegative(env: &env, pattern: pat, fact: f, current: current) { any = true; break }
                 }
                 if any { return } else { backtrack(idx + 1, current, used) }
             } else {
@@ -173,9 +214,7 @@ public enum RuleEngine {
                     if p.negated {
                         var any = false
                         for f in facts where f.name == p.name {
-                            if let _ = match(env: &env, pattern: p, fact: f, current: current) {
-                                any = true; break
-                            }
+                            if matchesNegative(env: &env, pattern: p, fact: f, current: current) { any = true; break }
                         }
                         if any { return } else { backtrack(pidx + 1, current, used) }
                     } else {

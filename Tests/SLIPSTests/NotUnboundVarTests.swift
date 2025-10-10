@@ -3,8 +3,7 @@ import XCTest
 
 @MainActor
 final class NotUnboundVarTests: XCTestCase {
-    func testNotWithUnboundVariable() throws {
-        throw XCTSkip("Integrazione 'not' con variabili non bound: stabilizzazione test")
+    func testNotWithUnboundVariable() {
         _ = CLIPS.createEnvironment()
         _ = CLIPS.eval(expr: "(deftemplate person (slot name))")
         _ = CLIPS.eval(expr: "(deftemplate enemy (slot of) (slot name))")

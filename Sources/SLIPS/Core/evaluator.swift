@@ -147,7 +147,7 @@ public enum Evaluator {
                         continue
                     }
                     if n.type == .fcall, (n.value?.value as? String) == "not" {
-                        if let inner = n.argList, let p = parseSimplePattern(&env, inner) {
+                        if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
                             let np = Pattern(name: p.name, slots: p.slots, negated: true)
                             patterns.append(np)
                         }
@@ -155,12 +155,16 @@ public enum Evaluator {
                         continue
                     }
                     if n.type == .fcall, (n.value?.value as? String) == "exists" {
-                        if let inner = n.argList, let p = parseSimplePattern(&env, inner) { patterns.append(p) }
+                        if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) { patterns.append(p) }
                         cur = n.nextArg
                         continue
                     }
                     if n.type == .fcall {
-                        if let p = parseSimplePattern(&env, n) { patterns.append(p) }
+                        if let (p, preds) = parseSimplePattern(&env, n) {
+                            patterns.append(p)
+                            // Propaga predicati di slot come test esterni per singolo-pattern
+                            for pr in preds { tests.append(pr) }
+                        }
                     }
                     cur = n.nextArg
                 }
@@ -292,10 +296,12 @@ public enum Evaluator {
     }
 
     // Parse a simple pattern of form (entity slot val slot val ...)
-    private static func parseSimplePattern(_ env: inout Environment, _ node: ExpressionNode) -> Pattern? {
+    // Also collects predicate expressions found in slot values.
+    private static func parseSimplePattern(_ env: inout Environment, _ node: ExpressionNode) -> (Pattern, [ExpressionNode])? {
         guard node.type == .fcall else { return nil }
         let pname = (node.value?.value as? String) ?? ""
         var slots: [String: PatternTest] = [:]
+        var predicates: [ExpressionNode] = []
         var arg = node.argList
         while let snameNode = arg {
             guard snameNode.type == .symbol, let sname = (snameNode.value?.value as? String) else { break }
@@ -308,24 +314,15 @@ public enum Evaluator {
             case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
             case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
             case .fcall:
-                if let fname = (valNode.value?.value as? String), fname == "test" {
-                    // Salva l'espressione all'interno del test per valutazione durante il matching
-                    if let expr = valNode.argList {
-                        test = PatternTest(kind: .predicate(expr))
-                    } else {
-                        test = PatternTest(kind: .predicate(Expressions.GenConstant(.boolean, true)))
-                    }
-                } else {
-                    // Considera altre funzioni come predicate generico
-                    test = PatternTest(kind: .predicate(valNode))
-                }
+                test = PatternTest(kind: .predicate(valNode))
+                predicates.append(valNode)
             default:
                 test = PatternTest(kind: .constant(.none))
             }
             slots[sname] = test
             arg = valNode.nextArg
         }
-        return Pattern(name: pname, slots: slots, negated: false)
+        return (Pattern(name: pname, slots: slots, negated: false), predicates)
     }
 
     private static func sexpString(_ node: ExpressionNode) -> String {

@@ -35,7 +35,14 @@ public struct Agenda: Codable, Equatable {
 
     public var isEmpty: Bool { queue.isEmpty }
 
-    public func contains(_ a: Activation) -> Bool { queue.contains(a) }
+    public func contains(_ a: Activation) -> Bool {
+        return queue.contains { existing in
+            existing.priority == a.priority &&
+            existing.ruleName == a.ruleName &&
+            existing.bindings == a.bindings &&
+            existing.factIDs == a.factIDs
+        }
+    }
 
     public mutating func clear() { queue.removeAll(keepingCapacity: false) }
 
