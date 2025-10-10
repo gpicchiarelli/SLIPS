@@ -47,12 +47,16 @@ public enum RuleEngine {
                 ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
 
-            // Confronto sperimentale: join vs matcher corrente (solo senza not)
+            // Confronto + aggiornamento BetaMemory in modalità sperimentale
             if !hasNeg, env.experimentalJoinCheck, let cr = env.rete.rules[rule.name] {
-                let jMatches = BetaEngine.computeMatches(&env, compiled: cr, facts: pool)
-                if !equivalentMatchesStatic(matches, jMatches) {
-                    if env.watchRules {
-                        Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
+                BetaEngine.updateOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
+                if let mem = env.rete.beta[rule.name] {
+                    let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
+                    if !equivalentMatchesStatic(matches, jList) {
+                        if env.watchRules {
+                            Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
+                            logMatchDiff(&env, lhs: matches, rhs: jList)
+                        }
                     }
                 }
             }
@@ -314,5 +318,41 @@ public enum RuleEngine {
         let ls = Set(lhs.map(key))
         let rs = Set(rhs.map(key))
         return ls == rs
+    }
+
+    private static func logMatchDiff(_ env: inout Environment, lhs: [PartialMatch], rhs: [PartialMatch]) {
+        func key(_ m: PartialMatch) -> String {
+            let b = m.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            let f = m.usedFacts.sorted().map { String($0) }.joined(separator: ",")
+            return b + "|" + f
+        }
+        func describe(_ m: PartialMatch) -> String {
+            let b = m.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
+            let f = m.usedFacts.sorted().map { String($0) }.joined(separator: ",")
+            return "{bindings: [" + b + "], facts: [" + f + "]}"
+        }
+        let lset = Dictionary(uniqueKeysWithValues: lhs.map { (key($0), $0) })
+        let rset = Dictionary(uniqueKeysWithValues: rhs.map { (key($0), $0) })
+        var onlyL: [PartialMatch] = []
+        var onlyR: [PartialMatch] = []
+        for (k,v) in lset { if rset[k] == nil { onlyL.append(v) } }
+        for (k,v) in rset { if lset[k] == nil { onlyR.append(v) } }
+        let maxPrint = 10
+        if !onlyL.isEmpty {
+            Router.WriteString(&env, Router.STDERR, "  LHS-only (\(onlyL.count)):\n")
+            for i in 0..<min(maxPrint, onlyL.count) {
+                Router.WriteString(&env, Router.STDERR, "    ")
+                Router.WriteString(&env, Router.STDERR, describe(onlyL[i]))
+                Router.WriteString(&env, Router.STDERR, "\n")
+            }
+        }
+        if !onlyR.isEmpty {
+            Router.WriteString(&env, Router.STDERR, "  JOIN-only (\(onlyR.count)):\n")
+            for i in 0..<min(maxPrint, onlyR.count) {
+                Router.WriteString(&env, Router.STDERR, "    ")
+                Router.WriteString(&env, Router.STDERR, describe(onlyR[i]))
+                Router.WriteString(&env, Router.STDERR, "\n")
+            }
+        }
     }
 }

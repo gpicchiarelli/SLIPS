@@ -29,6 +29,7 @@ public struct CompiledRule {
     public let patterns: [CompiledPattern]
     public let salience: Int
     public let tests: [ExpressionNode]
+    public let joinOrder: [Int]
 }
 
 public struct ReteNetwork {
@@ -41,6 +42,7 @@ public struct ReteNetwork {
 public enum ReteCompiler {
     public static func compile(_ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
-        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests)
+        let order = Array(0..<cps.count)
+        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, joinOrder: order)
     }
 }

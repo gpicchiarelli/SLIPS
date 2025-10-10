@@ -13,6 +13,6 @@ public struct BetaNode: Codable, Equatable {
 
 public struct JoinNode: Codable, Equatable {
     public var id: Int
-    public init(id: Int) { self.id = id }
+    public var patternIndex: Int
+    public init(id: Int, patternIndex: Int) { self.id = id; self.patternIndex = patternIndex }
 }
-

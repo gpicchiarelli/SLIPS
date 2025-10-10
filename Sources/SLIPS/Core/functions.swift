@@ -299,8 +299,13 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             }
             Router.Writeln(&env, ")")
         }
-        // Aggiorna indice alpha
+        // Aggiorna rete: alpha e beta (sperimentale)
         env.rete.alpha.remove(fact)
+        if env.experimentalJoinCheck {
+            for (rname, _) in env.rete.rules {
+                BetaEngine.updateOnRetract(&env, ruleName: rname, factID: fact.id)
+            }
+        }
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)
         env.agendaQueue.removeByFactID(fact.id)
         return .boolean(true)
@@ -397,7 +402,7 @@ private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -
 }
 
 private func builtin_clear(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll(); env.agendaQueue.clear()
+    env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll(); env.agendaQueue.clear(); env.rete = ReteNetwork()
     return .boolean(true)
 }
 
