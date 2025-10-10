@@ -80,6 +80,8 @@ public final class Environment {
     public var rules: [Rule] = []
     public var agendaQueue: Agenda = Agenda()
     public var rete: ReteNetwork = ReteNetwork()
+    // Flag sperimentale: confronta join vs matcher corrente senza influenzare attivazioni
+    public var experimentalJoinCheck: Bool = false
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)

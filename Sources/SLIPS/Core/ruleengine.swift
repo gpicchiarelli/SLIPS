@@ -43,9 +43,19 @@ public enum RuleEngine {
                 }
             }
             let pool = candidateFacts.isEmpty ? facts : candidateFacts
-            let matches: [PartialMatch] = hasNeg
+            var matches: [PartialMatch] = hasNeg
                 ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+
+            // Confronto sperimentale: join vs matcher corrente (solo senza not)
+            if !hasNeg, env.experimentalJoinCheck, let cr = env.rete.rules[rule.name] {
+                let jMatches = computeMatchesJoin(env: &env, compiled: cr, facts: pool)
+                if !equivalentMatchesStatic(matches, jMatches) {
+                    if env.watchRules {
+                        Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
+                    }
+                }
+            }
             for m in matches {
                 var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                 act.factIDs = m.usedFacts
@@ -293,4 +303,16 @@ public enum RuleEngine {
         env.localBindings = old
         return okAll
     }
+}
+
+// Helper: confronto insiemi di match (bindings + usedFacts)
+private static func equivalentMatchesStatic(_ lhs: [PartialMatch], _ rhs: [PartialMatch]) -> Bool {
+    func key(_ m: PartialMatch) -> String {
+        let b = m.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        let f = m.usedFacts.sorted().map { String($0) }.joined(separator: ",")
+        return b + "|" + f
+    }
+    let ls = Set(lhs.map(key))
+    let rs = Set(rhs.map(key))
+    return ls == rs
 }

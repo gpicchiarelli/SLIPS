@@ -46,6 +46,8 @@ public enum Functions {
         env.functionTable["clear"] = FunctionDefinitionSwift(name: "clear", impl: builtin_clear)
         env.functionTable["set-strategy"] = FunctionDefinitionSwift(name: "set-strategy", impl: builtin_set_strategy)
         env.functionTable["get-strategy"] = FunctionDefinitionSwift(name: "get-strategy", impl: builtin_get_strategy)
+        env.functionTable["set-join-check"] = FunctionDefinitionSwift(name: "set-join-check", impl: builtin_set_join_check)
+        env.functionTable["get-join-check"] = FunctionDefinitionSwift(name: "get-join-check", impl: builtin_get_join_check)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -424,6 +426,20 @@ private extension Value {
         switch self { case .string(let s): return s; case .symbol(let s): return s; default: return nil }
     }
     var intValue: Int64? { if case .int(let i) = self { return i } else { return nil } }
+}
+
+// Join check flag
+private func builtin_set_join_check(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch s {
+    case "true", "on", "1": env.experimentalJoinCheck = true; return .boolean(true)
+    case "false", "off", "0": env.experimentalJoinCheck = false; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_get_join_check(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .boolean(env.experimentalJoinCheck)
 }
 
 // Validazione constraints di slot
