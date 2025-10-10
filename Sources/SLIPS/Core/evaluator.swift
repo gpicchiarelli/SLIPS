@@ -34,6 +34,43 @@ public enum Evaluator {
             return .boolean((node.value?.value as? Bool) ?? false)
         case .fcall:
             let name = (node.value?.value as? String) ?? ""
+            if name == "deftemplate" {
+                var cur = node.argList
+                guard let nameNode = cur else { return .boolean(false) }
+                let nameVal = try eval(&env, nameNode)
+                let tname: String
+                switch nameVal { case .string(let s): tname = s; case .symbol(let s): tname = s; default: tname = "" }
+                cur = nameNode.nextArg
+                var slots: [String: Environment.SlotDef] = [:]
+                while let n = cur {
+                    if n.type == .fcall, let fname = (n.value?.value as? String) {
+                        if fname == "slot" || fname == "multislot" {
+                            guard let snameNode = n.argList, let sname = (snameNode.value?.value as? String) else { cur = n.nextArg; continue }
+                            var defaultType: Environment.SlotDefaultType = .none
+                            var defaultStatic: Value? = nil
+                            var defaultDynamicExpr: String? = nil
+                            var opt = snameNode.nextArg
+                            while let on = opt {
+                                if on.type == .fcall, let oname = (on.value?.value as? String) {
+                                    if oname == "default" {
+                                        if let arg = on.argList, let v = try? eval(&env, arg) {
+                                            defaultType = .static; defaultStatic = v
+                                        }
+                                    } else if oname == "default-dynamic" {
+                                        if let arg = on.argList { defaultType = .dynamic; defaultDynamicExpr = sexpString(arg) }
+                                    }
+                                }
+                                opt = on.nextArg
+                            }
+                            let sd = Environment.SlotDef(name: sname, isMultifield: (fname == "multislot"), defaultType: defaultType, defaultStatic: defaultStatic, defaultDynamicExpr: defaultDynamicExpr)
+                            slots[sname] = sd
+                        }
+                    }
+                    cur = n.nextArg
+                }
+                env.templates[tname] = Environment.Template(name: tname, slots: slots)
+                return .symbol(tname)
+            }
             if name == "defrule" {
                 // defrule parsing: (defrule name <patterns> => <actions...>)
                 var cur = node.argList
@@ -236,6 +273,42 @@ public enum Evaluator {
             arg = valNode.nextArg
         }
         return Pattern(name: pname, slots: slots, negated: false)
+    }
+
+    private static func sexpString(_ node: ExpressionNode) -> String {
+        switch node.type {
+        case .fcall:
+            let name = (node.value?.value as? String) ?? ""
+            var parts: [String] = ["(", name]
+            var arg = node.argList
+            while let n = arg { parts.append(" "); parts.append(sexpString(n)); arg = n.nextArg }
+            parts.append(")")
+            return parts.joined()
+        case .integer:
+            if let v = node.value?.value as? Int64 { return String(v) }
+            return "0"
+        case .float:
+            if let d = node.value?.value as? Double { return String(d) }
+            return "0.0"
+        case .string:
+            if let s = node.value?.value as? String { return "\"" + s.replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
+            return "\"\""
+        case .symbol:
+            return (node.value?.value as? String) ?? ""
+        case .boolean:
+            if let b = node.value?.value as? Bool { return b ? "TRUE" : "FALSE" }
+            return "FALSE"
+        case .variable:
+            return "?" + ((node.value?.value as? String) ?? "v")
+        case .mfVariable:
+            return "$?" + ((node.value?.value as? String) ?? "vs")
+        case .gblVariable:
+            return "?*" + ((node.value?.value as? String) ?? "g") + "*"
+        case .mfGblVariable:
+            return "$?*" + ((node.value?.value as? String) ?? "gs") + "*"
+        case .instanceName:
+            return "[" + ((node.value?.value as? String) ?? "inst") + "]"
+        }
     }
 
     public static func EvaluateExpression(_ env: inout Environment, _ node: ExpressionNode) -> Value {

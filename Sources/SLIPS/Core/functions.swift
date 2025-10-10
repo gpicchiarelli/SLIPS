@@ -40,6 +40,7 @@ public enum Functions {
         env.functionTable["value"] = FunctionDefinitionSwift(name: "value", impl: builtin_value)
         env.functionTable["facts"] = FunctionDefinitionSwift(name: "facts", impl: builtin_facts)
         env.functionTable["templates"] = FunctionDefinitionSwift(name: "templates", impl: builtin_templates)
+        env.functionTable["create$"] = FunctionDefinitionSwift(name: "create$", impl: builtin_create$)
         env.functionTable["watch"] = FunctionDefinitionSwift(name: "watch", impl: builtin_watch)
         env.functionTable["unwatch"] = FunctionDefinitionSwift(name: "unwatch", impl: builtin_unwatch)
         env.functionTable["clear"] = FunctionDefinitionSwift(name: "clear", impl: builtin_clear)
@@ -210,14 +211,8 @@ private func builtin_printout(_ env: inout Environment, _ args: [Value]) throws 
 // MARK: - Costrutti minimi
 
 private func builtin_deftemplate(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    // (deftemplate name (slot a) (slot b) ...)
+    // Gestito dallo special form in evaluator; ritorna simbolo per compatibilità
     guard let name = (args.first?.stringValue) else { return .none }
-    var slots: [String] = []
-    for v in args.dropFirst() {
-        if case .symbol(let s) = v, s.lowercased() == "slot" { continue }
-        if let s = v.stringValue { slots.append(s) }
-    }
-    env.templates[name] = Environment.Template(name: name, slots: slots)
     return .symbol(name)
 }
 
@@ -233,6 +228,44 @@ private func builtin_assert(_ env: inout Environment, _ args: [Value]) throws ->
     var it = args.dropFirst().makeIterator()
     while let key = it.next()?.stringValue, let val = it.next() { slotMap[key] = val }
     let id = env.nextFactId; env.nextFactId += 1
+    // Fill missing slots from template defaults
+    if let tmpl = env.templates[name] {
+        for (_, sd) in tmpl.slots {
+            if slotMap[sd.name] == nil {
+                switch sd.defaultType {
+                case .none:
+                    slotMap[sd.name] = Value.none
+                case .static:
+                    if let v = sd.defaultStatic {
+                        if sd.isMultifield {
+                            switch v { case .multifield: slotMap[sd.name] = v; default: slotMap[sd.name] = .multifield([v]) }
+                        } else { slotMap[sd.name] = v }
+                    } else { slotMap[sd.name] = Value.none }
+                case .dynamic:
+                    if let expr = sd.defaultDynamicExpr {
+                        // Valuta expr dinamico tramite fast router/token parser
+                        var envCopy = env
+                        let router = "***DEFEXP***"
+                        let r = RouterEnvData.ensure(&envCopy)
+                        r.FastCharGetRouter = router
+                        r.FastCharGetString = expr
+                        r.FastCharGetIndex = 0
+                        var val: Value = .none
+                        if let ast = try? ExprTokenParser.parseTop(&envCopy, logicalName: router), let res = try? Evaluator.eval(&envCopy, ast) {
+                            val = res
+                        }
+                        if sd.isMultifield {
+                            switch val { case .multifield: slotMap[sd.name] = val; default: slotMap[sd.name] = .multifield([val]) }
+                        } else { slotMap[sd.name] = val }
+                    } else { slotMap[sd.name] = Value.none }
+                }
+            } else if sd.isMultifield, let existing = slotMap[sd.name] {
+                // Normalize single to multifield when required
+                if case .multifield = existing { /* ok */ } else { slotMap[sd.name] = .multifield([existing]) }
+            }
+        }
+    }
+
     env.facts[id] = Environment.FactRec(id: id, name: name, slots: slotMap)
     RuleEngine.onAssert(&env, env.facts[id]!)
     if env.watchFacts {
@@ -294,14 +327,29 @@ private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws
     for (_, t) in env.templates {
         Router.WriteString(&env, Router.STDOUT, "(deftemplate ")
         Router.WriteString(&env, Router.STDOUT, t.name)
-        for s in t.slots {
-            Router.WriteString(&env, Router.STDOUT, " (slot ")
-            Router.WriteString(&env, Router.STDOUT, s)
+        for (_, sd) in t.slots {
+            Router.WriteString(&env, Router.STDOUT, sd.isMultifield ? " (multislot " : " (slot ")
+            Router.WriteString(&env, Router.STDOUT, sd.name)
+            switch sd.defaultType {
+            case .none: break
+            case .static:
+                Router.WriteString(&env, Router.STDOUT, " (default ")
+                if let v = sd.defaultStatic { PrintUtil.PrintAtom(&env, Router.STDOUT, v) }
+                Router.WriteString(&env, Router.STDOUT, ")")
+            case .dynamic:
+                Router.WriteString(&env, Router.STDOUT, " (default-dynamic ")
+                Router.WriteString(&env, Router.STDOUT, sd.defaultDynamicExpr ?? "")
+                Router.WriteString(&env, Router.STDOUT, ")")
+            }
             Router.WriteString(&env, Router.STDOUT, ")")
         }
         Router.Writeln(&env, ")")
     }
     return .int(Int64(env.templates.count))
+}
+
+private func builtin_create$(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .multifield(args)
 }
 
 private func builtin_watch(_ env: inout Environment, _ args: [Value]) throws -> Value {

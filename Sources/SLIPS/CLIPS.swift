@@ -54,8 +54,19 @@ public final class Environment {
     // Deffacts archivio: nome -> lista di fatti (ognuno è lista di Values come argomenti per assert)
     public var deffacts: [String: [[Value]]] = [:]
 
-    // Costrutti minimi: template e fatti
-    public struct Template { public let name: String; public let slots: [String] }
+    // Costrutti: template e fatti
+    public enum SlotDefaultType: String, Codable { case none, `static`, dynamic }
+    public struct SlotDef: Codable, Equatable {
+        public let name: String
+        public let isMultifield: Bool
+        public let defaultType: SlotDefaultType
+        public let defaultStatic: Value?
+        public let defaultDynamicExpr: String?
+    }
+    public struct Template: Codable, Equatable {
+        public let name: String
+        public var slots: [String: SlotDef]
+    }
     public var templates: [String: Template] = [:]
     public struct FactRec { public let id: Int; public let name: String; public let slots: [String: Value] }
     public var facts: [Int: FactRec] = [:]
