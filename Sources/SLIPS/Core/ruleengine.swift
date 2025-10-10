@@ -67,8 +67,17 @@ public enum RuleEngine {
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale
             if let cr = env.rete.rules[rule.name], supportRete && (env.experimentalJoinCheck || env.experimentalJoinActivate || env.joinActivateWhitelist.contains(rule.name)) {
-                // Aggiorna per delta e raccogli token terminali aggiunti
-                let added = BetaEngine.updateGraphOnAssertDelta(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
+                // Se l'anchor appartiene a un template usato solo in CE negati per questa regola, ricorri al recompute completo
+                let anchorName = fact.name
+                let hasNegUse = cr.patterns.contains { $0.original.name == anchorName && $0.original.negated }
+                let hasPosUse = cr.patterns.contains { $0.original.name == anchorName && !$0.original.negated }
+                let useDelta = hasPosUse
+                let added: [BetaToken]
+                if useDelta {
+                    added = BetaEngine.updateGraphOnAssertDelta(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
+                } else {
+                    added = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool)
+                }
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
                     if env.experimentalJoinCheck {

@@ -38,6 +38,37 @@ public enum BetaEngine {
 }
 
 extension BetaEngine {
+    // Verifica match per CE negato: controlla solo vincoli su variabili già bound e costanti; non introduce binding.
+    private static func matchesNegativeLite(_ env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> Bool {
+        guard pattern.name == fact.name else { return false }
+        for (slot, test) in pattern.slots {
+            guard let fval = fact.slots[slot] else { return false }
+            switch test.kind {
+            case .constant(let v):
+                if v != fval { return false }
+            case .variable(let name):
+                if let existing = current[name] { if existing != fval { return false } }
+                // se non bound: wildcard, nessun vincolo
+            case .predicate(let exprNode):
+                let old = env.localBindings
+                for (k,v) in current { env.localBindings[k] = v }
+                let exprToEval: ExpressionNode
+                if exprNode.type == .fcall, (exprNode.value?.value as? String) == "test", let a = exprNode.argList {
+                    exprToEval = a
+                } else {
+                    exprToEval = exprNode
+                }
+                let res = Evaluator.EvaluateExpression(&env, exprToEval)
+                env.localBindings = old
+                switch res {
+                case .boolean(let b): if !b { return false }
+                case .int(let i): if i == 0 { return false }
+                default: return false
+                }
+            }
+        }
+        return true
+    }
     // Aggiorna BetaMemory in modo incrementale: aggiunge token derivati dall'anchor fact
     // Ritorna i token aggiunti (nuovi) per consentire attivazioni incrementali
     public static func updateOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
@@ -298,13 +329,23 @@ extension BetaEngine {
             var factsConstOK = Set<Int>()
             var factsMatchedKey = 0
             var usedLeftSet = Set<String>()
+            // CE negato: mantieni i token invariati se nessun fatto compatibile esiste
+            if pat.negated {
+                for tok in current {
+                    var any = false
+                    for f in facts where f.name == pat.name {
+                        if matchesNegativeLite(&env, pattern: pat, fact: f, current: tok.bindings) { any = true; break }
+                    }
+                    if !any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
+                }
+            } else {
             // Hash-join preparation
             let boundNames = boundVarNames(for: compiled, upTo: levels.count)
             let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
             if !spec.isEmpty {
                 // Build bucket from left tokens
                 var bucket: [UInt: [BetaToken]] = [:]
-                for tok in current {
+                for tok: BetaToken in current {
                     let hk = hashFromBindings(tok.bindings, spec: spec)
                     bucket[hk, default: []].append(tok)
                 }
@@ -344,6 +385,7 @@ extension BetaEngine {
                 }
                 // In assenza di bucket, consideriamo factsMatchedKey = fatti che passano le costanti
                 factsMatchedKey = factsConstOK.count
+            }
             }
             // Dedup per livello
             var seen = Set<String>()
@@ -490,10 +532,24 @@ extension BetaEngine {
                 let levelStart = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
                 let p2 = patterns[compiled.joinOrder[k]]
                 var produced: [BetaToken] = []
-                // Hash-join with current delta tokens
+                // Gestione negato in propagazione: se p2.negated, propaga invariato solo se nessun fatto compatibile esiste
                 let boundNames2 = boundVarNames(for: compiled, upTo: k)
                 let spec2 = buildJoinKeySpec(for: p2, boundVarNames: boundNames2)
-                if !spec2.isEmpty {
+                if p2.negated {
+                    for t in nextTokens {
+                        var any = false
+                        for f in facts where f.name == p2.name {
+                            if matchesNegativeLite(&env, pattern: p2, fact: f, current: t.bindings) { any = true; break }
+                        }
+                        if !any {
+                            let wasNew: Bool
+                            if let mem = levels[k] { wasNew = addIfNew(mem, t) }
+                            else { let mem = BetaMemory(); wasNew = addIfNew(mem, t); levels[k] = mem }
+                            if wasNew { produced.append(t) }
+                            if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
+                        }
+                    }
+                } else if !spec2.isEmpty {
                     var bucket: [UInt: [BetaToken]] = [:]
                     for t in nextTokens {
                         let hk = hashFromBindings(t.bindings, spec: spec2)

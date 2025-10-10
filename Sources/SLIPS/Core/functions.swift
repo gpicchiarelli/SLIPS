@@ -319,8 +319,15 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         // Aggiorna rete: alpha e beta (sperimentale)
         env.rete.alpha.remove(fact)
         if env.experimentalJoinCheck || env.experimentalJoinActivate {
-            for (rname, _) in env.rete.rules {
-                BetaEngine.updateGraphOnRetractDelta(&env, ruleName: rname, factID: fact.id)
+            for (rname, cr) in env.rete.rules {
+                let hasNegUse = cr.patterns.contains { $0.original.name == fact.name && $0.original.negated }
+                if hasNegUse {
+                    // Per CE negati, il ritiro può sbloccare token: ricostruzione completa
+                    let facts = Array(env.facts.values)
+                    _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
+                } else {
+                    BetaEngine.updateGraphOnRetractDelta(&env, ruleName: rname, factID: fact.id)
+                }
             }
         }
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)
