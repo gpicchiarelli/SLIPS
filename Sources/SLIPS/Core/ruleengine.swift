@@ -10,6 +10,7 @@ public struct PatternTest: Codable, Equatable {
 public struct Pattern: Codable, Equatable {
     public let name: String
     public let slots: [String: PatternTest]
+    public let negated: Bool
 }
 
 public struct Rule: Codable {
@@ -17,6 +18,7 @@ public struct Rule: Codable {
     public let patterns: [Pattern]
     public let rhs: [ExpressionNode]
     public let salience: Int
+    public let tests: [ExpressionNode]
 }
 
 public enum RuleEngine {
@@ -28,7 +30,7 @@ public enum RuleEngine {
         // Revaluta regole contro tutti i fatti per gestire join multi-pattern (naive)
         let facts = Array(env.facts.values)
         for rule in env.rules {
-            let matches = generateMatchesAnchored(patterns: rule.patterns, facts: facts, anchor: fact)
+            let matches = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts, anchor: fact)
             for b in matches {
                 let act = Activation(priority: rule.salience, ruleName: rule.name, bindings: b)
                 if !env.agendaQueue.contains(act) {
@@ -71,51 +73,117 @@ public enum RuleEngine {
         return bindings
     }
 
-    private static func generateMatches(patterns: [Pattern], facts: [Environment.FactRec]) -> [[String: Value]] {
+    private static func generateMatches(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec]) -> [[String: Value]] {
         guard !patterns.isEmpty else { return [] }
         var results: [[String: Value]] = []
         func backtrack(_ idx: Int, _ current: [String: Value], _ used: Set<Int>) {
             if idx == patterns.count { results.append(current); return }
             let pat = patterns[idx]
-            for f in facts where f.name == pat.name && !used.contains(f.id) {
-                if var b = match(pattern: pat, fact: f) {
-                    var ok = true
-                    for (k,v) in current { if let nb = b[k], nb != v { ok = false; break } }
-                    if !ok { continue }
-                    for (k,v) in current { b[k] = v }
-                    var newUsed = used; newUsed.insert(f.id)
-                    backtrack(idx + 1, b, newUsed)
+            if pat.negated {
+                // Fail if any fact matches with current binding
+                var any = false
+                for f in facts where f.name == pat.name {
+                    if let b = match(pattern: pat, fact: f) {
+                        // Check consistency with current binding
+                        var ok = true
+                        for (k,v) in current { if let nb = b[k], nb != v { ok = false; break } }
+                        if ok { any = true; break }
+                    }
+                }
+                if any { return } else { backtrack(idx + 1, current, used) }
+            } else {
+                for f in facts where f.name == pat.name && !used.contains(f.id) {
+                    if var b = match(pattern: pat, fact: f) {
+                        var ok = true
+                        for (k,v) in current { if let nb = b[k], nb != v { ok = false; break } }
+                        if !ok { continue }
+                        for (k,v) in current { b[k] = v }
+                        var newUsed = used; newUsed.insert(f.id)
+                        backtrack(idx + 1, b, newUsed)
+                    }
                 }
             }
         }
         backtrack(0, [:], Set<Int>())
-        return results
+        // Apply tests
+        var filtered: [[String: Value]] = []
+        for binding in results {
+            let old = env.localBindings
+            for (k,v) in binding { env.localBindings[k] = v }
+            var okAll = true
+            for tnode in tests {
+                if tnode.type == .fcall, (tnode.value?.value as? String) == "test" {
+                    if let arg = tnode.argList, case .boolean(let b) = (try? Evaluator.eval(&env, arg)) { if !b { okAll = false; break } }
+                    else if let arg = tnode.argList, case .int(let i) = (try? Evaluator.eval(&env, arg)) { if i == 0 { okAll = false; break } }
+                    else { okAll = false; break }
+                } else {
+                    if case .boolean(let b) = (try? Evaluator.eval(&env, tnode)) { if !b { okAll = false; break } }
+                    else if case .int(let i) = (try? Evaluator.eval(&env, tnode)) { if i == 0 { okAll = false; break } }
+                    else { okAll = false; break }
+                }
+            }
+            env.localBindings = old
+            if okAll { filtered.append(binding) }
+        }
+        return filtered
     }
 
-    private static func generateMatchesAnchored(patterns: [Pattern], facts: [Environment.FactRec], anchor: Environment.FactRec) -> [[String: Value]] {
+    private static func generateMatchesAnchored(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec], anchor: Environment.FactRec) -> [[String: Value]] {
         guard !patterns.isEmpty else { return [] }
         var results: [[String: Value]] = []
-        for (idx, pat) in patterns.enumerated() where pat.name == anchor.name {
+        for (idx, pat) in patterns.enumerated() where !pat.negated && pat.name == anchor.name {
             if let b = match(pattern: pat, fact: anchor) {
-                var used: Set<Int> = [anchor.id]
+                let used: Set<Int> = [anchor.id]
                 func backtrack(_ pidx: Int, _ current: [String: Value], _ used: Set<Int>) {
                     if pidx == patterns.count { results.append(current); return }
                     if pidx == idx { backtrack(pidx + 1, current, used); return }
                     let p = patterns[pidx]
-                    for f in facts where f.name == p.name && !used.contains(f.id) {
-                        if var nb = match(pattern: p, fact: f) {
-                            var ok = true
-                            for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
-                            if !ok { continue }
-                            for (k,v) in current { nb[k] = v }
-                            var newUsed = used; newUsed.insert(f.id)
-                            backtrack(pidx + 1, nb, newUsed)
+                    if p.negated {
+                        var any = false
+                        for f in facts where f.name == p.name {
+                            if let nb = match(pattern: p, fact: f) {
+                                var ok = true
+                                for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
+                                if ok { any = true; break }
+                            }
+                        }
+                        if any { return } else { backtrack(pidx + 1, current, used) }
+                    } else {
+                        for f in facts where f.name == p.name && !used.contains(f.id) {
+                            if var nb = match(pattern: p, fact: f) {
+                                var ok = true
+                                for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
+                                if !ok { continue }
+                                for (k,v) in current { nb[k] = v }
+                                var newUsed = used; newUsed.insert(f.id)
+                                backtrack(pidx + 1, nb, newUsed)
+                            }
                         }
                     }
                 }
                 backtrack(0, b, used)
             }
         }
-        return results
+        // Apply tests
+        var filtered: [[String: Value]] = []
+        for binding in results {
+            let old = env.localBindings
+            for (k,v) in binding { env.localBindings[k] = v }
+            var okAll = true
+            for tnode in tests {
+                if tnode.type == .fcall, (tnode.value?.value as? String) == "test" {
+                    if let arg = tnode.argList, case .boolean(let b) = (try? Evaluator.eval(&env, arg)) { if !b { okAll = false; break } }
+                    else if let arg = tnode.argList, case .int(let i) = (try? Evaluator.eval(&env, arg)) { if i == 0 { okAll = false; break } }
+                    else { okAll = false; break }
+                } else {
+                    if case .boolean(let b) = (try? Evaluator.eval(&env, tnode)) { if !b { okAll = false; break } }
+                    else if case .int(let i) = (try? Evaluator.eval(&env, tnode)) { if i == 0 { okAll = false; break } }
+                    else { okAll = false; break }
+                }
+            }
+            env.localBindings = old
+            if okAll { filtered.append(binding) }
+        }
+        return filtered
     }
 }

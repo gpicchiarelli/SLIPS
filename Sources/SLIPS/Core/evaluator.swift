@@ -48,6 +48,7 @@ public enum Evaluator {
                 cur = nameNode.nextArg
                 var patterns: [Pattern] = []
                 var salience = 0
+                var tests: [ExpressionNode] = []
                 // Collect LHS until '=>' symbol
                 while let n = cur {
                     if n.type == .symbol, (n.value?.value as? String) == "=>" { cur = n.nextArg; break }
@@ -63,6 +64,24 @@ public enum Evaluator {
                         cur = n.nextArg
                         continue
                     }
+                    if n.type == .fcall, (n.value?.value as? String) == "test" {
+                        tests.append(n)
+                        cur = n.nextArg
+                        continue
+                    }
+                    if n.type == .fcall, (n.value?.value as? String) == "not" {
+                        if let inner = n.argList, let p = parseSimplePattern(&env, inner) {
+                            let np = Pattern(name: p.name, slots: p.slots, negated: true)
+                            patterns.append(np)
+                        }
+                        cur = n.nextArg
+                        continue
+                    }
+                    if n.type == .fcall, (n.value?.value as? String) == "exists" {
+                        if let inner = n.argList, let p = parseSimplePattern(&env, inner) { patterns.append(p) }
+                        cur = n.nextArg
+                        continue
+                    }
                     if n.type == .fcall {
                         if let p = parseSimplePattern(&env, n) { patterns.append(p) }
                     }
@@ -71,7 +90,7 @@ public enum Evaluator {
                 // RHS actions: remaining nodes are expressions
                 var rhs: [ExpressionNode] = []
                 while let n = cur { rhs.append(n); cur = n.nextArg }
-                let rule = Rule(name: ruleName, patterns: patterns, rhs: rhs, salience: salience)
+                let rule = Rule(name: ruleName, patterns: patterns, rhs: rhs, salience: salience, tests: tests)
                 RuleEngine.addRule(&env, rule)
                 return .symbol(ruleName)
             }
