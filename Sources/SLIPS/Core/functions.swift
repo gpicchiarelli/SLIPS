@@ -38,6 +38,8 @@ public enum Functions {
         env.functionTable["assert"] = FunctionDefinitionSwift(name: "assert", impl: builtin_assert)
         env.functionTable["retract"] = FunctionDefinitionSwift(name: "retract", impl: builtin_retract)
         env.functionTable["value"] = FunctionDefinitionSwift(name: "value", impl: builtin_value)
+        env.functionTable["facts"] = FunctionDefinitionSwift(name: "facts", impl: builtin_facts)
+        env.functionTable["templates"] = FunctionDefinitionSwift(name: "templates", impl: builtin_templates)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -241,6 +243,35 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
 private func builtin_value(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let name = args.first?.stringValue else { return .none }
     return env.localBindings[name] ?? env.globalBindings[name] ?? .none
+}
+
+private func builtin_facts(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    for (_, fact) in env.facts.sorted(by: { $0.key < $1.key }) {
+        Router.WriteString(&env, Router.STDOUT, "(")
+        Router.WriteString(&env, Router.STDOUT, fact.name)
+        for (k,v) in fact.slots {
+            Router.WriteString(&env, Router.STDOUT, " ")
+            Router.WriteString(&env, Router.STDOUT, k)
+            Router.WriteString(&env, Router.STDOUT, " ")
+            PrintUtil.PrintAtom(&env, Router.STDOUT, v)
+        }
+        Router.Writeln(&env, ")")
+    }
+    return .int(Int64(env.facts.count))
+}
+
+private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    for (_, t) in env.templates {
+        Router.WriteString(&env, Router.STDOUT, "(deftemplate ")
+        Router.WriteString(&env, Router.STDOUT, t.name)
+        for s in t.slots {
+            Router.WriteString(&env, Router.STDOUT, " (slot ")
+            Router.WriteString(&env, Router.STDOUT, s)
+            Router.WriteString(&env, Router.STDOUT, ")")
+        }
+        Router.Writeln(&env, ")")
+    }
+    return .int(Int64(env.templates.count))
 }
 
 // Helper per ottenere env corrente

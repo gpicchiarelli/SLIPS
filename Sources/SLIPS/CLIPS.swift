@@ -182,6 +182,30 @@ public enum CLIPS {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
             if trimmed == "(exit)" || trimmed == "exit" { break }
+            // Comandi sintetici senza parentesi: load/reset/run/assert/eval
+            if !trimmed.hasPrefix("(") {
+                let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+                let cmd = parts.first?.lowercased() ?? ""
+                let arg = parts.count > 1 ? String(parts[1]) : nil
+                switch cmd {
+                case "load":
+                    if let p = arg { try? load(p) }
+                    continue
+                case "reset":
+                    reset(); continue
+                case "run":
+                    if let a = arg, let n = Int(a) { _ = run(limit: n) } else { _ = run(limit: nil) }
+                    continue
+                case "assert":
+                    if let f = arg { assert(fact: f) }
+                    continue
+                case "eval":
+                    if let e = arg { _ = eval(expr: e) }
+                    continue
+                default:
+                    break
+                }
+            }
             let result = eval(expr: trimmed)
             var e = currentEnv!
             PrintUtil.PrintAtom(&e, Router.STDOUT, result)
