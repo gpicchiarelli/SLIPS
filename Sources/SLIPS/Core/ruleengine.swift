@@ -28,7 +28,7 @@ public enum RuleEngine {
         // Revaluta regole contro tutti i fatti per gestire join multi-pattern (naive)
         let facts = Array(env.facts.values)
         for rule in env.rules {
-            let matches = generateMatches(patterns: rule.patterns, facts: facts)
+            let matches = generateMatchesAnchored(patterns: rule.patterns, facts: facts, anchor: fact)
             for b in matches {
                 let act = Activation(priority: rule.salience, ruleName: rule.name, bindings: b)
                 if !env.agendaQueue.contains(act) {
@@ -89,6 +89,33 @@ public enum RuleEngine {
             }
         }
         backtrack(0, [:], Set<Int>())
+        return results
+    }
+
+    private static func generateMatchesAnchored(patterns: [Pattern], facts: [Environment.FactRec], anchor: Environment.FactRec) -> [[String: Value]] {
+        guard !patterns.isEmpty else { return [] }
+        var results: [[String: Value]] = []
+        for (idx, pat) in patterns.enumerated() where pat.name == anchor.name {
+            if let b = match(pattern: pat, fact: anchor) {
+                var used: Set<Int> = [anchor.id]
+                func backtrack(_ pidx: Int, _ current: [String: Value], _ used: Set<Int>) {
+                    if pidx == patterns.count { results.append(current); return }
+                    if pidx == idx { backtrack(pidx + 1, current, used); return }
+                    let p = patterns[pidx]
+                    for f in facts where f.name == p.name && !used.contains(f.id) {
+                        if var nb = match(pattern: p, fact: f) {
+                            var ok = true
+                            for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
+                            if !ok { continue }
+                            for (k,v) in current { nb[k] = v }
+                            var newUsed = used; newUsed.insert(f.id)
+                            backtrack(pidx + 1, nb, newUsed)
+                        }
+                    }
+                }
+                backtrack(0, b, used)
+            }
+        }
         return results
     }
 }
