@@ -376,6 +376,35 @@ extension BetaEngine {
         let termTokens = levels[termIdx]?.tokens ?? (levels[compiled.joinOrder.count - 1]?.tokens ?? [])
         let termMem = BetaMemory(); termMem.tokens = termTokens; termMem.keyIndex = Set(termTokens.map(keyForToken))
         env.rete.beta[ruleName] = termMem
+
+        // Se il join-check è attivo, verifica consistenza contro ricostruzione completa
+        if env.experimentalJoinCheck {
+            // Per la verifica completa usa tutti i fatti correnti dell'environment
+            let allFacts = Array(env.facts.values)
+            let recomputed = computeLevels(&env, compiled: compiled, facts: allFacts)
+            let termIdx2 = terminalLevelIndex(compiled)
+            let full = (termIdx2 < recomputed.count) ? recomputed[termIdx2] : (recomputed.last ?? [])
+            let curSet = Set((levels[termIdx]?.tokens ?? []).map(keyForToken))
+            let fullSet = Set(full.map(keyForToken))
+            if curSet != fullSet {
+                // Allinea livelli e snapshot a ricostruzione completa
+                if env.watchRete { Router.Writeln(&env, "RETE sync full recompute for \(ruleName)") }
+                var store: [Int: BetaMemory] = [:]
+                for (idx, toks) in recomputed.enumerated() {
+                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+                    var buckets: [UInt: [Int]] = [:]
+                    for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+                    mem.hashBuckets = buckets
+                    store[idx] = mem
+                }
+                env.rete.betaLevels[ruleName] = store
+                let termMem2 = BetaMemory(); termMem2.tokens = full; termMem2.keyIndex = Set(full.map(keyForToken))
+                var tb: [UInt: [Int]] = [:]
+                for (i, t) in full.enumerated() { tb[hashForToken(t), default: []].append(i) }
+                termMem2.hashBuckets = tb
+                env.rete.beta[ruleName] = termMem2
+            }
+        }
         return terminalAdded
     }
 

@@ -104,6 +104,11 @@ public enum RuleEngine {
                         }
                     }
                 }
+                // Per coerenza con join-check, riallinea la memoria terminale con una ricostruzione completa
+                if env.experimentalJoinCheck {
+                    let allFacts = Array(env.facts.values)
+                    _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: allFacts)
+                }
             } else {
                 // Percorso standard: solo naive
                 if matches.isEmpty {

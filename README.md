@@ -76,7 +76,7 @@ SLIPS è rilasciato sotto licenza MIT. Vedi il file [LICENSE](LICENSE) per i det
 
 Copyright (c) 2025 SLIPS Contributors
 
-**Nota:** CLIPS originale è sviluppato dalla NASA e rilasciato come public domain negli Stati Uniti. SLIPS è una traduzione indipendente in Swift e non è affiliato con la NASA.
+**Nota:** CLIPS originale è sviluppato dalla NASA ed è disponibile come opera del governo degli Stati Uniti (public domain), liberamente utilizzabile in tutto il mondo. SLIPS è una traduzione indipendente in Swift e non è affiliato con la NASA.
 
 ## Autore
 
