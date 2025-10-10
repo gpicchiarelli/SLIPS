@@ -54,6 +54,8 @@ public enum Functions {
         env.functionTable["get-join-check"] = FunctionDefinitionSwift(name: "get-join-check", impl: builtin_get_join_check)
         env.functionTable["set-join-activate"] = FunctionDefinitionSwift(name: "set-join-activate", impl: builtin_set_join_activate)
         env.functionTable["get-join-activate"] = FunctionDefinitionSwift(name: "get-join-activate", impl: builtin_get_join_activate)
+        env.functionTable["set-join-heuristic"] = FunctionDefinitionSwift(name: "set-join-heuristic", impl: builtin_set_join_heuristic)
+        env.functionTable["get-join-heuristic"] = FunctionDefinitionSwift(name: "get-join-heuristic", impl: builtin_get_join_heuristic)
         env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
@@ -472,6 +474,19 @@ private func builtin_set_join_activate(_ env: inout Environment, _ args: [Value]
 
 private func builtin_get_join_activate(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .boolean(env.experimentalJoinActivate)
+}
+
+private func builtin_set_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch s {
+    case "true", "on", "1": ReteCompiler.enableHeuristicOrder = true; return .boolean(true)
+    case "false", "off", "0": ReteCompiler.enableHeuristicOrder = false; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_get_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .boolean(ReteCompiler.enableHeuristicOrder)
 }
 
 // Whitelist helpers

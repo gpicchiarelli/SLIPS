@@ -186,6 +186,53 @@ extension BetaEngine {
         }
         return parts.joined(separator: "|")
     }
+    // Hash numerico per le stesse chiavi (FNV-1a 64-bit)
+    @inline(__always) private static func fnv64Init() -> UInt64 { 1469598103934665603 }
+    @inline(__always) private static func fnv64Combine(_ h: inout UInt64, _ byte: UInt8) { h ^= UInt64(byte); h &*= 1099511628211 }
+    private static func hashString(_ s: String) -> UInt64 {
+        var h = fnv64Init()
+        for b in s.utf8 { fnv64Combine(&h, b) }
+        return h
+    }
+    private static func hashValue(_ v: Value) -> UInt64 {
+        var h = fnv64Init()
+        func mixTag(_ t: UInt8) { fnv64Combine(&h, t) }
+        switch v {
+        case .int(let i): mixTag(1); var x = UInt64(bitPattern: Int64(i)); for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+        case .float(let d): mixTag(2); var bits = d.bitPattern; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: bits)); bits >>= 8 }
+        case .string(let s): mixTag(3); let hs = hashString(s); var x = hs; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+        case .symbol(let s): mixTag(4); let hs = hashString(s); var x = hs; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+        case .boolean(let b): mixTag(5); fnv64Combine(&h, b ? 1 : 0)
+        case .multifield(let arr): mixTag(6); for e in arr { let hv = hashValue(e); var x = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 } }
+        case .none: mixTag(0)
+        }
+        return h
+    }
+    private static func hashFromBindings(_ bindings: [String: Value], spec: [JoinKeyPart]) -> UInt {
+        var h = fnv64Init()
+        for p in spec {
+            // slot name
+            let hs = hashString(p.slot); var x = hs; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+            if let vn = p.varName, let val = bindings[vn] {
+                let hv = hashValue(val); var y = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: y)); y >>= 8 }
+            } else if let cv = p.constValue {
+                let hv = hashValue(cv); var y = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: y)); y >>= 8 }
+            }
+        }
+        return UInt(truncatingIfNeeded: h)
+    }
+    private static func hashFromFact(_ fact: Environment.FactRec, spec: [JoinKeyPart]) -> UInt {
+        var h = fnv64Init()
+        for p in spec {
+            let hs = hashString(p.slot); var x = hs; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+            if let _ = p.varName, let val = fact.slots[p.slot] {
+                let hv = hashValue(val); var y = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: y)); y >>= 8 }
+            } else if let cv = p.constValue {
+                let hv = hashValue(cv); var y = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: y)); y >>= 8 }
+            }
+        }
+        return UInt(truncatingIfNeeded: h)
+    }
     private static func factPassesConstants(_ fact: Environment.FactRec, pattern: Pattern) -> Bool {
         for (slot, t) in pattern.slots {
             if case .constant(let c) = t.kind {
@@ -252,14 +299,15 @@ extension BetaEngine {
             let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
             if !spec.isEmpty {
                 // Build bucket from left tokens
-                var bucket: [String: [BetaToken]] = [:]
+                var bucket: [UInt: [BetaToken]] = [:]
                 for tok in current {
-                    guard let k = makeKeyFromBindings(tok.bindings, spec: spec) else { continue }
-                    bucket[k, default: []].append(tok)
+                    let hk = hashFromBindings(tok.bindings, spec: spec)
+                    bucket[hk, default: []].append(tok)
                 }
                 // Iterate facts filtered by template and constants
                 for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
-                    guard let fk = makeKeyFromFact(f, spec: spec), let lefts = bucket[fk] else { continue }
+                    let hf = hashFromFact(f, spec: spec)
+                    guard let lefts = bucket[hf] else { continue }
                     for tok in lefts where !tok.usedFacts.contains(f.id) {
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
@@ -423,14 +471,14 @@ extension BetaEngine {
                 let boundNames2 = boundVarNames(for: compiled, upTo: k)
                 let spec2 = buildJoinKeySpec(for: p2, boundVarNames: boundNames2)
                 if !spec2.isEmpty {
-                    var bucket: [String: [BetaToken]] = [:]
+                    var bucket: [UInt: [BetaToken]] = [:]
                     for t in nextTokens {
-                        if let kkey = makeKeyFromBindings(t.bindings, spec: spec2) {
-                            bucket[kkey, default: []].append(t)
-                        }
+                        let hk = hashFromBindings(t.bindings, spec: spec2)
+                        bucket[hk, default: []].append(t)
                     }
                     for f in facts where f.name == p2.name && factPassesConstants(f, pattern: p2) {
-                        guard let fk = makeKeyFromFact(f, spec: spec2), let lefts = bucket[fk] else { continue }
+                        let hf = hashFromFact(f, spec: spec2)
+                        guard let lefts = bucket[hf] else { continue }
                         for t in lefts where !t.usedFacts.contains(f.id) {
                             if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
                                 var ok = true

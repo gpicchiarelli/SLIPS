@@ -48,10 +48,64 @@ public struct ReteNetwork {
 }
 
 public enum ReteCompiler {
+    // Flag opzionale: riordina i pattern per aumentare la selettività (euristica)
+    nonisolated(unsafe) public static var enableHeuristicOrder: Bool = false
     public static func compile(_ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
-        let order = Array(0..<cps.count)
+        let order: [Int]
+        if enableHeuristicOrder {
+            order = heuristicOrder(rule.patterns)
+        } else {
+            order = Array(0..<cps.count)
+        }
         let filter: FilterNode? = rule.tests.isEmpty ? nil : FilterNode(id: 0, tests: rule.tests)
         return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, filterNode: filter, joinOrder: order)
+    }
+    // Euristica: prima pattern più selettivi (più costanti), poi greedy massimizzando variabili condivise con già scelti
+    private static func heuristicOrder(_ pats: [Pattern]) -> [Int] {
+        let n = pats.count
+        guard n > 1 else { return Array(0..<n) }
+        // Conteggio occorrenze variabili sull'intera LHS
+        var varFreq: [String: Int] = [:]
+        for p in pats { for (_, t) in p.slots { if case .variable(let v) = t.kind { varFreq[v, default: 0] += 1 } } }
+        func constCount(_ p: Pattern) -> Int {
+            var c = 0
+            for (_, t) in p.slots { if case .constant = t.kind { c += 1 } }
+            return c
+        }
+        // Seed: pattern con più costanti, tie-break con somma frequenze var del pattern
+        func varScore(_ p: Pattern) -> Int {
+            var s = 0
+            for (_, t) in p.slots { if case .variable(let v) = t.kind { s += (varFreq[v] ?? 0) } }
+            return s
+        }
+        var remaining = Set(0..<n)
+        let seed = remaining.max { (i, j) in
+            let ci = constCount(pats[i]); let cj = constCount(pats[j])
+            if ci != cj { return ci < cj }
+            return varScore(pats[i]) < varScore(pats[j])
+        }!
+        var order: [Int] = [seed]
+        remaining.remove(seed)
+        var bound: Set<String> = []
+        for (_, t) in pats[seed].slots { if case .variable(let v) = t.kind { bound.insert(v) } }
+        while !remaining.isEmpty {
+            let next = remaining.max { (i, j) in
+                func shared(_ idx: Int) -> Int {
+                    var c = 0
+                    for (_, t) in pats[idx].slots { if case .variable(let v) = t.kind, bound.contains(v) { c += 1 } }
+                    return c
+                }
+                let si = shared(i), sj = shared(j)
+                if si != sj { return si < sj }
+                let ci = constCount(pats[i]), cj = constCount(pats[j])
+                if ci != cj { return ci < cj }
+                return varScore(pats[i]) < varScore(pats[j])
+            }!
+            order.append(next)
+            remaining.remove(next)
+            for (_, t) in pats[next].slots { if case .variable(let v) = t.kind { bound.insert(v) } }
+        }
+        return order
     }
 }
