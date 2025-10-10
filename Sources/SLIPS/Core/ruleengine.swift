@@ -2,12 +2,12 @@ import Foundation
 
 // MARK: - Semplified Rule Engine (RETE skeleton)
 
-public struct PatternTest: Codable, Equatable {
-    public enum Kind: Codable, Equatable { case constant(Value), variable(String) }
+public struct PatternTest: Codable {
+    public enum Kind: Codable { case constant(Value), variable(String), predicate(ExpressionNode) }
     public let kind: Kind
 }
 
-public struct Pattern: Codable, Equatable {
+public struct Pattern: Codable {
     public let name: String
     public let slots: [String: PatternTest]
     public let negated: Bool
@@ -31,8 +31,9 @@ public enum RuleEngine {
         let facts = Array(env.facts.values)
         for rule in env.rules {
             let matches = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts, anchor: fact)
-            for b in matches {
-                let act = Activation(priority: rule.salience, ruleName: rule.name, bindings: b)
+            for m in matches {
+                var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
+                act.factIDs = m.usedFacts
                 if !env.agendaQueue.contains(act) {
                     env.agendaQueue.add(act)
                     if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.name)") }
@@ -62,50 +63,84 @@ public enum RuleEngine {
         let facts = Array(env.facts.values)
         for rule in env.rules {
             let matches = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts)
-            for b in matches {
-                let act = Activation(priority: rule.salience, ruleName: rule.name, bindings: b)
+            for m in matches {
+                var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
+                act.factIDs = m.usedFacts
                 if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
             }
         }
     }
 
-    private static func match(pattern: Pattern, fact: Environment.FactRec) -> [String: Value]? {
+    private static func match(env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> [String: Value]? {
         guard pattern.name == fact.name else { return nil }
         var bindings: [String: Value] = [:]
-        for (slot, test) in pattern.slots {
+        // Per stabilità: prima variabili, poi costanti, infine predicate
+        let entries = pattern.slots.map { ($0.key, $0.value) }
+        let varEntries = entries.filter { if case .variable = $0.1.kind { return true } else { return false } }
+        let constEntries = entries.filter { if case .constant = $0.1.kind { return true } else { return false } }
+        let predEntries = entries.filter { if case .predicate = $0.1.kind { return true } else { return false } }
+        // variabili
+        for (slot, test) in varEntries {
             guard let fval = fact.slots[slot] else { return nil }
-            switch test.kind {
-            case .constant(let v):
-                if v != fval { return nil }
-            case .variable(let name):
-                if let existing = bindings[name], existing != fval { return nil }
+            if case .variable(let name) = test.kind {
+                if let existing = bindings[name] ?? current[name], existing != fval { return nil }
                 bindings[name] = fval
+            }
+        }
+        // costanti
+        for (slot, test) in constEntries {
+            guard let fval = fact.slots[slot] else { return nil }
+            if case .constant(let v) = test.kind { if v != fval { return nil } }
+        }
+        // predicate
+        for (slot, test) in predEntries {
+            guard fact.slots[slot] != nil else { return nil }
+            if case .predicate(let expr) = test.kind {
+                let old = env.localBindings
+                // unisci binding corrente + nuovi
+                for (k,v) in current { env.localBindings[k] = v }
+                for (k,v) in bindings { env.localBindings[k] = v }
+                // valuta predicato
+                let res = Evaluator.EvaluateExpression(&env, expr)
+                env.localBindings = old
+                switch res {
+                case .boolean(let b): if !b { return nil }
+                case .int(let i): if i == 0 { return nil }
+                default: return nil
+                }
             }
         }
         return bindings
     }
 
-    private static func generateMatches(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec]) -> [[String: Value]] {
+    private struct PartialMatch { let bindings: [String: Value]; let usedFacts: Set<Int> }
+
+    private static func generateMatches(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec]) -> [PartialMatch] {
         guard !patterns.isEmpty else { return [] }
-        var results: [[String: Value]] = []
+        var results: [PartialMatch] = []
         func backtrack(_ idx: Int, _ current: [String: Value], _ used: Set<Int>) {
-            if idx == patterns.count { results.append(current); return }
+            if idx == patterns.count {
+                // Apply tests
+                if applyTests(&env, tests: tests, with: current) {
+                    results.append(PartialMatch(bindings: current, usedFacts: used))
+                }
+                return
+            }
             let pat = patterns[idx]
             if pat.negated {
                 // Fail if any fact matches with current binding
                 var any = false
                 for f in facts where f.name == pat.name {
-                    if let b = match(pattern: pat, fact: f) {
+                    if let _ = match(env: &env, pattern: pat, fact: f, current: current) {
                         // Check consistency with current binding
-                        var ok = true
-                        for (k,v) in current { if let nb = b[k], nb != v { ok = false; break } }
-                        if ok { any = true; break }
+                        any = true; break
                     }
                 }
                 if any { return } else { backtrack(idx + 1, current, used) }
             } else {
                 for f in facts where f.name == pat.name && !used.contains(f.id) {
-                    if var b = match(pattern: pat, fact: f) {
+                    if var b = match(env: &env, pattern: pat, fact: f, current: current) {
+                        // verifica consistenza
                         var ok = true
                         for (k,v) in current { if let nb = b[k], nb != v { ok = false; break } }
                         if !ok { continue }
@@ -117,52 +152,35 @@ public enum RuleEngine {
             }
         }
         backtrack(0, [:], Set<Int>())
-        // Apply tests
-        var filtered: [[String: Value]] = []
-        for binding in results {
-            let old = env.localBindings
-            for (k,v) in binding { env.localBindings[k] = v }
-            var okAll = true
-            for tnode in tests {
-                if tnode.type == .fcall, (tnode.value?.value as? String) == "test" {
-                    if let arg = tnode.argList, case .boolean(let b) = (try? Evaluator.eval(&env, arg)) { if !b { okAll = false; break } }
-                    else if let arg = tnode.argList, case .int(let i) = (try? Evaluator.eval(&env, arg)) { if i == 0 { okAll = false; break } }
-                    else { okAll = false; break }
-                } else {
-                    if case .boolean(let b) = (try? Evaluator.eval(&env, tnode)) { if !b { okAll = false; break } }
-                    else if case .int(let i) = (try? Evaluator.eval(&env, tnode)) { if i == 0 { okAll = false; break } }
-                    else { okAll = false; break }
-                }
-            }
-            env.localBindings = old
-            if okAll { filtered.append(binding) }
-        }
-        return filtered
+        return results
     }
 
-    private static func generateMatchesAnchored(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec], anchor: Environment.FactRec) -> [[String: Value]] {
+    private static func generateMatchesAnchored(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec], anchor: Environment.FactRec) -> [PartialMatch] {
         guard !patterns.isEmpty else { return [] }
-        var results: [[String: Value]] = []
+        var results: [PartialMatch] = []
         for (idx, pat) in patterns.enumerated() where !pat.negated && pat.name == anchor.name {
-            if let b = match(pattern: pat, fact: anchor) {
+            if let b = match(env: &env, pattern: pat, fact: anchor, current: [:]) {
                 let used: Set<Int> = [anchor.id]
                 func backtrack(_ pidx: Int, _ current: [String: Value], _ used: Set<Int>) {
-                    if pidx == patterns.count { results.append(current); return }
+                    if pidx == patterns.count {
+                        if applyTests(&env, tests: tests, with: current) {
+                            results.append(PartialMatch(bindings: current, usedFacts: used))
+                        }
+                        return
+                    }
                     if pidx == idx { backtrack(pidx + 1, current, used); return }
                     let p = patterns[pidx]
                     if p.negated {
                         var any = false
                         for f in facts where f.name == p.name {
-                            if let nb = match(pattern: p, fact: f) {
-                                var ok = true
-                                for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
-                                if ok { any = true; break }
+                            if let _ = match(env: &env, pattern: p, fact: f, current: current) {
+                                any = true; break
                             }
                         }
                         if any { return } else { backtrack(pidx + 1, current, used) }
                     } else {
                         for f in facts where f.name == p.name && !used.contains(f.id) {
-                            if var nb = match(pattern: p, fact: f) {
+                            if var nb = match(env: &env, pattern: p, fact: f, current: current) {
                                 var ok = true
                                 for (k,v) in current { if let nv = nb[k], nv != v { ok = false; break } }
                                 if !ok { continue }
@@ -176,26 +194,25 @@ public enum RuleEngine {
                 backtrack(0, b, used)
             }
         }
-        // Apply tests
-        var filtered: [[String: Value]] = []
-        for binding in results {
-            let old = env.localBindings
-            for (k,v) in binding { env.localBindings[k] = v }
-            var okAll = true
-            for tnode in tests {
-                if tnode.type == .fcall, (tnode.value?.value as? String) == "test" {
-                    if let arg = tnode.argList, case .boolean(let b) = (try? Evaluator.eval(&env, arg)) { if !b { okAll = false; break } }
-                    else if let arg = tnode.argList, case .int(let i) = (try? Evaluator.eval(&env, arg)) { if i == 0 { okAll = false; break } }
-                    else { okAll = false; break }
-                } else {
-                    if case .boolean(let b) = (try? Evaluator.eval(&env, tnode)) { if !b { okAll = false; break } }
-                    else if case .int(let i) = (try? Evaluator.eval(&env, tnode)) { if i == 0 { okAll = false; break } }
-                    else { okAll = false; break }
-                }
+        return results
+    }
+
+    private static func applyTests(_ env: inout Environment, tests: [ExpressionNode], with binding: [String: Value]) -> Bool {
+        let old = env.localBindings
+        for (k,v) in binding { env.localBindings[k] = v }
+        var okAll = true
+        for tnode in tests {
+            if tnode.type == .fcall, (tnode.value?.value as? String) == "test" {
+                if let arg = tnode.argList, case .boolean(let b) = (try? Evaluator.eval(&env, arg)) { if !b { okAll = false; break } }
+                else if let arg = tnode.argList, case .int(let i) = (try? Evaluator.eval(&env, arg)) { if i == 0 { okAll = false; break } }
+                else { okAll = false; break }
+            } else {
+                if case .boolean(let b) = (try? Evaluator.eval(&env, tnode)) { if !b { okAll = false; break } }
+                else if case .int(let i) = (try? Evaluator.eval(&env, tnode)) { if i == 0 { okAll = false; break } }
+                else { okAll = false; break }
             }
-            env.localBindings = old
-            if okAll { filtered.append(binding) }
         }
-        return filtered
+        env.localBindings = old
+        return okAll
     }
 }

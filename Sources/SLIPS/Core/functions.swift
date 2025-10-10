@@ -44,6 +44,8 @@ public enum Functions {
         env.functionTable["watch"] = FunctionDefinitionSwift(name: "watch", impl: builtin_watch)
         env.functionTable["unwatch"] = FunctionDefinitionSwift(name: "unwatch", impl: builtin_unwatch)
         env.functionTable["clear"] = FunctionDefinitionSwift(name: "clear", impl: builtin_clear)
+        env.functionTable["set-strategy"] = FunctionDefinitionSwift(name: "set-strategy", impl: builtin_set_strategy)
+        env.functionTable["get-strategy"] = FunctionDefinitionSwift(name: "get-strategy", impl: builtin_get_strategy)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -228,40 +230,39 @@ private func builtin_assert(_ env: inout Environment, _ args: [Value]) throws ->
     var it = args.dropFirst().makeIterator()
     while let key = it.next()?.stringValue, let val = it.next() { slotMap[key] = val }
     let id = env.nextFactId; env.nextFactId += 1
-    // Fill missing slots from template defaults
+    // Fill missing slots from template defaults + validate constraints
     if let tmpl = env.templates[name] {
         for (_, sd) in tmpl.slots {
             if slotMap[sd.name] == nil {
                 switch sd.defaultType {
                 case .none:
-                    slotMap[sd.name] = Value.none
+                    if sd.isMultifield { slotMap[sd.name] = .multifield([]) } else { slotMap[sd.name] = Value.none }
                 case .static:
                     if let v = sd.defaultStatic {
                         if sd.isMultifield {
                             switch v { case .multifield: slotMap[sd.name] = v; default: slotMap[sd.name] = .multifield([v]) }
                         } else { slotMap[sd.name] = v }
-                    } else { slotMap[sd.name] = Value.none }
+                    } else { slotMap[sd.name] = sd.isMultifield ? .multifield([]) : Value.none }
                 case .dynamic:
                     if let expr = sd.defaultDynamicExpr {
-                        // Valuta expr dinamico tramite fast router/token parser
                         var envCopy = env
-                        let router = "***DEFEXP***"
-                        let r = RouterEnvData.ensure(&envCopy)
-                        r.FastCharGetRouter = router
-                        r.FastCharGetString = expr
-                        r.FastCharGetIndex = 0
-                        var val: Value = .none
-                        if let ast = try? ExprTokenParser.parseTop(&envCopy, logicalName: router), let res = try? Evaluator.eval(&envCopy, ast) {
-                            val = res
-                        }
+                        let val = Evaluator.EvaluateExpression(&envCopy, expr)
                         if sd.isMultifield {
                             switch val { case .multifield: slotMap[sd.name] = val; default: slotMap[sd.name] = .multifield([val]) }
                         } else { slotMap[sd.name] = val }
-                    } else { slotMap[sd.name] = Value.none }
+                    } else { slotMap[sd.name] = sd.isMultifield ? .multifield([]) : Value.none }
                 }
             } else if sd.isMultifield, let existing = slotMap[sd.name] {
                 // Normalize single to multifield when required
                 if case .multifield = existing { /* ok */ } else { slotMap[sd.name] = .multifield([existing]) }
+            }
+        }
+        // validate constraints
+        for (_, sd) in tmpl.slots {
+            if let val = slotMap[sd.name], let cons = sd.constraints {
+                if !validateSlotConstraints(cons, value: val, isMultifield: sd.isMultifield) {
+                    return .boolean(false)
+                }
             }
         }
     }
@@ -296,8 +297,8 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             }
             Router.Writeln(&env, ")")
         }
-        // Rebuild agenda to remove obsolete activations
-        RuleEngine.rebuildAgenda(&env)
+        // Rimuovi attivazioni collegate al fatto retratto (incrementale)
+        env.agendaQueue.removeByFactID(fact.id)
         return .boolean(true)
     }
     return .boolean(false)
@@ -338,8 +339,29 @@ private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws
                 Router.WriteString(&env, Router.STDOUT, ")")
             case .dynamic:
                 Router.WriteString(&env, Router.STDOUT, " (default-dynamic ")
-                Router.WriteString(&env, Router.STDOUT, sd.defaultDynamicExpr ?? "")
+                if let expr = sd.defaultDynamicExpr {
+                    // stampa come s-expression
+                    let sexp = sexpString(expr)
+                    Router.WriteString(&env, Router.STDOUT, sexp)
+                }
                 Router.WriteString(&env, Router.STDOUT, ")")
+            }
+            if let c = sd.constraints {
+                if !c.allowed.isEmpty {
+                    Router.WriteString(&env, Router.STDOUT, " (type")
+                    for a in c.allowed {
+                        Router.WriteString(&env, Router.STDOUT, " ")
+                        Router.WriteString(&env, Router.STDOUT, a.rawValue.uppercased())
+                    }
+                    Router.WriteString(&env, Router.STDOUT, ")")
+                }
+                if let r = c.range {
+                    Router.WriteString(&env, Router.STDOUT, " (range ")
+                    Router.WriteString(&env, Router.STDOUT, String(r.lowerBound))
+                    Router.WriteString(&env, Router.STDOUT, " ")
+                    Router.WriteString(&env, Router.STDOUT, String(r.upperBound))
+                    Router.WriteString(&env, Router.STDOUT, ")")
+                }
             }
             Router.WriteString(&env, Router.STDOUT, ")")
         }
@@ -371,8 +393,23 @@ private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -
 }
 
 private func builtin_clear(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll()
+    env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll(); env.agendaQueue.clear()
     return .boolean(true)
+}
+
+private func builtin_set_strategy(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch s {
+    case "depth": env.agendaQueue.setStrategy(.depth)
+    case "breadth": env.agendaQueue.setStrategy(.breadth)
+    case "lex": env.agendaQueue.setStrategy(.lex)
+    default: return .boolean(false)
+    }
+    return .symbol(s)
+}
+
+private func builtin_get_strategy(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .symbol(env.agendaQueue.strategy.rawValue)
 }
 
 // load come builtin non implementato per evitare dipendenze con MainActor.
@@ -385,4 +422,86 @@ private extension Value {
         switch self { case .string(let s): return s; case .symbol(let s): return s; default: return nil }
     }
     var intValue: Int64? { if case .int(let i) = self { return i } else { return nil } }
+}
+
+// Validazione constraints di slot
+private func validateSlotConstraints(_ c: Environment.SlotConstraints, value: Value, isMultifield: Bool) -> Bool {
+    let checkOne: (Value) -> Bool = { v in
+        // type
+        if !c.allowed.isEmpty {
+            var okType = false
+            for t in c.allowed {
+                switch (t, v) {
+                case (.integer, .int): okType = true
+                case (.float, .float): okType = true
+                case (.number, .int), (.number, .float): okType = true
+                case (.string, .string): okType = true
+                case (.symbol, .symbol): okType = true
+                case (.lexeme, .string), (.lexeme, .symbol): okType = true
+                default: break
+                }
+                if okType { break }
+            }
+            if !okType { return false }
+        }
+        if let r = c.range {
+            let d: Double?
+            switch v {
+            case .int(let i): d = Double(i)
+            case .float(let f): d = f
+            default: d = nil
+            }
+            if let d = d, (d < r.lowerBound || d > r.upperBound) { return false }
+            if d == nil { return false }
+        }
+        return true
+    }
+    if isMultifield {
+        switch value {
+        case .multifield(let arr):
+            for v in arr { if !checkOne(v) { return false } }
+            return true
+        default:
+            return checkOne(value)
+        }
+    } else {
+        return checkOne(value)
+    }
+}
+
+// Stampa s-expression di un nodo
+private func sexpString(_ node: ExpressionNode) -> String {
+    switch node.type {
+    case .fcall:
+        let name = (node.value?.value as? String) ?? ""
+        var parts: [String] = ["(", name]
+        var arg = node.argList
+        while let n = arg { parts.append(" "); parts.append(sexpString(n)); arg = n.nextArg }
+        parts.append(")")
+        return parts.joined()
+    case .integer:
+        if let v = node.value?.value as? Int64 { return String(v) }
+        return "0"
+    case .float:
+        if let d = node.value?.value as? Double { return String(d) }
+        return "0.0"
+    case .string:
+        if let s = node.value?.value as? String { return "\"" + s.replacingOccurrences(of: "\"", with: "\\\"") + "\"" }
+        return "\"\""
+    case .symbol:
+        return (node.value?.value as? String) ?? ""
+    case .boolean:
+        if let b = node.value?.value as? Bool { return b ? "TRUE" : "FALSE" }
+        return "FALSE"
+    case .variable:
+        return "?" + ((node.value?.value as? String) ?? "v")
+    case .mfVariable:
+        return "$?" + ((node.value?.value as? String) ?? "vs")
+    case .gblVariable:
+        return "?*" + ((node.value?.value as? String) ?? "g") + "*"
+    case .mfGblVariable:
+        return "$?*" + ((node.value?.value as? String) ?? "gs") + "*"
+    case .instanceName:
+        return "[" + ((node.value?.value as? String) ?? "inst") + "]"
+    }
 }

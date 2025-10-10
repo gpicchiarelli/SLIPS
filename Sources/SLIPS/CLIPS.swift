@@ -56,14 +56,20 @@ public final class Environment {
 
     // Costrutti: template e fatti
     public enum SlotDefaultType: String, Codable { case none, `static`, dynamic }
-    public struct SlotDef: Codable, Equatable {
+    public enum SlotAllowedType: String, Codable { case integer, float, number, string, symbol, lexeme }
+    public struct SlotConstraints: Codable, Equatable {
+        public var allowed: Set<SlotAllowedType> = []
+        public var range: ClosedRange<Double>? = nil
+    }
+    public struct SlotDef: Codable {
         public let name: String
         public let isMultifield: Bool
         public let defaultType: SlotDefaultType
         public let defaultStatic: Value?
-        public let defaultDynamicExpr: String?
+        public let defaultDynamicExpr: ExpressionNode?
+        public var constraints: SlotConstraints?
     }
-    public struct Template: Codable, Equatable {
+    public struct Template: Codable {
         public let name: String
         public var slots: [String: SlotDef]
     }
@@ -93,6 +99,8 @@ public enum CLIPS {
         // Inizializza moduli minimi per eval
         Functions.registerBuiltins(&env)
         ExpressionEnv.InitExpressionData(&env)
+        // Strategia agenda di default
+        env.agendaQueue.setStrategy(.depth)
         currentEnv = env
         return env
     }

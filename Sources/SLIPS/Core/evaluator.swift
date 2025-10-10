@@ -48,21 +48,61 @@ public enum Evaluator {
                             guard let snameNode = n.argList, let sname = (snameNode.value?.value as? String) else { cur = n.nextArg; continue }
                             var defaultType: Environment.SlotDefaultType = .none
                             var defaultStatic: Value? = nil
-                            var defaultDynamicExpr: String? = nil
+                            var defaultDynamicExpr: ExpressionNode? = nil
+                            var constraints: Environment.SlotConstraints? = nil
                             var opt = snameNode.nextArg
                             while let on = opt {
                                 if on.type == .fcall, let oname = (on.value?.value as? String) {
-                                    if oname == "default" {
-                                        if let arg = on.argList, let v = try? eval(&env, arg) {
-                                            defaultType = .static; defaultStatic = v
+                                    switch oname {
+                                    case "default":
+                                        if let argHead = on.argList {
+                                            defaultType = .static
+                                            if fname == "multislot" {
+                                                // raccogli tutti gli argomenti statici
+                                                var vals: [Value] = []
+                                                var a: ExpressionNode? = argHead
+                                                while let an = a { if let v = try? eval(&env, an) { vals.append(v) }; a = an.nextArg }
+                                                defaultStatic = .multifield(vals)
+                                            } else {
+                                                // singolo valore
+                                                defaultStatic = try? eval(&env, argHead)
+                                            }
                                         }
-                                    } else if oname == "default-dynamic" {
-                                        if let arg = on.argList { defaultType = .dynamic; defaultDynamicExpr = sexpString(arg) }
+                                    case "default-dynamic":
+                                        if let arg = on.argList { defaultType = .dynamic; defaultDynamicExpr = arg }
+                                    case "type":
+                                        var allowed: Set<Environment.SlotAllowedType> = []
+                                        var a = on.argList
+                                        while let tn = a { if let tname = tn.value?.value as? String {
+                                                let upper = tname.uppercased()
+                                                if upper == "INTEGER" { allowed.insert(.integer) }
+                                                else if upper == "FLOAT" { allowed.insert(.float) }
+                                                else if upper == "NUMBER" { allowed.insert(.number) }
+                                                else if upper == "STRING" { allowed.insert(.string) }
+                                                else if upper == "SYMBOL" { allowed.insert(.symbol) }
+                                                else if upper == "LEXEME" { allowed.insert(.lexeme) }
+                                            }
+                                            a = tn.nextArg }
+                                        constraints = constraints ?? Environment.SlotConstraints()
+                                        constraints?.allowed = allowed
+                                    case "range":
+                                        if let lo = on.argList, let hi = lo.nextArg {
+                                            if let lov = try? eval(&env, lo), let hiv = try? eval(&env, hi) {
+                                                let lod = numberToDouble(lov)
+                                                let hid = numberToDouble(hiv)
+                                                if let lo = lod, let hi = hid {
+                                                    constraints = constraints ?? Environment.SlotConstraints()
+                                                    constraints?.range = lo...hi
+                                                }
+                                            }
+                                        }
+                                    default:
+                                        break
                                     }
                                 }
                                 opt = on.nextArg
                             }
-                            let sd = Environment.SlotDef(name: sname, isMultifield: (fname == "multislot"), defaultType: defaultType, defaultStatic: defaultStatic, defaultDynamicExpr: defaultDynamicExpr)
+                            let sd = Environment.SlotDef(name: sname, isMultifield: (fname == "multislot"), defaultType: defaultType, defaultStatic: defaultStatic, defaultDynamicExpr: defaultDynamicExpr, constraints: constraints)
                             slots[sname] = sd
                         }
                     }
@@ -267,7 +307,20 @@ public enum Evaluator {
             case .string: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
             case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
             case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
-            default: test = PatternTest(kind: .constant(.none))
+            case .fcall:
+                if let fname = (valNode.value?.value as? String), fname == "test" {
+                    // Salva l'espressione all'interno del test per valutazione durante il matching
+                    if let expr = valNode.argList {
+                        test = PatternTest(kind: .predicate(expr))
+                    } else {
+                        test = PatternTest(kind: .predicate(Expressions.GenConstant(.boolean, true)))
+                    }
+                } else {
+                    // Considera altre funzioni come predicate generico
+                    test = PatternTest(kind: .predicate(valNode))
+                }
+            default:
+                test = PatternTest(kind: .constant(.none))
             }
             slots[sname] = test
             arg = valNode.nextArg
@@ -313,5 +366,14 @@ public enum Evaluator {
 
     public static func EvaluateExpression(_ env: inout Environment, _ node: ExpressionNode) -> Value {
         return (try? eval(&env, node)) ?? .none
+    }
+}
+
+// Helper per conversione Value -> Double
+private func numberToDouble(_ v: Value) -> Double? {
+    switch v {
+    case .int(let i): return Double(i)
+    case .float(let d): return d
+    default: return nil
     }
 }
