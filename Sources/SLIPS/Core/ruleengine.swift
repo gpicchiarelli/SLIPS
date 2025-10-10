@@ -47,17 +47,21 @@ public enum RuleEngine {
                 }
             }
             let pool = candidateFacts.isEmpty ? facts : candidateFacts
-            // Calcolo naive solo se necessario (negati o join-check), altrimenti delega all'infrastruttura RETE
-            var matches: [PartialMatch] = []
+            // Calcolo naive: separa confronto (join-check) da attivazioni per evitare duplicati
+            var matchesForActivation: [PartialMatch] = []
+            var matchesForCompare: [PartialMatch] = []
             let supportRete = !hasNeg && (env.rete.rules[rule.name] != nil)
             let needNaive = hasNeg || env.experimentalJoinCheck || !supportRete
             if needNaive {
-                if hasNeg || env.experimentalJoinCheck {
-                    // Per il confronto di stabilità calcola i match completi
-                    matches = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                // Per join-check calcola i match completi solo per confronto (non per attivazione)
+                if env.experimentalJoinCheck {
+                    matchesForCompare = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                }
+                // Per attivazioni: usa ancorato quando possibile per evitare di riaggiungere match già fired
+                if hasNeg {
+                    matchesForActivation = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 } else {
-                    // Altrimenti usa la versione ancorata per performance
-                    matches = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+                    matchesForActivation = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
                 }
             }
 
@@ -68,11 +72,12 @@ public enum RuleEngine {
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
                     if env.experimentalJoinCheck {
-                        let eq = equivalentMatchesStatic(matches, jList)
+                        let baseline = matchesForCompare.isEmpty ? matchesForActivation : matchesForCompare
+                        let eq = equivalentMatchesStatic(baseline, jList)
                         if !eq {
                             if env.watchRules {
                                 Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
-                                logMatchDiff(&env, lhs: matches, rhs: jList)
+                                logMatchDiff(&env, lhs: baseline, rhs: jList)
                             }
                             env.joinStableRules.remove(rule.name)
                         } else {
@@ -92,7 +97,7 @@ public enum RuleEngine {
                     }
                 } else if needNaive {
                     // Usa matcher naive per attivazioni
-                    for m in matches {
+                    for m in matchesForActivation {
                         var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                         act.factIDs = m.usedFacts
                         if !env.agendaQueue.contains(act) {
@@ -115,12 +120,12 @@ public enum RuleEngine {
                 }
             } else {
                 // Percorso standard: solo naive
-                if matches.isEmpty {
-                    matches = hasNeg
+                if matchesForActivation.isEmpty {
+                    matchesForActivation = hasNeg
                         ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                         : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
                 }
-                for m in matches {
+                for m in matchesForActivation {
                     var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                     act.factIDs = m.usedFacts
                     if !env.agendaQueue.contains(act) {
