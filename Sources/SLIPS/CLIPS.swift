@@ -183,6 +183,13 @@ public enum CLIPS {
         guard let env0 = currentEnv else { return 0 }
         var env = env0
         let fired = RuleEngine.run(&env, limit: limit)
+        // Se il join-check o l'attivazione via rete sono attivi, riallinea le memorie beta
+        if env.experimentalJoinCheck || env.experimentalJoinActivate || !env.joinActivateWhitelist.isEmpty {
+            let facts = Array(env.facts.values)
+            for (rname, cr) in env.rete.rules {
+                _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
+            }
+        }
         currentEnv = env
         return fired
     }

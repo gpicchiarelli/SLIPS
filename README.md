@@ -79,7 +79,4 @@ Copyright (c) 2025 SLIPS Contributors
 **Nota:** CLIPS originale è sviluppato dalla NASA ed è disponibile come opera del governo degli Stati Uniti (public domain), liberamente utilizzabile in tutto il mondo. SLIPS è una traduzione indipendente in Swift e non è affiliato con la NASA.
 
 ## Autore
-
-**Giacomo Picchiarelli** - Creatore e Lead Developer del progetto
-
 Vedi [AUTHORS](AUTHORS) per la lista completa dei contributori.
