@@ -107,7 +107,11 @@ public enum RuleEngine {
                 // Per coerenza con join-check, riallinea la memoria terminale con una ricostruzione completa
                 if env.experimentalJoinCheck {
                     let allFacts = Array(env.facts.values)
-                    _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: allFacts)
+                    // Riallinea la snapshot terminale con il calcolo completo
+                    let ms = BetaEngine.computeMatches(&env, compiled: cr, facts: allFacts)
+                    let toks = ms.map { BetaToken(bindings: $0.bindings, usedFacts: $0.usedFacts) }
+                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map { BetaEngine.keyForToken($0) })
+                    env.rete.beta[rule.name] = mem
                 }
             } else {
                 // Percorso standard: solo naive

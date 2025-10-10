@@ -120,7 +120,7 @@ extension BetaEngine {
         let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
         return b + "|" + f
     }
-    private static func keyForToken(_ t: BetaToken) -> String {
+    public static func keyForToken(_ t: BetaToken) -> String {
         let b = t.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
         let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
         return b + "|" + f
