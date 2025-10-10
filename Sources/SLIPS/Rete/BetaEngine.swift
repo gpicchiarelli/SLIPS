@@ -294,8 +294,10 @@ extension BetaEngine {
             let t0 = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
             let pat = patterns[pidx]
             var next: [BetaToken] = []
-            var leftCount = current.count
-            var factsFiltered = 0
+            let leftCount = current.count
+            var factsConstOK = Set<Int>()
+            var factsMatchedKey = 0
+            var usedLeftSet = Set<String>()
             // Hash-join preparation
             let boundNames = boundVarNames(for: compiled, upTo: levels.count)
             let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
@@ -308,9 +310,10 @@ extension BetaEngine {
                 }
                 // Iterate facts filtered by template and constants
                 for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
-                    factsFiltered += 1
+                    factsConstOK.insert(f.id)
                     let hf = hashFromFact(f, spec: spec)
                     guard let lefts = bucket[hf] else { continue }
+                    factsMatchedKey += 1
                     for tok in lefts where !tok.usedFacts.contains(f.id) {
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
@@ -319,6 +322,7 @@ extension BetaEngine {
                             for (k,v) in tok.bindings { b[k] = v }
                             var used = tok.usedFacts; used.insert(f.id)
                             next.append(BetaToken(bindings: b, usedFacts: used))
+                            usedLeftSet.insert(keyForToken(tok))
                         }
                     }
                 }
@@ -326,7 +330,7 @@ extension BetaEngine {
                 // Fallback nested loops
                 for tok in current {
                     for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) && factPassesConstants(f, pattern: pat) {
-                        factsFiltered += 1
+                        factsConstOK.insert(f.id)
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
                             for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
@@ -334,9 +338,12 @@ extension BetaEngine {
                             for (k,v) in tok.bindings { b[k] = v }
                             var used = tok.usedFacts; used.insert(f.id)
                             next.append(BetaToken(bindings: b, usedFacts: used))
+                            usedLeftSet.insert(keyForToken(tok))
                         }
                     }
                 }
+                // In assenza di bucket, consideriamo factsMatchedKey = fatti che passano le costanti
+                factsMatchedKey = factsConstOK.count
             }
             // Dedup per livello
             var seen = Set<String>()
@@ -353,10 +360,10 @@ extension BetaEngine {
                 let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
                 if let rn = ruleName {
                     Router.Writeln(&env, "RETE time \(rn)/L\(lvlIdx) \(ms)ms")
-                    Router.Writeln(&env, "RETE stats \(rn)/L\(lvlIdx) left=\(leftCount) facts=\(factsFiltered) out=\(uniq.count)")
+                    Router.Writeln(&env, "RETE stats \(rn)/L\(lvlIdx) left=\(leftCount) facts=\(factsConstOK.count) factsKey=\(factsMatchedKey) leftUsed=\(usedLeftSet.count) out=\(uniq.count)")
                 } else {
                     Router.Writeln(&env, "RETE time L\(lvlIdx) \(ms)ms")
-                    Router.Writeln(&env, "RETE stats L\(lvlIdx) left=\(leftCount) facts=\(factsFiltered) out=\(uniq.count)")
+                    Router.Writeln(&env, "RETE stats L\(lvlIdx) left=\(leftCount) facts=\(factsConstOK.count) factsKey=\(factsMatchedKey) leftUsed=\(usedLeftSet.count) out=\(uniq.count)")
                 }
             }
             // timing stampato sopra con stats

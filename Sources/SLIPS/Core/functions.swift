@@ -59,6 +59,8 @@ public enum Functions {
         env.functionTable["add-join-heuristic-rule"] = FunctionDefinitionSwift(name: "add-join-heuristic-rule", impl: builtin_add_join_heuristic_rule)
         env.functionTable["remove-join-heuristic-rule"] = FunctionDefinitionSwift(name: "remove-join-heuristic-rule", impl: builtin_remove_join_heuristic_rule)
         env.functionTable["get-join-heuristic-rules"] = FunctionDefinitionSwift(name: "get-join-heuristic-rules", impl: builtin_get_join_heuristic_rules)
+        env.functionTable["clear-join-heuristic-rules"] = FunctionDefinitionSwift(name: "clear-join-heuristic-rules", impl: builtin_clear_join_heuristic_rules)
+        env.functionTable["reset-join-heuristic"] = FunctionDefinitionSwift(name: "reset-join-heuristic", impl: builtin_reset_join_heuristic)
         env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
@@ -507,6 +509,17 @@ private func builtin_remove_join_heuristic_rule(_ env: inout Environment, _ args
 private func builtin_get_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
     let arr = ReteCompiler.heuristicWhitelist.sorted().map { Value.symbol($0) }
     return .multifield(arr)
+}
+
+private func builtin_clear_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    ReteCompiler.heuristicWhitelist.removeAll()
+    return .boolean(true)
+}
+
+private func builtin_reset_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    ReteCompiler.enableHeuristicOrder = false
+    ReteCompiler.heuristicWhitelist.removeAll()
+    return .boolean(true)
 }
 
 // Whitelist helpers
