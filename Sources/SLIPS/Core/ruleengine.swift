@@ -43,45 +43,75 @@ public enum RuleEngine {
                 }
             }
             let pool = candidateFacts.isEmpty ? facts : candidateFacts
-            var matches: [PartialMatch] = hasNeg
-                ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
-                : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+            // Calcolo naive solo se necessario (negati o join-check), altrimenti delega all'infrastruttura RETE
+            var matches: [PartialMatch] = []
+            let supportRete = !hasNeg && (env.rete.rules[rule.name] != nil)
+            let needNaive = hasNeg || env.experimentalJoinCheck || !supportRete
+            if needNaive {
+                matches = hasNeg
+                    ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                    : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+            }
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale
-            if !hasNeg, (env.experimentalJoinCheck || env.experimentalJoinActivate), let cr = env.rete.rules[rule.name] {
-                // Aggiorna grafo per livelli e ottieni token nuovi a livello terminale
-                let added = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool)
+            if let cr = env.rete.rules[rule.name], supportRete && (env.experimentalJoinCheck || env.experimentalJoinActivate || env.joinActivateWhitelist.contains(rule.name)) {
+                // Aggiorna per delta e raccogli token terminali aggiunti
+                let added = BetaEngine.updateGraphOnAssertDelta(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
-                    if env.experimentalJoinCheck, !equivalentMatchesStatic(matches, jList) {
-                        if env.watchRules {
-                            Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
-                            logMatchDiff(&env, lhs: matches, rhs: jList)
+                    if env.experimentalJoinCheck {
+                        let eq = equivalentMatchesStatic(matches, jList)
+                        if !eq {
+                            if env.watchRules {
+                                Router.WriteString(&env, Router.STDERR, "[JOIN-CHECK] Divergenza regola \(rule.name)\n")
+                                logMatchDiff(&env, lhs: matches, rhs: jList)
+                            }
+                            env.joinStableRules.remove(rule.name)
+                        } else {
+                            env.joinStableRules.insert(rule.name)
                         }
                     }
                 }
-                if env.experimentalJoinActivate {
-                    // Genera attivazioni dai token aggiunti
+                let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name))
+                if useReteActivation {
                     for t in added {
                         var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: t.bindings)
                         act.factIDs = t.usedFacts
                         if !env.agendaQueue.contains(act) {
                             env.agendaQueue.add(act)
+                            if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.name)") }
+                        }
+                    }
+                } else if needNaive {
+                    // Usa matcher naive per attivazioni
+                    for m in matches {
+                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
+                        act.factIDs = m.usedFacts
+                        if !env.agendaQueue.contains(act) {
+                            env.agendaQueue.add(act)
                             if env.watchRules {
                                 Router.Writeln(&env, "==> Activation \(rule.name)")
+                                Router.WriteString(&env, "t", "ACT \(rule.name)\n")
                             }
                         }
                     }
                 }
-            }
-            for m in matches {
-                var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
-                act.factIDs = m.usedFacts
-                if !env.agendaQueue.contains(act) {
-                    env.agendaQueue.add(act)
-                    if env.watchRules {
-                        Router.Writeln(&env, "==> Activation \(rule.name)")
-                        Router.WriteString(&env, "t", "ACT \(rule.name)\n")
+            } else {
+                // Percorso standard: solo naive
+                if matches.isEmpty {
+                    matches = hasNeg
+                        ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                        : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+                }
+                for m in matches {
+                    var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
+                    act.factIDs = m.usedFacts
+                    if !env.agendaQueue.contains(act) {
+                        env.agendaQueue.add(act)
+                        if env.watchRules {
+                            Router.Writeln(&env, "==> Activation \(rule.name)")
+                            Router.WriteString(&env, "t", "ACT \(rule.name)\n")
+                        }
                     }
                 }
             }

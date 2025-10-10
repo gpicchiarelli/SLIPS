@@ -39,7 +39,7 @@ extension BetaEngine {
     public static func updateOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
         let inc = computeIncremental(&env, compiled: compiled, facts: facts, anchor: anchor)
         let mem = env.rete.beta[ruleName] ?? BetaMemory()
-        var keys = Set(mem.tokens.map(keyForToken))
+        var keys = mem.keyIndex.isEmpty ? Set(mem.tokens.map(keyForToken)) : mem.keyIndex
         var toks = mem.tokens
         var added: [BetaToken] = []
         for m in inc {
@@ -51,7 +51,7 @@ extension BetaEngine {
                 added.append(bt)
             }
         }
-        let newMem = BetaMemory(); newMem.tokens = toks
+        let newMem = BetaMemory(); newMem.tokens = toks; newMem.keyIndex = keys
         env.rete.beta[ruleName] = newMem
         return added
     }
@@ -59,7 +59,7 @@ extension BetaEngine {
     public static func updateOnRetract(_ env: inout Environment, ruleName: String, factID: Int) {
         guard let mem = env.rete.beta[ruleName] else { return }
         let toks = mem.tokens.filter { !$0.usedFacts.contains(factID) }
-        let newMem = BetaMemory(); newMem.tokens = toks
+        let newMem = BetaMemory(); newMem.tokens = toks; newMem.keyIndex = Set(toks.map(keyForToken))
         env.rete.beta[ruleName] = newMem
     }
 
@@ -135,13 +135,13 @@ extension BetaEngine {
         // Store new levels and compute added
         var store: [Int: BetaMemory] = [:]
         for (idx, toks) in levels.enumerated() {
-            let mem = BetaMemory(); mem.tokens = toks
+            let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
             store[idx] = mem
         }
         env.rete.betaLevels[ruleName] = store
         // Update terminal beta snapshot as convenience
         // Snapshot terminale (post filtro se presente)
-        let termMem = BetaMemory(); termMem.tokens = levels.last ?? []
+        let termMem = BetaMemory(); termMem.tokens = levels.last ?? []; termMem.keyIndex = Set((levels.last ?? []).map(keyForToken))
         env.rete.beta[ruleName] = termMem
         // Added tokens on terminal level
         var added: [BetaToken] = []
@@ -208,5 +208,158 @@ extension BetaEngine {
             levels.append(uniq)
         }
         return levels
+    }
+}
+
+// MARK: - Delta propagation (add/remove) per memorie di livello
+extension BetaEngine {
+    private static func terminalLevelIndex(_ compiled: CompiledRule) -> Int {
+        return compiled.filterNode == nil ? (compiled.joinOrder.count - 1) : compiled.joinOrder.count
+    }
+
+    private static func ensureLevelMemories(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec]) {
+        // Se non ci sono livelli, crea tutti i livelli corrente (senza filtro) per bootstrap.
+        if env.rete.betaLevels[ruleName] == nil {
+            let levels = computeLevels(&env, compiled: compiled, facts: facts)
+            var store: [Int: BetaMemory] = [:]
+            for (idx, toks) in levels.enumerated() {
+                let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+                store[idx] = mem
+            }
+            env.rete.betaLevels[ruleName] = store
+            // Terminal snapshot
+            let term = levels.last ?? []
+            let termMem = BetaMemory(); termMem.tokens = term; termMem.keyIndex = Set(term.map(keyForToken))
+            env.rete.beta[ruleName] = termMem
+        }
+    }
+
+    private static func addIfNew(_ mem: BetaMemory, _ tok: BetaToken) -> Bool {
+        let k = keyForToken(tok)
+        if mem.keyIndex.contains(k) { return false }
+        mem.keyIndex.insert(k)
+        mem.tokens.append(tok)
+        return true
+    }
+
+    // Aggiorna le memorie per livello propagando solo i delta derivati dal fatto anchor.
+    // Ritorna i token aggiunti al livello terminale (post filtro se presente).
+    @discardableResult
+    public static func updateGraphOnAssertDelta(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
+        ensureLevelMemories(&env, ruleName: ruleName, compiled: compiled, facts: facts)
+        guard var levels = env.rete.betaLevels[ruleName] else { return [] }
+        let patterns = compiled.patterns.map { $0.original }
+
+        var terminalAdded: [BetaToken] = []
+        // Per ciascuna posizione in cui il pattern corrisponde all'anchor
+        for (pos, pidx) in compiled.joinOrder.enumerated() {
+            let pat = patterns[pidx]
+            if pat.negated || pat.name != anchor.name { continue }
+
+            let leftTokens: [BetaToken]
+            if pos == 0 { leftTokens = [BetaToken(bindings: [:], usedFacts: [])] }
+            else { leftTokens = levels[pos - 1]?.tokens ?? [] }
+
+            if leftTokens.isEmpty { continue }
+
+            var currentNew: [BetaToken] = []
+            for lt in leftTokens {
+                if var b = RuleEngine.match(env: &env, pattern: pat, fact: anchor, current: lt.bindings) {
+                    // merge bindings
+                    var ok = true
+                    for (k,v) in lt.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                    if !ok { continue }
+                    for (k,v) in lt.bindings { b[k] = v }
+                    var used = lt.usedFacts; used.insert(anchor.id)
+                    let tok = BetaToken(bindings: b, usedFacts: used)
+                    let wasNew: Bool
+                    if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
+                    // Se questo è già l'ultimo livello pattern ed è nuovo, conteggia come aggiunto al terminale (assenza di filtro)
+                    if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew {
+                        terminalAdded.append(tok)
+                    }
+                    currentNew.append(tok)
+                }
+            }
+
+            // Propaga avanti sui livelli successivi
+            if currentNew.isEmpty { continue }
+            var nextTokens = currentNew
+            var k = pos + 1
+            while k < compiled.joinOrder.count && !nextTokens.isEmpty {
+                let p2 = patterns[compiled.joinOrder[k]]
+                var produced: [BetaToken] = []
+                for t in nextTokens {
+                    for f in facts where f.name == p2.name && !t.usedFacts.contains(f.id) {
+                        if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
+                            var ok = true
+                            for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
+                            if !ok { continue }
+                            for (kk,vv) in t.bindings { b[kk] = vv }
+                            var used = t.usedFacts; used.insert(f.id)
+                            let nt = BetaToken(bindings: b, usedFacts: used)
+                            let wasNew: Bool
+                            if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
+                            else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
+                            if wasNew { produced.append(nt) }
+                            if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
+                                terminalAdded.append(nt)
+                            }
+                        }
+                    }
+                }
+                nextTokens = produced
+                k += 1
+            }
+
+            // Nodo filtro terminale
+            let lastPatternLevel = compiled.joinOrder.count - 1
+            let terminalLevel = terminalLevelIndex(compiled)
+            var terminalCandidates: [BetaToken]
+            if compiled.filterNode != nil {
+                // Se abbiamo finito con livelli pattern e ci sono nuovi token in ultimo livello
+                if pos <= lastPatternLevel {
+                    // raccogli i delta arrivati fino al livello finale pattern
+                    terminalCandidates = nextTokens
+                } else { terminalCandidates = currentNew }
+                // Applica filtro e aggiungi a livello terminale
+                var mem = levels[terminalLevel]
+                if mem == nil { mem = BetaMemory(); levels[terminalLevel] = mem }
+                for t in terminalCandidates {
+                    if RuleEngine.applyTests(&env, tests: compiled.tests, with: t.bindings) {
+                        if addIfNew(mem!, t) { terminalAdded.append(t) }
+                    }
+                }
+            } else {
+                // Terminale è l'ultimo livello di pattern; 'terminalAdded' è stato popolato durante l'inserimento sui livelli
+            }
+        }
+
+        // Persisti livelli aggiornati e snapshot terminale
+        env.rete.betaLevels[ruleName] = levels
+        let termIdx = terminalLevelIndex(compiled)
+        let termTokens = levels[termIdx]?.tokens ?? (levels[compiled.joinOrder.count - 1]?.tokens ?? [])
+        let termMem = BetaMemory(); termMem.tokens = termTokens; termMem.keyIndex = Set(termTokens.map(keyForToken))
+        env.rete.beta[ruleName] = termMem
+        return terminalAdded
+    }
+
+    // Rimozione delta: elimina dai livelli tutti i token che includono il factID.
+    public static func updateGraphOnRetractDelta(_ env: inout Environment, ruleName: String, factID: Int) {
+        guard var levels = env.rete.betaLevels[ruleName] else { return }
+        for (idx, mem) in levels {
+            let kept = mem.tokens.filter { !$0.usedFacts.contains(factID) }
+            mem.tokens = kept
+            mem.keyIndex = Set(kept.map(keyForToken))
+            levels[idx] = mem
+        }
+        env.rete.betaLevels[ruleName] = levels
+        // Aggiorna snapshot terminale
+        if let maxIdx = levels.keys.max(), let mem = levels[maxIdx] {
+            let termMem = BetaMemory(); termMem.tokens = mem.tokens; termMem.keyIndex = mem.keyIndex
+            env.rete.beta[ruleName] = termMem
+        } else {
+            env.rete.beta[ruleName] = BetaMemory()
+        }
     }
 }

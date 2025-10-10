@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLIPS - Esempi Pratici</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">⚡</span>
+                <a href="../" style="text-decoration: none; color: inherit;">
+                    <span class="brand-name">SLIPS</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <div class="lang-switch">
+                    <button onclick="window.location.href='../en/examples.html'">EN</button>
+                    <button class="active">IT</button>
+                </div>
+                <a href="index.html">Docs</a>
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="doc-container">
+        <div class="doc-header">
+            <h1 class="doc-title gradient-text">Esempi Pratici</h1>
+            <p class="doc-subtitle">Impara SLIPS attraverso esempi concreti</p>
+        </div>
+
+        <div class="doc-content">
+            <section id="hello-world">
+                <h2>Hello World</h2>
+                <p>Il classico primo programma in SLIPS:</p>
+                <pre><code>import SLIPS
+
+let env = CLIPS.createEnvironment()
+
+CLIPS.eval(expr: """
+(defrule hello
+    =>
+    (printout t "Hello, SLIPS!" crlf))
+""")
+
+CLIPS.run(limit: nil)</code></pre>
+            </section>
+
+            <section id="facts">
+                <h2>Gestione Fatti</h2>
+                <h3>Definizione Template</h3>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate persona
+    (slot nome (type STRING))
+    (slot età (type INTEGER))
+    (slot città (type STRING)))
+""")</code></pre>
+
+                <h3>Assert e Retract</h3>
+                <pre><code>// Assert
+let id1 = CLIPS.eval(expr: "(assert (persona (nome \"Mario\") (età 30) (città \"Roma\")))")
+let id2 = CLIPS.eval(expr: "(assert (persona (nome \"Luigi\") (età 25) (città \"Milano\")))")
+
+// List facts
+CLIPS.eval(expr: "(facts)")
+
+// Retract
+CLIPS.eval(expr: "(retract \(id1))")</code></pre>
+            </section>
+
+            <section id="rules">
+                <h2>Regole di Produzione</h2>
+                <h3>Pattern Matching Semplice</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule maggiorenne
+    (persona (nome ?n) (età ?e&:(>= ?e 18)))
+    =>
+    (printout t ?n " è maggiorenne" crlf))
+""")</code></pre>
+
+                <h3>Pattern con Variabili Condivise</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule stessa-città
+    (persona (nome ?n1) (città ?c))
+    (persona (nome ?n2&~?n1) (città ?c))
+    =>
+    (printout t ?n1 " e " ?n2 " vivono a " ?c crlf))
+""")</code></pre>
+
+                <h3>Negazione (NOT)</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule senza-ordini
+    (cliente (id ?id) (nome ?n))
+    (not (ordine (cliente-id ?id)))
+    =>
+    (printout t "Cliente " ?n " senza ordini" crlf))
+""")</code></pre>
+            </section>
+
+            <section id="expert-system">
+                <h2>Sistema Esperto Completo</h2>
+                <p>Sistema per diagnosi medica semplificata:</p>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate sintomo
+    (slot nome)
+    (slot gravità (type INTEGER)))
+
+(deftemplate diagnosi
+    (slot malattia)
+    (slot probabilità (type FLOAT)))
+
+(defrule influenza
+    (sintomo (nome febbre) (gravità ?g1&:(> ?g1 7)))
+    (sintomo (nome tosse))
+    (sintomo (nome mal-di-testa))
+    =>
+    (assert (diagnosi (malattia influenza) (probabilità 0.85)))
+    (printout t "Probabile influenza (85%)" crlf))
+
+(defrule raffreddore
+    (sintomo (nome tosse))
+    (sintomo (nome naso-chiuso))
+    (not (sintomo (nome febbre) (gravità ?g&:(> ?g 7))))
+    =>
+    (assert (diagnosi (malattia raffreddore) (probabilità 0.75)))
+    (printout t "Probabile raffreddore (75%)" crlf))
+""")
+
+// Inserimento sintomi
+CLIPS.eval(expr: "(assert (sintomo (nome febbre) (gravità 8)))")
+CLIPS.eval(expr: "(assert (sintomo (nome tosse) (gravità 6)))")
+CLIPS.eval(expr: "(assert (sintomo (nome mal-di-testa) (gravità 5)))")
+
+// Esecuzione
+CLIPS.run(limit: nil)</code></pre>
+            </section>
+
+            <section id="control-flow">
+                <h2>Controllo Flusso</h2>
+                <h3>Salience (Priorità)</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule urgente
+    (salience 100)
+    (allarme ?tipo)
+    =>
+    (printout t "URGENTE: " ?tipo crlf))
+
+(defrule normale
+    (salience 0)
+    (messaggio ?msg)
+    =>
+    (printout t "Messaggio: " ?msg crlf))
+""")</code></pre>
+
+                <h3>Strategie Agenda</h3>
+                <pre><code>// Depth (default)
+CLIPS.eval(expr: "(set-strategy depth)")
+
+// Breadth
+CLIPS.eval(expr: "(set-strategy breadth)")
+
+// LEX (Recency)
+CLIPS.eval(expr: "(set-strategy lex)")</code></pre>
+            </section>
+
+            <section id="functions">
+                <h2>Funzioni e Calcoli</h2>
+                <pre><code>CLIPS.eval(expr: """
+(defrule calcola-sconto
+    (ordine (id ?id) (importo ?imp))
+    (cliente (id ?cid) (tipo premium))
+    =>
+    (bind ?sconto (* ?imp 0.20))
+    (bind ?finale (- ?imp ?sconto))
+    (printout t "Ordine " ?id ": €" ?finale " (sconto €" ?sconto ")" crlf))
+""")</code></pre>
+
+                <h3>Multifield</h3>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate ordine
+    (multislot prodotti))
+
+(defrule analizza-ordine
+    (ordine (prodotti $?items))
+    =>
+    (printout t "Numero prodotti: " (length$ $?items) crlf))
+""")</code></pre>
+            </section>
+
+            <section id="watch">
+                <h2>Debug e Watch</h2>
+                <pre><code>// Attiva watch facts
+CLIPS.eval(expr: "(watch facts)")
+
+// Attiva watch rules
+CLIPS.eval(expr: "(watch rules)")
+
+// Output:
+// ==> (persona (nome "Mario") (età 30))
+// ==> Activation maggiorenne
+// FIRE maggiorenne
+
+// Disattiva
+CLIPS.eval(expr: "(unwatch facts)")
+CLIPS.eval(expr: "(unwatch rules)")</code></pre>
+            </section>
+
+            <section id="advanced">
+                <h2>Pattern Avanzati</h2>
+                <h3>Test Predicati Complessi</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule prezzo-sospetto
+    (prodotto (nome ?n) (prezzo ?p))
+    (test (or (< ?p 0) (> ?p 10000)))
+    =>
+    (printout t "ALERT: " ?n " ha prezzo anomalo: €" ?p crlf))
+""")</code></pre>
+
+                <h3>Pattern con Wildcard</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule qualsiasi-età
+    (persona (nome ?n) (età ?))
+    =>
+    (printout t "Trovata persona: " ?n crlf))
+""")</code></pre>
+            </section>
+
+            <section id="integration">
+                <h2>Integrazione Swift</h2>
+                <h3>Funzioni Custom</h3>
+                <pre><code>import SLIPS
+
+// Registra funzione custom
+var env = CLIPS.createEnvironment()
+env.functionTable["my-func"] = FunctionDefinitionSwift(name: "my-func") { env, args in
+    guard let val = args.first, case .int(let i) = val else {
+        return .none
+    }
+    return .int(i * 2)
+}
+
+CLIPS.eval(expr: """
+(defrule test
+    =>
+    (printout t "Risultato: " (my-func 21) crlf))
+""")
+
+CLIPS.run(limit: nil)  // Output: Risultato: 42</code></pre>
+
+                <h3>Router Personalizzati</h3>
+                <pre><code>var logs: [String] = []
+
+Router.AddCallback(&env, name: "custom", priority: 10) { _, _, text in
+    logs.append(text)
+    return true
+}
+
+CLIPS.eval(expr: "(printout custom \"Log message\" crlf)")
+print(logs)  // ["Log message\n"]</code></pre>
+            </section>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>SLIPS - Traduzione semantica di CLIPS 6.40 in Swift 6.2</p>
+            <p class="footer-links">
+                <a href="index.html">Documentazione</a> · 
+                <a href="api.html">API</a> · 
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+</body>
+</html>
+

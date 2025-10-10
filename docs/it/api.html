@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLIPS - API Reference</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">⚡</span>
+                <a href="../" style="text-decoration: none; color: inherit;">
+                    <span class="brand-name">SLIPS</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <div class="lang-switch">
+                    <button onclick="window.location.href='../en/api.html'">EN</button>
+                    <button class="active">IT</button>
+                </div>
+                <a href="index.html">Docs</a>
+                <a href="examples.html">Esempi</a>
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="doc-container">
+        <div class="doc-header">
+            <h1 class="doc-title gradient-text">API Reference</h1>
+            <p class="doc-subtitle">Documentazione completa delle API SLIPS</p>
+        </div>
+
+        <div class="doc-nav">
+            <h2>Indice</h2>
+            <ul>
+                <li><a href="#clips">CLIPS (Facciata)</a></li>
+                <li><a href="#environment">Environment</a></li>
+                <li><a href="#value">Value</a></li>
+                <li><a href="#rule">Rule & Pattern</a></li>
+                <li><a href="#agenda">Agenda</a></li>
+                <li><a href="#router">Router</a></li>
+                <li><a href="#evaluator">Evaluator</a></li>
+            </ul>
+        </div>
+
+        <div class="doc-content">
+            <section id="clips">
+                <h2>CLIPS (Facciata Pubblica)</h2>
+                <p>La classe principale per interagire con SLIPS.</p>
+
+                <h3>createEnvironment()</h3>
+                <pre><code>static func createEnvironment() -> Environment</code></pre>
+                <p>Crea e inizializza un nuovo environment SLIPS.</p>
+                <pre><code>let env = CLIPS.createEnvironment()</code></pre>
+
+                <h3>load(_:)</h3>
+                <pre><code>static func load(_ path: String) -> Bool</code></pre>
+                <p>Carica ed esegue un file CLIPS.</p>
+                <pre><code>let success = CLIPS.load("rules.clp")</code></pre>
+
+                <h3>eval(expr:)</h3>
+                <pre><code>static func eval(expr: String) -> Value</code></pre>
+                <p>Valuta un'espressione CLIPS e ritorna il risultato.</p>
+                <pre><code>let result = CLIPS.eval(expr: "(+ 2 3)")
+// result: .int(5)</code></pre>
+
+                <h3>reset()</h3>
+                <pre><code>static func reset()</code></pre>
+                <p>Resetta l'environment corrente, rimuovendo fatti ma mantenendo regole e template.</p>
+
+                <h3>run(limit:)</h3>
+                <pre><code>static func run(limit: Int?) -> Int</code></pre>
+                <p>Esegue le regole nell'agenda. Ritorna il numero di regole eseguite.</p>
+                <pre><code>let fired = CLIPS.run(limit: nil)  // Esegue tutte
+let fired = CLIPS.run(limit: 10)   // Esegue max 10</code></pre>
+
+                <h3>assert(fact:)</h3>
+                <pre><code>static func assert(fact: String) -> Int</code></pre>
+                <p>Asserisce un fatto, ritorna l'ID.</p>
+                <pre><code>let id = CLIPS.assert(fact: "(persona (nome \"Mario\") (età 30))")</code></pre>
+
+                <h3>retract(id:)</h3>
+                <pre><code>static func retract(id: Int) -> Bool</code></pre>
+                <p>Rimuove un fatto dall'environment.</p>
+                <pre><code>CLIPS.retract(id: 1)</code></pre>
+
+                <h3>commandLoop()</h3>
+                <pre><code>static func commandLoop()</code></pre>
+                <p>Avvia un REPL interattivo.</p>
+                <pre><code>CLIPS.commandLoop()
+// SLIPS> (facts)
+// SLIPS> (run)</code></pre>
+            </section>
+
+            <section id="environment">
+                <h2>Environment</h2>
+                <p>Contesto di esecuzione che mantiene lo stato del sistema.</p>
+
+                <h3>Struttura</h3>
+                <pre><code>public struct Environment {
+    var facts: [Int: FactRec]
+    var rules: [Rule]
+    var templates: [String: Template]
+    var agendaQueue: AgendaQueue
+    var rete: ReteNetwork
+    var localBindings: [String: Value]
+    var globalBindings: [String: Value]
+    var functionTable: [String: FunctionDefinitionSwift]
+    var watchFacts: Bool
+    var watchRules: Bool
+    var experimentalJoinCheck: Bool
+}</code></pre>
+
+                <h3>FactRec</h3>
+                <pre><code>public struct FactRec {
+    let id: Int
+    let name: String
+    var slots: [String: Value]
+}</code></pre>
+
+                <h3>Template</h3>
+                <pre><code>public struct Template {
+    let name: String
+    var slots: [String: SlotDefinition]
+}
+
+public struct SlotDefinition {
+    let name: String
+    let isMultifield: Bool
+    let defaultType: DefaultType
+    var defaultStatic: Value?
+    var defaultDynamicExpr: ExpressionNode?
+    var constraints: SlotConstraints?
+}</code></pre>
+            </section>
+
+            <section id="value">
+                <h2>Value</h2>
+                <p>Rappresenta i tipi di dato in SLIPS.</p>
+
+                <h3>Enum</h3>
+                <pre><code>public enum Value: Codable, Equatable {
+    case none
+    case int(Int64)
+    case float(Double)
+    case string(String)
+    case symbol(String)
+    case boolean(Bool)
+    case multifield([Value])
+    case factAddress(Int)
+    case instanceAddress(String)
+    case externalAddress(String)
+}</code></pre>
+
+                <h3>Esempi</h3>
+                <pre><code>let v1 = Value.int(42)
+let v2 = Value.string("hello")
+let v3 = Value.symbol("ok")
+let v4 = Value.boolean(true)
+let v5 = Value.multifield([.int(1), .int(2), .int(3)])</code></pre>
+
+                <h3>Conversioni</h3>
+                <pre><code>// Da Swift a Value
+func toValue(_ x: Int) -> Value { .int(Int64(x)) }
+func toValue(_ x: Double) -> Value { .float(x) }
+func toValue(_ x: String) -> Value { .string(x) }
+func toValue(_ x: Bool) -> Value { .boolean(x) }
+
+// Da Value a Swift
+if case .int(let i) = value { print(i) }
+if case .string(let s) = value { print(s) }</code></pre>
+            </section>
+
+            <section id="rule">
+                <h2>Rule & Pattern</h2>
+
+                <h3>Rule</h3>
+                <pre><code>public struct Rule {
+    let name: String
+    let patterns: [Pattern]
+    let rhs: [ExpressionNode]
+    let salience: Int
+    let tests: [ExpressionNode]
+}</code></pre>
+
+                <h3>Pattern</h3>
+                <pre><code>public struct Pattern {
+    let name: String
+    let slots: [String: PatternTest]
+    let negated: Bool
+}
+
+public struct PatternTest {
+    public enum Kind {
+        case constant(Value)
+        case variable(String)
+        case predicate(ExpressionNode)
+    }
+    let kind: Kind
+}</code></pre>
+            </section>
+
+            <section id="agenda">
+                <h2>Agenda</h2>
+                <p>Gestisce la coda di attivazioni delle regole.</p>
+
+                <h3>AgendaQueue</h3>
+                <pre><code>public struct AgendaQueue {
+    var strategy: Strategy = .depth
+    
+    mutating func add(_ activation: Activation)
+    mutating func next() -> Activation?
+    mutating func clear()
+    func contains(_ act: Activation) -> Bool
+    mutating func setStrategy(_ s: Strategy)
+}</code></pre>
+
+                <h3>Strategy</h3>
+                <pre><code>public enum Strategy: String {
+    case depth      // Nuove attivazioni in testa
+    case breadth    // Nuove attivazioni in coda
+    case lex        // Per salience, poi recency
+    case mea        // Per salience, poi età
+}</code></pre>
+
+                <h3>Activation</h3>
+                <pre><code>public struct Activation {
+    let priority: Int            // salience
+    let ruleName: String
+    var bindings: [String: Value]?
+    var factIDs: Set<Int> = []
+    var timestamp: Int = 0
+}</code></pre>
+
+                <h3>Uso</h3>
+                <pre><code>// Imposta strategia
+CLIPS.eval(expr: "(set-strategy lex)")
+
+// Verifica strategia corrente
+let strategy = CLIPS.eval(expr: "(get-strategy)")
+// Returns: .symbol("lex")</code></pre>
+            </section>
+
+            <section id="router">
+                <h2>Router</h2>
+                <p>Sistema I/O flessibile con callback personalizzabili.</p>
+
+                <h3>Costanti</h3>
+                <pre><code>public enum Router {
+    public static let STDOUT = "stdout"
+    public static let STDERR = "stderr"
+    public static let STDIN = "stdin"
+}</code></pre>
+
+                <h3>Funzioni</h3>
+                <pre><code>// Scrive su un router
+public static func WriteString(
+    _ env: inout Environment,
+    _ logicalName: String,
+    _ str: String
+)
+
+// Scrive con newline
+public static func Writeln(
+    _ env: inout Environment,
+    _ str: String
+)
+
+// Aggiunge callback
+public static func AddCallback(
+    _ env: inout Environment,
+    name: String,
+    priority: Int,
+    callback: @escaping (inout Environment, String, String) -> Bool
+)</code></pre>
+
+                <h3>Esempio Custom Router</h3>
+                <pre><code>var buffer: [String] = []
+
+Router.AddCallback(&env, name: "buffer", priority: 20) { _, _, text in
+    buffer.append(text)
+    return true
+}
+
+CLIPS.eval(expr: "(printout buffer \"Test\" crlf)")
+print(buffer)  // ["Test\n"]</code></pre>
+            </section>
+
+            <section id="evaluator">
+                <h2>Evaluator</h2>
+                <p>Valuta espressioni ed esegue funzioni.</p>
+
+                <h3>Funzioni Principali</h3>
+                <pre><code>public enum Evaluator {
+    public static func EvaluateExpression(
+        _ env: inout Environment,
+        _ node: ExpressionNode
+    ) -> Value
+    
+    public static func eval(
+        _ env: inout Environment,
+        _ node: ExpressionNode
+    ) throws -> Value
+}</code></pre>
+
+                <h3>ExpressionNode</h3>
+                <pre><code>public final class ExpressionNode {
+    public enum NodeType {
+        case fcall, integer, float, string
+        case symbol, boolean
+        case variable, mfVariable
+        case gblVariable, mfGblVariable
+        case instanceName
+    }
+    
+    public var type: NodeType
+    public var value: ValueHolder?
+    public var argList: ExpressionNode?
+    public var nextArg: ExpressionNode?
+}</code></pre>
+
+                <h3>Funzioni Built-in</h3>
+                <p>Operatori matematici:</p>
+                <ul>
+                    <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code></li>
+                    <li><code>=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></li>
+                </ul>
+
+                <p>Logici:</p>
+                <ul>
+                    <li><code>and</code>, <code>or</code>, <code>not</code></li>
+                    <li><code>eq</code>, <code>neq</code></li>
+                </ul>
+
+                <p>Costrutti:</p>
+                <ul>
+                    <li><code>deftemplate</code>, <code>deffacts</code>, <code>defrule</code></li>
+                    <li><code>assert</code>, <code>retract</code></li>
+                    <li><code>bind</code>, <code>printout</code></li>
+                </ul>
+
+                <p>Utilità:</p>
+                <ul>
+                    <li><code>facts</code>, <code>rules</code>, <code>agenda</code></li>
+                    <li><code>watch</code>, <code>unwatch</code></li>
+                    <li><code>reset</code>, <code>clear</code>, <code>run</code></li>
+                </ul>
+            </section>
+
+            <section id="custom-functions">
+                <h2>Funzioni Personalizzate</h2>
+
+                <h3>FunctionDefinitionSwift</h3>
+                <pre><code>public final class FunctionDefinitionSwift {
+    public let name: String
+    public let impl: (inout Environment, [Value]) throws -> Value
+}</code></pre>
+
+                <h3>Registrazione</h3>
+                <pre><code>var env = CLIPS.createEnvironment()
+
+env.functionTable["square"] = FunctionDefinitionSwift(
+    name: "square"
+) { _, args in
+    guard let arg = args.first,
+          case .int(let i) = arg else {
+        return .none
+    }
+    return .int(i * i)
+}
+
+// Uso
+CLIPS.eval(expr: "(printout t (square 7) crlf)")
+// Output: 49</code></pre>
+            </section>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>SLIPS - Traduzione semantica di CLIPS 6.40 in Swift 6.2</p>
+            <p class="footer-links">
+                <a href="index.html">Documentazione</a> · 
+                <a href="examples.html">Esempi</a> · 
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+</body>
+</html>
+

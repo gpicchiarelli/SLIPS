@@ -13,6 +13,8 @@ public struct BetaToken {
 
 public final class BetaMemory {
     public var tokens: [BetaToken] = []
+    // Alias per rapida verifica di presenza (chiave = bindings|facts)
+    public var keyIndex: Set<String> = []
     public init() {}
 }
 
@@ -20,4 +22,3 @@ public struct JoinPlan {
     public let patterns: [CompiledPattern]
     public init(patterns: [CompiledPattern]) { self.patterns = patterns }
 }
-

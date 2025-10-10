@@ -50,6 +50,10 @@ public enum Functions {
         env.functionTable["get-join-check"] = FunctionDefinitionSwift(name: "get-join-check", impl: builtin_get_join_check)
         env.functionTable["set-join-activate"] = FunctionDefinitionSwift(name: "set-join-activate", impl: builtin_set_join_activate)
         env.functionTable["get-join-activate"] = FunctionDefinitionSwift(name: "get-join-activate", impl: builtin_get_join_activate)
+        env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
+        env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
+        env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
+        env.functionTable["get-join-stable"] = FunctionDefinitionSwift(name: "get-join-stable", impl: builtin_get_join_stable)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -305,7 +309,7 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         env.rete.alpha.remove(fact)
         if env.experimentalJoinCheck || env.experimentalJoinActivate {
             for (rname, _) in env.rete.rules {
-                BetaEngine.updateGraphOnRetract(&env, ruleName: rname, factID: fact.id)
+                BetaEngine.updateGraphOnRetractDelta(&env, ruleName: rname, factID: fact.id)
             }
         }
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)
@@ -460,6 +464,29 @@ private func builtin_set_join_activate(_ env: inout Environment, _ args: [Value]
 
 private func builtin_get_join_activate(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .boolean(env.experimentalJoinActivate)
+}
+
+// Whitelist helpers
+private func builtin_add_join_activate_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    env.joinActivateWhitelist.insert(name)
+    return .boolean(true)
+}
+
+private func builtin_remove_join_activate_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    env.joinActivateWhitelist.remove(name)
+    return .boolean(true)
+}
+
+private func builtin_get_join_activate_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let arr = env.joinActivateWhitelist.sorted().map { Value.symbol($0) }
+    return .multifield(arr)
+}
+
+private func builtin_get_join_stable(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    return .boolean(env.joinStableRules.contains(name))
 }
 
 // Validazione constraints di slot

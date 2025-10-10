@@ -84,6 +84,10 @@ public final class Environment {
     public var experimentalJoinCheck: Bool = false
     // Flag sperimentale: usa i token Beta per attivazioni (solo regole senza not)
     public var experimentalJoinActivate: Bool = false
+    // Whitelist di regole per attivazione via rete quando stabili
+    public var joinActivateWhitelist: Set<String> = []
+    // Regole marcate stabili (join-check equivalente al naive)
+    public var joinStableRules: Set<String> = []
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
