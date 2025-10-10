@@ -134,6 +134,54 @@ extension BetaEngine {
         return "{" + b + " | [" + f + "]}"
     }
 
+    // MARK: - Hash-Join helpers
+    private static func boundVarNames(for compiled: CompiledRule, upTo level: Int) -> Set<String> {
+        if level <= 0 { return [] }
+        var names: Set<String> = []
+        let patterns = compiled.patterns.map { $0.original }
+        for li in 0..<level {
+            let p = patterns[compiled.joinOrder[li]]
+            for (_, t) in p.slots {
+                if case .variable(let vname) = t.kind { names.insert(vname) }
+            }
+        }
+        return names
+    }
+    private static func joinKeySlots(for pattern: Pattern, boundVarNames: Set<String>) -> [String] {
+        var slots: [String] = []
+        for (slot, t) in pattern.slots {
+            if case .variable(let vname) = t.kind, boundVarNames.contains(vname) {
+                slots.append(slot)
+            }
+        }
+        return slots.sorted()
+    }
+    private static func makeKeyFromBindings(_ bindings: [String: Value], pattern: Pattern, keySlots: [String]) -> String? {
+        var parts: [String] = []
+        for s in keySlots {
+            guard let t = pattern.slots[s] else { return nil }
+            guard case .variable(let vname) = t.kind, let val = bindings[vname] else { return nil }
+            parts.append("\(s)=\(val)")
+        }
+        return parts.joined(separator: "|")
+    }
+    private static func makeKeyFromFact(_ fact: Environment.FactRec, pattern: Pattern, keySlots: [String]) -> String? {
+        var parts: [String] = []
+        for s in keySlots {
+            guard let v = fact.slots[s] else { return nil }
+            parts.append("\(s)=\(v)")
+        }
+        return parts.joined(separator: "|")
+    }
+    private static func factPassesConstants(_ fact: Environment.FactRec, pattern: Pattern) -> Bool {
+        for (slot, t) in pattern.slots {
+            if case .constant(let c) = t.kind {
+                if fact.slots[slot] != c { return false }
+            }
+        }
+        return true
+    }
+
     // Propagazione per livelli: ricostruisce tutte le memorie di livello per la regola, ritorna i nuovi token terminali
     @discardableResult
     public static func updateGraphOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec]) -> [BetaToken] {
@@ -185,15 +233,42 @@ extension BetaEngine {
         for pidx in compiled.joinOrder {
             let pat = patterns[pidx]
             var next: [BetaToken] = []
-            for tok in current {
-                for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) {
-                    if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
-                        var ok = true
-                        for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
-                        if !ok { continue }
-                        for (k,v) in tok.bindings { b[k] = v }
-                        var used = tok.usedFacts; used.insert(f.id)
-                        next.append(BetaToken(bindings: b, usedFacts: used))
+            // Hash-join preparation
+            let boundNames = boundVarNames(for: compiled, upTo: levels.count)
+            let keySlots = joinKeySlots(for: pat, boundVarNames: boundNames)
+            if !keySlots.isEmpty {
+                // Build bucket from left tokens
+                var bucket: [String: [BetaToken]] = [:]
+                for tok in current {
+                    guard let k = makeKeyFromBindings(tok.bindings, pattern: pat, keySlots: keySlots) else { continue }
+                    bucket[k, default: []].append(tok)
+                }
+                // Iterate facts filtered by template and constants
+                for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                    guard let fk = makeKeyFromFact(f, pattern: pat, keySlots: keySlots), let lefts = bucket[fk] else { continue }
+                    for tok in lefts where !tok.usedFacts.contains(f.id) {
+                        if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
+                            var ok = true
+                            for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                            if !ok { continue }
+                            for (k,v) in tok.bindings { b[k] = v }
+                            var used = tok.usedFacts; used.insert(f.id)
+                            next.append(BetaToken(bindings: b, usedFacts: used))
+                        }
+                    }
+                }
+            } else {
+                // Fallback nested loops
+                for tok in current {
+                    for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) && factPassesConstants(f, pattern: pat) {
+                        if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
+                            var ok = true
+                            for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                            if !ok { continue }
+                            for (k,v) in tok.bindings { b[k] = v }
+                            var used = tok.usedFacts; used.insert(f.id)
+                            next.append(BetaToken(bindings: b, usedFacts: used))
+                        }
                     }
                 }
             }
@@ -318,24 +393,55 @@ extension BetaEngine {
             while k < compiled.joinOrder.count && !nextTokens.isEmpty {
                 let p2 = patterns[compiled.joinOrder[k]]
                 var produced: [BetaToken] = []
-                for t in nextTokens {
-                    for f in facts where f.name == p2.name && !t.usedFacts.contains(f.id) {
-                        if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
-                            var ok = true
-                            for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
-                            if !ok { continue }
-                            for (kk,vv) in t.bindings { b[kk] = vv }
-                            var used = t.usedFacts; used.insert(f.id)
-                            let nt = BetaToken(bindings: b, usedFacts: used)
-                            let wasNew: Bool
-                            if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
-                            else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
-                            if wasNew, env.watchRete {
-                                Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))")
+                // Hash-join with current delta tokens
+                let boundNames2 = boundVarNames(for: compiled, upTo: k)
+                let keySlots2 = joinKeySlots(for: p2, boundVarNames: boundNames2)
+                if !keySlots2.isEmpty {
+                    var bucket: [String: [BetaToken]] = [:]
+                    for t in nextTokens {
+                        if let kkey = makeKeyFromBindings(t.bindings, pattern: p2, keySlots: keySlots2) {
+                            bucket[kkey, default: []].append(t)
+                        }
+                    }
+                    for f in facts where f.name == p2.name && factPassesConstants(f, pattern: p2) {
+                        guard let fk = makeKeyFromFact(f, pattern: p2, keySlots: keySlots2), let lefts = bucket[fk] else { continue }
+                        for t in lefts where !t.usedFacts.contains(f.id) {
+                            if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
+                                var ok = true
+                                for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
+                                if !ok { continue }
+                                for (kk,vv) in t.bindings { b[kk] = vv }
+                                var used = t.usedFacts; used.insert(f.id)
+                                let nt = BetaToken(bindings: b, usedFacts: used)
+                                let wasNew: Bool
+                                if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
+                                else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
+                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))") }
+                                if wasNew { produced.append(nt) }
+                                if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
+                                    terminalAdded.append(nt)
+                                }
                             }
-                            if wasNew { produced.append(nt) }
-                            if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
-                                terminalAdded.append(nt)
+                        }
+                    }
+                } else {
+                    for t in nextTokens {
+                        for f in facts where f.name == p2.name && !t.usedFacts.contains(f.id) && factPassesConstants(f, pattern: p2) {
+                            if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
+                                var ok = true
+                                for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
+                                if !ok { continue }
+                                for (kk,vv) in t.bindings { b[kk] = vv }
+                                var used = t.usedFacts; used.insert(f.id)
+                                let nt = BetaToken(bindings: b, usedFacts: used)
+                                let wasNew: Bool
+                                if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
+                                else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
+                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))") }
+                                if wasNew { produced.append(nt) }
+                                if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
+                                    terminalAdded.append(nt)
+                                }
                             }
                         }
                     }

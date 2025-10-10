@@ -4,7 +4,6 @@ import XCTest
 @MainActor
 final class ReteJoinCheckTests: XCTestCase {
     func testThreePatternJoinBetaVsNaive() throws {
-        throw XCTSkip("Stabilizzazione delta/snapshot RETE in corso")
         _ = CLIPS.createEnvironment()
         _ = CLIPS.eval(expr: "(set-join-check on)")
         _ = CLIPS.eval(expr: "(deftemplate A (slot v))")
