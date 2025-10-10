@@ -15,6 +15,8 @@ public final class BetaMemory {
     public var tokens: [BetaToken] = []
     // Alias per rapida verifica di presenza (chiave = bindings|facts)
     public var keyIndex: Set<String> = []
+    // Indice hash opzionale per futuri join hashing (bucketed per hash)
+    public var hashBuckets: [UInt: [Int]] = [:] // hash -> indices in tokens
     public init() {}
 }
 

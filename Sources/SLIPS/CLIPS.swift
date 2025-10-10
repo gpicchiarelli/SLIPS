@@ -1,3 +1,7 @@
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
 import Foundation
 
 // MARK: - Tipi di base
@@ -50,6 +54,7 @@ public final class Environment {
     // Watch flags
     public var watchFacts: Bool = false
     public var watchRules: Bool = false
+    public var watchRete: Bool = false
 
     // Deffacts archivio: nome -> lista di fatti (ognuno è lista di Values come argomenti per assert)
     public var deffacts: [String: [[Value]]] = [:]

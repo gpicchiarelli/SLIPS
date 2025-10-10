@@ -1,3 +1,7 @@
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
 import Foundation
 
 // MARK: - Beta Engine (fase 1): esecuzione join step-by-step
@@ -121,6 +125,14 @@ extension BetaEngine {
         let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
         return b + "|" + f
     }
+    private static func hashForToken(_ t: BetaToken) -> UInt {
+        return UInt(bitPattern: keyForToken(t).hashValue)
+    }
+    private static func describeToken(_ t: BetaToken) -> String {
+        let b = t.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
+        let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
+        return "{" + b + " | [" + f + "]}"
+    }
 
     // Propagazione per livelli: ricostruisce tutte le memorie di livello per la regola, ritorna i nuovi token terminali
     @discardableResult
@@ -136,12 +148,18 @@ extension BetaEngine {
         var store: [Int: BetaMemory] = [:]
         for (idx, toks) in levels.enumerated() {
             let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+            var buckets: [UInt: [Int]] = [:]
+            for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+            mem.hashBuckets = buckets
             store[idx] = mem
         }
         env.rete.betaLevels[ruleName] = store
         // Update terminal beta snapshot as convenience
         // Snapshot terminale (post filtro se presente)
         let termMem = BetaMemory(); termMem.tokens = levels.last ?? []; termMem.keyIndex = Set((levels.last ?? []).map(keyForToken))
+        var tb: [UInt: [Int]] = [:]
+        for (i, t) in (levels.last ?? []).enumerated() { tb[hashForToken(t), default: []].append(i) }
+        termMem.hashBuckets = tb
         env.rete.beta[ruleName] = termMem
         // Added tokens on terminal level
         var added: [BetaToken] = []
@@ -224,12 +242,18 @@ extension BetaEngine {
             var store: [Int: BetaMemory] = [:]
             for (idx, toks) in levels.enumerated() {
                 let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+                var buckets: [UInt: [Int]] = [:]
+                for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+                mem.hashBuckets = buckets
                 store[idx] = mem
             }
             env.rete.betaLevels[ruleName] = store
             // Terminal snapshot
             let term = levels.last ?? []
             let termMem = BetaMemory(); termMem.tokens = term; termMem.keyIndex = Set(term.map(keyForToken))
+            var tb: [UInt: [Int]] = [:]
+            for (i, t) in term.enumerated() { tb[hashForToken(t), default: []].append(i) }
+            termMem.hashBuckets = tb
             env.rete.beta[ruleName] = termMem
         }
     }
@@ -239,6 +263,8 @@ extension BetaEngine {
         if mem.keyIndex.contains(k) { return false }
         mem.keyIndex.insert(k)
         mem.tokens.append(tok)
+        let idx = mem.tokens.count - 1
+        mem.hashBuckets[hashForToken(tok), default: []].append(idx)
         return true
     }
 
@@ -274,6 +300,9 @@ extension BetaEngine {
                     let tok = BetaToken(bindings: b, usedFacts: used)
                     let wasNew: Bool
                     if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
+                    if wasNew, env.watchRete {
+                        Router.Writeln(&env, "RETE + L\(pos) \(describeToken(tok))")
+                    }
                     // Se questo è già l'ultimo livello pattern ed è nuovo, conteggia come aggiunto al terminale (assenza di filtro)
                     if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew {
                         terminalAdded.append(tok)
@@ -301,6 +330,9 @@ extension BetaEngine {
                             let wasNew: Bool
                             if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
                             else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
+                            if wasNew, env.watchRete {
+                                Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))")
+                            }
                             if wasNew { produced.append(nt) }
                             if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
                                 terminalAdded.append(nt)
@@ -327,7 +359,10 @@ extension BetaEngine {
                 if mem == nil { mem = BetaMemory(); levels[terminalLevel] = mem }
                 for t in terminalCandidates {
                     if RuleEngine.applyTests(&env, tests: compiled.tests, with: t.bindings) {
-                        if addIfNew(mem!, t) { terminalAdded.append(t) }
+                        if addIfNew(mem!, t) {
+                            terminalAdded.append(t)
+                            if env.watchRete { Router.Writeln(&env, "RETE + L\(terminalLevel) \(describeToken(t))") }
+                        }
                     }
                 }
             } else {
@@ -348,15 +383,22 @@ extension BetaEngine {
     public static func updateGraphOnRetractDelta(_ env: inout Environment, ruleName: String, factID: Int) {
         guard var levels = env.rete.betaLevels[ruleName] else { return }
         for (idx, mem) in levels {
+            let before = mem.tokens.count
             let kept = mem.tokens.filter { !$0.usedFacts.contains(factID) }
             mem.tokens = kept
             mem.keyIndex = Set(kept.map(keyForToken))
+            // rebuild hash buckets
+            var buckets: [UInt: [Int]] = [:]
+            for (i, t) in kept.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+            mem.hashBuckets = buckets
+            let removed = before - kept.count
+            if removed > 0, env.watchRete { Router.Writeln(&env, "RETE - L\(idx) removed \(removed)") }
             levels[idx] = mem
         }
         env.rete.betaLevels[ruleName] = levels
         // Aggiorna snapshot terminale
         if let maxIdx = levels.keys.max(), let mem = levels[maxIdx] {
-            let termMem = BetaMemory(); termMem.tokens = mem.tokens; termMem.keyIndex = mem.keyIndex
+            let termMem = BetaMemory(); termMem.tokens = mem.tokens; termMem.keyIndex = mem.keyIndex; termMem.hashBuckets = mem.hashBuckets
             env.rete.beta[ruleName] = termMem
         } else {
             env.rete.beta[ruleName] = BetaMemory()

@@ -7,6 +7,7 @@ final class ReteJoinActivateTests: XCTestCase {
         _ = CLIPS.createEnvironment()
         _ = CLIPS.eval(expr: "(set-join-check on)")
         _ = CLIPS.eval(expr: "(set-join-activate on)")
+        _ = CLIPS.eval(expr: "(watch rete)")
         _ = CLIPS.eval(expr: "(deftemplate A (slot v))")
         _ = CLIPS.eval(expr: "(deftemplate B (slot v))")
         _ = CLIPS.eval(expr: "(deftemplate C (slot v))")
@@ -21,4 +22,3 @@ final class ReteJoinActivateTests: XCTestCase {
         XCTAssertTrue(out.contains("J"))
     }
 }
-

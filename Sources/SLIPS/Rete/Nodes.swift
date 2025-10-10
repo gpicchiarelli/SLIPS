@@ -1,3 +1,7 @@
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
 import Foundation
 
 /// Strutture dei nodi della RETE ispirate ai corrispettivi in CLIPS.

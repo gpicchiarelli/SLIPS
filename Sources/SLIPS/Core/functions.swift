@@ -1,3 +1,7 @@
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
 import Foundation
 
 // MARK: - Registro funzioni (port minimale di extnfunc)
@@ -394,6 +398,7 @@ private func builtin_watch(_ env: inout Environment, _ args: [Value]) throws -> 
     switch what {
     case "facts": env.watchFacts = true; return .boolean(true)
     case "rules": env.watchRules = true; return .boolean(true)
+    case "rete": env.watchRete = true; return .boolean(true)
     default: return .boolean(false)
     }
 }
@@ -403,6 +408,7 @@ private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -
     switch what {
     case "facts": env.watchFacts = false; return .boolean(true)
     case "rules": env.watchRules = false; return .boolean(true)
+    case "rete": env.watchRete = false; return .boolean(true)
     default: return .boolean(false)
     }
 }

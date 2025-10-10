@@ -1,5 +1,20 @@
 # SLIPS – Swift Logical Inference Production System
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/gpicchiarelli/SLIPS)
+[![Swift Package Manager](https://img.shields.io/badge/Swift%20Package%20Manager-compatible-brightgreen.svg)](https://swift.org/package-manager/)
+[![Build Status](https://github.com/gpicchiarelli/SLIPS/workflows/CI/badge.svg)](https://github.com/gpicchiarelli/SLIPS/actions)
+
+[![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](https://gpicchiarelli.github.io/SLIPS/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/gpicchiarelli/SLIPS/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/gpicchiarelli/SLIPS?style=social)](https://github.com/gpicchiarelli/SLIPS/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/gpicchiarelli/SLIPS?style=social)](https://github.com/gpicchiarelli/SLIPS/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/issues)
+[![GitHub Contributors](https://img.shields.io/github/contributors/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/graphs/contributors)
+[![Code Size](https://img.shields.io/github/languages/code-size/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS)
+[![Last Commit](https://img.shields.io/github/last-commit/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/commits/main)
+
 Benvenuta/o in SLIPS, una traduzione fedele e moderna in Swift 6 del motore CLIPS (v6.42). 
 
 Obiettivo del progetto:
@@ -50,5 +65,15 @@ Contributi
 - Consulta `AGENTS.md` per le convenzioni di traduzione e la mappatura file-per-file
 - Apri una issue per dubbi su semantica o naming; puntiamo a massima fedeltà a CLIPS
 
-Licenza
-- In attesa di definizione; attualmente il codice è in sviluppo aperto a contributi.
+## Documentazione
+- 📖 [Documentazione completa](https://gpicchiarelli.github.io/SLIPS/)
+- 💡 [Esempi pratici](https://gpicchiarelli.github.io/SLIPS/it/examples.html)
+- 📚 [API Reference](https://gpicchiarelli.github.io/SLIPS/it/api.html)
+
+## Licenza
+
+SLIPS è rilasciato sotto licenza MIT. Vedi il file [LICENSE](LICENSE) per i dettagli.
+
+Copyright (c) 2025 SLIPS Contributors
+
+**Nota:** CLIPS originale è sviluppato dalla NASA e rilasciato come public domain negli Stati Uniti. SLIPS è una traduzione indipendente in Swift e non è affiliato con la NASA.
