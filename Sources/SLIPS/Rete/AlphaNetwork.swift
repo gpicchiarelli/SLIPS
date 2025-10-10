@@ -28,7 +28,9 @@ public struct CompiledRule {
     public let name: String
     public let patterns: [CompiledPattern]
     public let salience: Int
+    // LHS predicate CE (es. (test ...)) estratti come nodi filtro post-join
     public let tests: [ExpressionNode]
+    public let filterNode: FilterNode?
     public let joinOrder: [Int]
 }
 
@@ -45,6 +47,7 @@ public enum ReteCompiler {
     public static func compile(_ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
         let order = Array(0..<cps.count)
-        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, joinOrder: order)
+        let filter: FilterNode? = rule.tests.isEmpty ? nil : FilterNode(id: 0, tests: rule.tests)
+        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, filterNode: filter, joinOrder: order)
     }
 }

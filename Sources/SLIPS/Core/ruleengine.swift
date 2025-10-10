@@ -49,7 +49,8 @@ public enum RuleEngine {
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale
             if !hasNeg, (env.experimentalJoinCheck || env.experimentalJoinActivate), let cr = env.rete.rules[rule.name] {
-                let added = BetaEngine.updateOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
+                // Aggiorna grafo per livelli e ottieni token nuovi a livello terminale
+                let added = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool)
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
                     if env.experimentalJoinCheck, !equivalentMatchesStatic(matches, jList) {

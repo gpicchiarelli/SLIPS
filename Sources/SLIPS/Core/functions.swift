@@ -303,9 +303,9 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         }
         // Aggiorna rete: alpha e beta (sperimentale)
         env.rete.alpha.remove(fact)
-        if env.experimentalJoinCheck {
+        if env.experimentalJoinCheck || env.experimentalJoinActivate {
             for (rname, _) in env.rete.rules {
-                BetaEngine.updateOnRetract(&env, ruleName: rname, factID: fact.id)
+                BetaEngine.updateGraphOnRetract(&env, ruleName: rname, factID: fact.id)
             }
         }
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)

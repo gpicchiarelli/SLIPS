@@ -25,8 +25,10 @@ public enum BetaEngine {
             tokens = next
             if tokens.isEmpty { break }
         }
-        // Tests di LHS
-        tokens = tokens.filter { RuleEngine.applyTests(&env, tests: compiled.tests, with: $0.bindings) }
+        // Applica nodo filtro post-join se presente (equivalente a applyTests)
+        if let _ = compiled.filterNode, !compiled.tests.isEmpty {
+            tokens = tokens.filter { RuleEngine.applyTests(&env, tests: compiled.tests, with: $0.bindings) }
+        }
         return tokens
     }
 }
@@ -71,7 +73,12 @@ extension BetaEngine {
                 let used0: Set<Int> = [anchor.id]
                 func backtrack(_ pidx: Int, _ current: [String: Value], _ used: Set<Int>) {
                     if pidx == patterns.count {
-                        if RuleEngine.applyTests(&env, tests: compiled.tests, with: current) {
+                        // Applica filtro post-join se definito
+                        if let _ = compiled.filterNode {
+                            if RuleEngine.applyTests(&env, tests: compiled.tests, with: current) {
+                                results.append(RuleEngine.PartialMatch(bindings: current, usedFacts: used))
+                            }
+                        } else {
                             results.append(RuleEngine.PartialMatch(bindings: current, usedFacts: used))
                         }
                         return
@@ -113,5 +120,93 @@ extension BetaEngine {
         let b = t.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
         let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
         return b + "|" + f
+    }
+
+    // Propagazione per livelli: ricostruisce tutte le memorie di livello per la regola, ritorna i nuovi token terminali
+    @discardableResult
+    public static func updateGraphOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec]) -> [BetaToken] {
+        // Compute all levels
+        let levels = computeLevels(&env, compiled: compiled, facts: facts)
+        // Previous last-level keys
+        let prevLevels = env.rete.betaLevels[ruleName] ?? [:]
+        // Individua l'ultimo livello precedente (può includere livello filtro)
+        let prevLast = (prevLevels.keys.max().flatMap { prevLevels[$0]?.tokens }) ?? []
+        var prevSet = Set(prevLast.map(keyForToken))
+        // Store new levels and compute added
+        var store: [Int: BetaMemory] = [:]
+        for (idx, toks) in levels.enumerated() {
+            let mem = BetaMemory(); mem.tokens = toks
+            store[idx] = mem
+        }
+        env.rete.betaLevels[ruleName] = store
+        // Update terminal beta snapshot as convenience
+        // Snapshot terminale (post filtro se presente)
+        let termMem = BetaMemory(); termMem.tokens = levels.last ?? []
+        env.rete.beta[ruleName] = termMem
+        // Added tokens on terminal level
+        var added: [BetaToken] = []
+        for t in levels.last ?? [] {
+            let k = keyForToken(t)
+            if !prevSet.contains(k) { added.append(t) }
+        }
+        return added
+    }
+
+    public static func updateGraphOnRetract(_ env: inout Environment, ruleName: String, factID: Int) {
+        guard let compiled = env.rete.rules[ruleName] else { return }
+        // Recompute levels from facts without the retracted fact
+        let facts = Array(env.facts.values)
+        _ = updateGraphOnAssert(&env, ruleName: ruleName, compiled: compiled, facts: facts)
+    }
+
+    private static func computeLevels(_ env: inout Environment, compiled: CompiledRule, facts: [Environment.FactRec]) -> [[BetaToken]] {
+        let patterns = compiled.patterns.map { $0.original }
+        guard !patterns.isEmpty else { return [] }
+        var levels: [[BetaToken]] = []
+        var current: [BetaToken] = [BetaToken(bindings: [:], usedFacts: [])]
+        for pidx in compiled.joinOrder {
+            let pat = patterns[pidx]
+            var next: [BetaToken] = []
+            for tok in current {
+                for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) {
+                    if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
+                        var ok = true
+                        for (k,v) in tok.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                        if !ok { continue }
+                        for (k,v) in tok.bindings { b[k] = v }
+                        var used = tok.usedFacts; used.insert(f.id)
+                        next.append(BetaToken(bindings: b, usedFacts: used))
+                    }
+                }
+            }
+            // Dedup per livello
+            var seen = Set<String>()
+            var uniq: [BetaToken] = []
+            for t in next {
+                let k = keyForToken(t)
+                if !seen.contains(k) { seen.insert(k); uniq.append(t) }
+            }
+            levels.append(uniq)
+            current = uniq
+            if current.isEmpty { break }
+        }
+        // Nodo filtro post-join: applica predicate CE (test ...)
+        if let filter = compiled.filterNode, !filter.tests.isEmpty, !current.isEmpty {
+            var filtered: [BetaToken] = []
+            for t in current {
+                if RuleEngine.applyTests(&env, tests: filter.tests, with: t.bindings) {
+                    filtered.append(t)
+                }
+            }
+            // Dedup dopo filtro (per sicurezza)
+            var seen = Set<String>()
+            var uniq: [BetaToken] = []
+            for t in filtered {
+                let k = keyForToken(t)
+                if !seen.contains(k) { seen.insert(k); uniq.append(t) }
+            }
+            levels.append(uniq)
+        }
+        return levels
     }
 }

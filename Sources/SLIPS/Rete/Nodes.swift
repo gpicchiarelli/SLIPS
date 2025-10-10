@@ -16,3 +16,11 @@ public struct JoinNode: Codable, Equatable {
     public var patternIndex: Int
     public init(id: Int, patternIndex: Int) { self.id = id; self.patternIndex = patternIndex }
 }
+
+/// Nodo filtro post-join per predicate CE (es. (test ...)).
+/// Valuta le espressioni rispetto ai binding del token corrente e decide la propagazione.
+public struct FilterNode: Codable {
+    public var id: Int
+    public var tests: [ExpressionNode]
+    public init(id: Int, tests: [ExpressionNode]) { self.id = id; self.tests = tests }
+}
