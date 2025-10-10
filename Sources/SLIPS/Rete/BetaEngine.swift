@@ -147,29 +147,42 @@ extension BetaEngine {
         }
         return names
     }
-    private static func joinKeySlots(for pattern: Pattern, boundVarNames: Set<String>) -> [String] {
-        var slots: [String] = []
+    private struct JoinKeyPart { let slot: String; let varName: String?; let constValue: Value? }
+    private static func buildJoinKeySpec(for pattern: Pattern, boundVarNames: Set<String>) -> [JoinKeyPart] {
+        var parts: [JoinKeyPart] = []
         for (slot, t) in pattern.slots {
-            if case .variable(let vname) = t.kind, boundVarNames.contains(vname) {
-                slots.append(slot)
+            switch t.kind {
+            case .variable(let vname):
+                if boundVarNames.contains(vname) { parts.append(JoinKeyPart(slot: slot, varName: vname, constValue: nil)) }
+            case .constant(let v):
+                parts.append(JoinKeyPart(slot: slot, varName: nil, constValue: v))
+            case .predicate:
+                break
             }
         }
-        return slots.sorted()
+        return parts.sorted(by: { $0.slot < $1.slot })
     }
-    private static func makeKeyFromBindings(_ bindings: [String: Value], pattern: Pattern, keySlots: [String]) -> String? {
+    private static func makeKeyFromBindings(_ bindings: [String: Value], spec: [JoinKeyPart]) -> String? {
         var parts: [String] = []
-        for s in keySlots {
-            guard let t = pattern.slots[s] else { return nil }
-            guard case .variable(let vname) = t.kind, let val = bindings[vname] else { return nil }
-            parts.append("\(s)=\(val)")
+        for p in spec {
+            if let vn = p.varName {
+                guard let val = bindings[vn] else { return nil }
+                parts.append("\(p.slot)=\(val)")
+            } else if let cv = p.constValue {
+                parts.append("\(p.slot)=\(cv)")
+            }
         }
         return parts.joined(separator: "|")
     }
-    private static func makeKeyFromFact(_ fact: Environment.FactRec, pattern: Pattern, keySlots: [String]) -> String? {
+    private static func makeKeyFromFact(_ fact: Environment.FactRec, spec: [JoinKeyPart]) -> String? {
         var parts: [String] = []
-        for s in keySlots {
-            guard let v = fact.slots[s] else { return nil }
-            parts.append("\(s)=\(v)")
+        for p in spec {
+            if p.varName != nil {
+                guard let v = fact.slots[p.slot] else { return nil }
+                parts.append("\(p.slot)=\(v)")
+            } else if let cv = p.constValue {
+                parts.append("\(p.slot)=\(cv)")
+            }
         }
         return parts.joined(separator: "|")
     }
@@ -186,7 +199,7 @@ extension BetaEngine {
     @discardableResult
     public static func updateGraphOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec]) -> [BetaToken] {
         // Compute all levels
-        let levels = computeLevels(&env, compiled: compiled, facts: facts)
+        let levels = computeLevels(&env, compiled: compiled, facts: facts, ruleName: ruleName)
         // Previous last-level keys
         let prevLevels = env.rete.betaLevels[ruleName] ?? [:]
         // Individua l'ultimo livello precedente (può includere livello filtro)
@@ -225,27 +238,28 @@ extension BetaEngine {
         _ = updateGraphOnAssert(&env, ruleName: ruleName, compiled: compiled, facts: facts)
     }
 
-    private static func computeLevels(_ env: inout Environment, compiled: CompiledRule, facts: [Environment.FactRec]) -> [[BetaToken]] {
+    private static func computeLevels(_ env: inout Environment, compiled: CompiledRule, facts: [Environment.FactRec], ruleName: String? = nil) -> [[BetaToken]] {
         let patterns = compiled.patterns.map { $0.original }
         guard !patterns.isEmpty else { return [] }
         var levels: [[BetaToken]] = []
         var current: [BetaToken] = [BetaToken(bindings: [:], usedFacts: [])]
         for pidx in compiled.joinOrder {
+            let t0 = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
             let pat = patterns[pidx]
             var next: [BetaToken] = []
             // Hash-join preparation
             let boundNames = boundVarNames(for: compiled, upTo: levels.count)
-            let keySlots = joinKeySlots(for: pat, boundVarNames: boundNames)
-            if !keySlots.isEmpty {
+            let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
+            if !spec.isEmpty {
                 // Build bucket from left tokens
                 var bucket: [String: [BetaToken]] = [:]
                 for tok in current {
-                    guard let k = makeKeyFromBindings(tok.bindings, pattern: pat, keySlots: keySlots) else { continue }
+                    guard let k = makeKeyFromBindings(tok.bindings, spec: spec) else { continue }
                     bucket[k, default: []].append(tok)
                 }
                 // Iterate facts filtered by template and constants
                 for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
-                    guard let fk = makeKeyFromFact(f, pattern: pat, keySlots: keySlots), let lefts = bucket[fk] else { continue }
+                    guard let fk = makeKeyFromFact(f, spec: spec), let lefts = bucket[fk] else { continue }
                     for tok in lefts where !tok.usedFacts.contains(f.id) {
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
@@ -282,9 +296,15 @@ extension BetaEngine {
             levels.append(uniq)
             current = uniq
             if current.isEmpty { break }
+            if env.watchReteProfile {
+                let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                if let rn = ruleName { Router.Writeln(&env, "RETE time \(rn)/L\(levels.count-1) \(ms)ms") }
+                else { Router.Writeln(&env, "RETE time L\(levels.count-1) \(ms)ms") }
+            }
         }
         // Nodo filtro post-join: applica predicate CE (test ...)
         if let filter = compiled.filterNode, !filter.tests.isEmpty, !current.isEmpty {
+            let t0 = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
             var filtered: [BetaToken] = []
             for t in current {
                 if RuleEngine.applyTests(&env, tests: filter.tests, with: t.bindings) {
@@ -299,6 +319,11 @@ extension BetaEngine {
                 if !seen.contains(k) { seen.insert(k); uniq.append(t) }
             }
             levels.append(uniq)
+            if env.watchReteProfile {
+                let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                if let rn = ruleName { Router.Writeln(&env, "RETE time \(rn)/L\(levels.count-1) (filter) \(ms)ms") }
+                else { Router.Writeln(&env, "RETE time L\(levels.count-1) (filter) \(ms)ms") }
+            }
         }
         return levels
     }
@@ -376,7 +401,7 @@ extension BetaEngine {
                     let wasNew: Bool
                     if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
                     if wasNew, env.watchRete {
-                        Router.Writeln(&env, "RETE + L\(pos) \(describeToken(tok))")
+                        Router.Writeln(&env, "RETE + \(ruleName)/L\(pos) \(describeToken(tok))")
                     }
                     // Se questo è già l'ultimo livello pattern ed è nuovo, conteggia come aggiunto al terminale (assenza di filtro)
                     if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew {
@@ -391,20 +416,21 @@ extension BetaEngine {
             var nextTokens = currentNew
             var k = pos + 1
             while k < compiled.joinOrder.count && !nextTokens.isEmpty {
+                let levelStart = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
                 let p2 = patterns[compiled.joinOrder[k]]
                 var produced: [BetaToken] = []
                 // Hash-join with current delta tokens
                 let boundNames2 = boundVarNames(for: compiled, upTo: k)
-                let keySlots2 = joinKeySlots(for: p2, boundVarNames: boundNames2)
-                if !keySlots2.isEmpty {
+                let spec2 = buildJoinKeySpec(for: p2, boundVarNames: boundNames2)
+                if !spec2.isEmpty {
                     var bucket: [String: [BetaToken]] = [:]
                     for t in nextTokens {
-                        if let kkey = makeKeyFromBindings(t.bindings, pattern: p2, keySlots: keySlots2) {
+                        if let kkey = makeKeyFromBindings(t.bindings, spec: spec2) {
                             bucket[kkey, default: []].append(t)
                         }
                     }
                     for f in facts where f.name == p2.name && factPassesConstants(f, pattern: p2) {
-                        guard let fk = makeKeyFromFact(f, pattern: p2, keySlots: keySlots2), let lefts = bucket[fk] else { continue }
+                        guard let fk = makeKeyFromFact(f, spec: spec2), let lefts = bucket[fk] else { continue }
                         for t in lefts where !t.usedFacts.contains(f.id) {
                             if var b = RuleEngine.match(env: &env, pattern: p2, fact: f, current: t.bindings) {
                                 var ok = true
@@ -416,7 +442,7 @@ extension BetaEngine {
                                 let wasNew: Bool
                                 if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
                                 else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
-                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))") }
+                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + \(ruleName)/L\(k) \(describeToken(nt))") }
                                 if wasNew { produced.append(nt) }
                                 if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
                                     terminalAdded.append(nt)
@@ -437,7 +463,7 @@ extension BetaEngine {
                                 let wasNew: Bool
                                 if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
                                 else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
-                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + L\(k) \(describeToken(nt))") }
+                                if wasNew, env.watchRete { Router.Writeln(&env, "RETE + \(ruleName)/L\(k) \(describeToken(nt))") }
                                 if wasNew { produced.append(nt) }
                                 if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew {
                                     terminalAdded.append(nt)
@@ -448,6 +474,10 @@ extension BetaEngine {
                 }
                 nextTokens = produced
                 k += 1
+                if env.watchReteProfile {
+                    let ms = Int((CFAbsoluteTimeGetCurrent() - levelStart) * 1000)
+                    Router.Writeln(&env, "RETE time \(ruleName)/L\(k-1) \(ms)ms")
+                }
             }
 
             // Nodo filtro terminale
@@ -467,7 +497,7 @@ extension BetaEngine {
                     if RuleEngine.applyTests(&env, tests: compiled.tests, with: t.bindings) {
                         if addIfNew(mem!, t) {
                             terminalAdded.append(t)
-                            if env.watchRete { Router.Writeln(&env, "RETE + L\(terminalLevel) \(describeToken(t))") }
+                            if env.watchRete { Router.Writeln(&env, "RETE + \(ruleName)/L\(terminalLevel) \(describeToken(t))") }
                         }
                     }
                 }

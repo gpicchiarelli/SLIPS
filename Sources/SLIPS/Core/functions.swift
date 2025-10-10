@@ -399,6 +399,7 @@ private func builtin_watch(_ env: inout Environment, _ args: [Value]) throws -> 
     case "facts": env.watchFacts = true; return .boolean(true)
     case "rules": env.watchRules = true; return .boolean(true)
     case "rete": env.watchRete = true; return .boolean(true)
+    case "rete-prof", "rete-profile": env.watchReteProfile = true; return .boolean(true)
     default: return .boolean(false)
     }
 }
@@ -409,6 +410,7 @@ private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -
     case "facts": env.watchFacts = false; return .boolean(true)
     case "rules": env.watchRules = false; return .boolean(true)
     case "rete": env.watchRete = false; return .boolean(true)
+    case "rete-prof", "rete-profile": env.watchReteProfile = false; return .boolean(true)
     default: return .boolean(false)
     }
 }

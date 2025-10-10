@@ -55,6 +55,7 @@ public final class Environment {
     public var watchFacts: Bool = false
     public var watchRules: Bool = false
     public var watchRete: Bool = false
+    public var watchReteProfile: Bool = false
 
     // Deffacts archivio: nome -> lista di fatti (ognuno è lista di Values come argomenti per assert)
     public var deffacts: [String: [[Value]]] = [:]
