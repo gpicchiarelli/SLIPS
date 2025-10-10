@@ -5,7 +5,7 @@ Ambito
 - Le istruzioni si applicano a ogni file generato o modificato.
 
 Stile e filosofia
-- Traduzione semantica fedele del codice C di CLIPS (v6.40) in Swift 6.2.
+- Traduzione semantica fedele del codice C di CLIPS (v6.4.2) in Swift 6.2.
 - Non semplificare algoritmi (RETE, agenda, join, salience, test di pattern).
 - Mantieni nomi, responsabilità e flusso logico equivalenti.
 

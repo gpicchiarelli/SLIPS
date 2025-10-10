@@ -1,10 +1,10 @@
 # SLIPS – Swift Logical Inference Production System
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![License](https://img.shields.io/github/license/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/blob/main/LICENSE)
+[![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/gpicchiarelli/SLIPS)
-[![Swift Package Manager](https://img.shields.io/badge/Swift%20Package%20Manager-compatible-brightgreen.svg)](https://swift.org/package-manager/)
-[![Build Status](https://github.com/gpicchiarelli/SLIPS/workflows/CI/badge.svg)](https://github.com/gpicchiarelli/SLIPS/actions)
+[![Swift Package Manager](https://img.shields.io/badge/SPM-compatible-brightgreen.svg)](https://swift.org/package-manager/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/gpicchiarelli/SLIPS/ci.yml?branch=main)](https://github.com/gpicchiarelli/SLIPS/actions)
 
 [![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](https://gpicchiarelli.github.io/SLIPS/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/gpicchiarelli/SLIPS/pulls)
@@ -15,7 +15,7 @@
 [![Code Size](https://img.shields.io/github/languages/code-size/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS)
 [![Last Commit](https://img.shields.io/github/last-commit/gpicchiarelli/SLIPS)](https://github.com/gpicchiarelli/SLIPS/commits/main)
 
-Benvenuta/o in SLIPS, una traduzione fedele e moderna in Swift 6 del motore CLIPS (v6.42). 
+Benvenuta/o in SLIPS, una traduzione fedele e moderna in Swift 6 del motore CLIPS (v6.4.2). 
 
 Obiettivo del progetto:
 - Tradurre integralmente il codice sorgente C di CLIPS in Swift 6.2
@@ -34,7 +34,7 @@ Come iniziare
 - Aprire con Xcode (opzionale): `xed .`
 
 Struttura del repository
-- `clips_core_source_642/`: sorgenti C di riferimento (CLIPS 6.40)
+- `clips_core_source_642/`: sorgenti C di riferimento (CLIPS 6.4.2)
 - `clips_feature_tests_642/`: insiemi di test `.clp` di riferimento
 - `Sources/SLIPS/`: codice Swift del motore in traduzione
 - `Tests/SLIPSTests/`: test di equivalenza e unit test
@@ -77,3 +77,9 @@ SLIPS è rilasciato sotto licenza MIT. Vedi il file [LICENSE](LICENSE) per i det
 Copyright (c) 2025 SLIPS Contributors
 
 **Nota:** CLIPS originale è sviluppato dalla NASA e rilasciato come public domain negli Stati Uniti. SLIPS è una traduzione indipendente in Swift e non è affiliato con la NASA.
+
+## Autore
+
+**Giacomo Picchiarelli** - Creatore e Lead Developer del progetto
+
+Vedi [AUTHORS](AUTHORS) per la lista completa dei contributori.

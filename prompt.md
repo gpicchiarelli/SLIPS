@@ -101,7 +101,7 @@ Dopo ogni file tradotto:
 	•	Test .clp che mostrano equivalenza.
 	•	Compilabile con swift build su macOS 15 / Swift 6.2.
 
-    Task: Traduci l’intero codice sorgente C di CLIPS (v6.40) in codice Swift 6.2, producendo un progetto SwiftPM chiamato “SLIPS”.
+    Task: Traduci l'intero codice sorgente C di CLIPS (v6.4.2) in codice Swift 6.2, producendo un progetto SwiftPM chiamato "SLIPS".
 
 Ogni file .c/.h deve essere convertito nel corrispondente file .swift mantenendo struttura, nomi, e semantica.
 Il risultato deve compilare e comportarsi come CLIPS, ma usando tipi e sicurezza Swift.

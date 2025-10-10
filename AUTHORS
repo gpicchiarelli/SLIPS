@@ -1,0 +1,29 @@
+# Authors and Contributors
+
+## Main Author
+
+**Giacomo Picchiarelli** - Project Creator and Lead Developer
+- GitHub: [@gpicchiarelli](https://github.com/gpicchiarelli)
+- Role: Semantic translation of CLIPS to Swift
+
+## Original Work
+
+SLIPS is a faithful semantic translation of **CLIPS 6.4.2** (C Language Integrated Production System) to Swift 6.2.
+
+**CLIPS** was originally developed by:
+- NASA Johnson Space Center
+- Software Technology Branch
+- Information Systems Directorate
+
+CLIPS is released as public domain in the United States.
+
+## Contributors
+
+Thank you to all contributors who help improve SLIPS through pull requests, bug reports, documentation, and suggestions.
+
+See [GitHub Contributors](https://github.com/gpicchiarelli/SLIPS/graphs/contributors) for the full list.
+
+---
+
+If you contribute to SLIPS, feel free to add your name here via pull request!
+

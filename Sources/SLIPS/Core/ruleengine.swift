@@ -52,9 +52,13 @@ public enum RuleEngine {
             let supportRete = !hasNeg && (env.rete.rules[rule.name] != nil)
             let needNaive = hasNeg || env.experimentalJoinCheck || !supportRete
             if needNaive {
-                matches = hasNeg
-                    ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
-                    : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+                if hasNeg || env.experimentalJoinCheck {
+                    // Per il confronto di stabilità calcola i match completi
+                    matches = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
+                } else {
+                    // Altrimenti usa la versione ancorata per performance
+                    matches = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+                }
             }
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale

@@ -1,6 +1,6 @@
 # Roadmap di Traduzione SLIPS
 
-Obiettivo: traduzione fedele del core CLIPS (v6.40) in Swift 6.2.
+Obiettivo: traduzione fedele del core CLIPS (v6.4.2) in Swift 6.2.
 
 Fasi principali
 - Ambiente e runtime base (envrnmnt.c) → `Environment.swift`
