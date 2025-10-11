@@ -118,6 +118,9 @@ public enum CLIPS {
         ExpressionEnv.InitExpressionData(&env)
         // Strategia agenda di default
         env.agendaQueue.setStrategy(.depth)
+        // Abilita join-check e attivazione via RETE di default su regole stabili
+        env.experimentalJoinCheck = true
+        env.joinActivateDefaultOnStable = true
         currentEnv = env
         return env
     }

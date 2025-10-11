@@ -78,7 +78,7 @@ public enum RuleEngine {
             }
 
             // Confronto + aggiornamento BetaMemory in modalità sperimentale
-            if let cr = env.rete.rules[rule.name], supportRete && (env.experimentalJoinCheck || env.experimentalJoinActivate || env.joinActivateWhitelist.contains(rule.name)) {
+            if let cr = env.rete.rules[rule.name], supportRete && (env.experimentalJoinCheck || env.experimentalJoinActivate || env.joinActivateWhitelist.contains(rule.name) || env.joinActivateDefaultOnStable) {
                 // Se l'anchor appartiene a un template usato solo in CE negati per questa regola, ricorri al recompute completo
                 let anchorName = fact.name
                 _ = cr.patterns.contains { $0.original.name == anchorName && $0.original.negated }
@@ -106,15 +106,6 @@ public enum RuleEngine {
                         } else {
                             env.joinStableRules.insert(rule.name)
                         }
-                    }
-                }
-                // Fallback specifico: regole solo-EXISTS → aggiungi un'attivazione naïve
-                if hasExists && rule.patterns.count == 1 && rule.patterns[0].exists {
-                    let tmpl = rule.patterns[0].name
-                    if pool.contains(where: { $0.name == tmpl }) {
-                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
-                        act.factIDs = []
-                        if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
                     }
                 }
                 let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name)) || (env.joinActivateDefaultOnStable && env.joinStableRules.contains(rule.name))
