@@ -119,7 +119,9 @@ public enum RuleEngine {
                         }
                     }
                 }
-                if needNaive {
+                // Disattiva fallback naïve se la regola è stabile e l'utente ha disabilitato il fallback
+                let disableNaive = useReteActivation && env.joinStableRules.contains(rule.name) && !env.joinNaiveFallback
+                if needNaive && !disableNaive {
                     // Matcher naive: attiva anche quando RETE è attiva; Agenda.contains evita duplicati
                     for m in matchesForActivation {
                         var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)

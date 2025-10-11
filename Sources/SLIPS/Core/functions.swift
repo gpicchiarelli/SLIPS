@@ -67,6 +67,8 @@ public enum Functions {
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
         env.functionTable["get-join-stable"] = FunctionDefinitionSwift(name: "get-join-stable", impl: builtin_get_join_stable)
+        env.functionTable["set-join-naive-fallback"] = FunctionDefinitionSwift(name: "set-join-naive-fallback", impl: builtin_set_join_naive_fallback)
+        env.functionTable["get-join-naive-fallback"] = FunctionDefinitionSwift(name: "get-join-naive-fallback", impl: builtin_get_join_naive_fallback)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -509,6 +511,19 @@ private func builtin_set_join_default(_ env: inout Environment, _ args: [Value])
 
 private func builtin_get_join_default(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .boolean(env.joinActivateDefaultOnStable)
+}
+
+private func builtin_set_join_naive_fallback(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch s {
+    case "true", "on", "1": env.joinNaiveFallback = true; return .boolean(true)
+    case "false", "off", "0": env.joinNaiveFallback = false; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_get_join_naive_fallback(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .boolean(env.joinNaiveFallback)
 }
 
 private func builtin_set_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {

@@ -96,6 +96,8 @@ public final class Environment {
     public var joinStableRules: Set<String> = []
     // Default: usa attivazione via RETE per regole stabili
     public var joinActivateDefaultOnStable: Bool = false
+    // Se true, mantiene il fallback naïve anche quando RETE è attiva e la regola è stabile
+    public var joinNaiveFallback: Bool = true
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
