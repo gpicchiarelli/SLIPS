@@ -51,6 +51,7 @@ public enum Functions {
         env.functionTable["watch"] = FunctionDefinitionSwift(name: "watch", impl: builtin_watch)
         env.functionTable["unwatch"] = FunctionDefinitionSwift(name: "unwatch", impl: builtin_unwatch)
         env.functionTable["clear"] = FunctionDefinitionSwift(name: "clear", impl: builtin_clear)
+        env.functionTable["agenda"] = FunctionDefinitionSwift(name: "agenda", impl: builtin_agenda)
         env.functionTable["set-strategy"] = FunctionDefinitionSwift(name: "set-strategy", impl: builtin_set_strategy)
         env.functionTable["get-strategy"] = FunctionDefinitionSwift(name: "get-strategy", impl: builtin_get_strategy)
         env.functionTable["set-join-check"] = FunctionDefinitionSwift(name: "set-join-check", impl: builtin_set_join_check)
@@ -358,7 +359,10 @@ private func builtin_value(_ env: inout Environment, _ args: [Value]) throws -> 
 }
 
 private func builtin_facts(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    for (_, fact) in env.facts.sorted(by: { $0.key < $1.key }) {
+    let filterName: String? = args.first?.stringValue
+    let items = env.facts.sorted(by: { $0.key < $1.key }).map { $0.value }
+    var count = 0
+    for fact in items where (filterName == nil || fact.name == filterName) {
         Router.WriteString(&env, Router.STDOUT, "(")
         Router.WriteString(&env, Router.STDOUT, fact.name)
         for (k,v) in fact.slots {
@@ -368,8 +372,9 @@ private func builtin_facts(_ env: inout Environment, _ args: [Value]) throws -> 
             PrintUtil.PrintAtom(&env, Router.STDOUT, v)
         }
         Router.Writeln(&env, ")")
+        count += 1
     }
-    return .int(Int64(env.facts.count))
+    return .int(Int64(count))
 }
 
 private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws -> Value {
@@ -461,18 +466,21 @@ private func ppPattern(_ env: inout Environment, _ p: Pattern) -> String {
 }
 
 private func builtin_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let filterName: String? = args.first?.stringValue
     let sorted = env.rules.sorted { (a, b) in
         if a.displayName != b.displayName { return a.displayName < b.displayName }
         return a.name < b.name
     }
-    for r in sorted {
+    var count = 0
+    for r in sorted where (filterName == nil || r.displayName == filterName || r.name == filterName) {
         Router.WriteString(&env, Router.STDOUT, r.displayName)
         if r.name != r.displayName { Router.WriteString(&env, Router.STDOUT, " [" + r.name + "]") }
         Router.WriteString(&env, Router.STDOUT, " (salience ")
         Router.WriteString(&env, Router.STDOUT, String(r.salience))
         Router.Writeln(&env, ")")
+        count += 1
     }
-    return .int(Int64(sorted.count))
+    return .int(Int64(count))
 }
 
 private func builtin_ppdefrule(_ env: inout Environment, _ args: [Value]) throws -> Value {
@@ -694,6 +702,27 @@ private func builtin_get_join_activate_rules(_ env: inout Environment, _ args: [
 private func builtin_get_join_stable(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let name = args.first?.stringValue else { return .boolean(false) }
     return .boolean(env.joinStableRules.contains(name))
+}
+
+// Agenda listing
+private func builtin_agenda(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let q = env.agendaQueue.queue
+    Router.Writeln(&env, "AGENDA: \(q.count) item(s)")
+    for (idx, a) in q.enumerated() {
+        Router.WriteString(&env, Router.STDOUT, String(idx+1))
+        Router.WriteString(&env, Router.STDOUT, ") ")
+        Router.WriteString(&env, Router.STDOUT, a.ruleName)
+        Router.WriteString(&env, Router.STDOUT, " [salience ")
+        Router.WriteString(&env, Router.STDOUT, String(a.priority))
+        Router.WriteString(&env, Router.STDOUT, "]")
+        if !a.factIDs.isEmpty {
+            Router.WriteString(&env, Router.STDOUT, " facts:")
+            let ids = a.factIDs.sorted().map { String($0) }.joined(separator: ",")
+            Router.WriteString(&env, Router.STDOUT, " [" + ids + "]")
+        }
+        Router.Writeln(&env, "")
+    }
+    return .int(Int64(q.count))
 }
 
 // Validazione constraints di slot
