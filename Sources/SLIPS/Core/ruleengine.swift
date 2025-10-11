@@ -7,7 +7,13 @@ import Foundation
 // MARK: - Semplified Rule Engine (RETE skeleton)
 
 public struct PatternTest: Codable {
-    public enum Kind: Codable { case constant(Value), variable(String), predicate(ExpressionNode) }
+    public enum Kind: Codable {
+        case constant(Value)
+        case variable(String)
+        case mfVariable(String)
+        case predicate(ExpressionNode)
+        case sequence([PatternTest])
+    }
     public let kind: Kind
 }
 
@@ -20,6 +26,7 @@ public struct Pattern: Codable {
 
 public struct Rule: Codable {
     public let name: String
+    public let displayName: String
     public let patterns: [Pattern]
     public let rhs: [ExpressionNode]
     public let salience: Int
@@ -114,11 +121,11 @@ public enum RuleEngine {
                 let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name)) || (env.joinActivateDefaultOnStable && env.joinStableRules.contains(rule.name))
                 if useReteActivation {
                     for t in added {
-                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: t.bindings)
+                        var act = Activation(priority: rule.salience, ruleName: rule.displayName, bindings: t.bindings)
                         act.factIDs = t.usedFacts
                         if !env.agendaQueue.contains(act) {
                             env.agendaQueue.add(act)
-                            if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.name)") }
+                            if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.displayName)") }
                         }
                     }
                 }
@@ -127,13 +134,13 @@ public enum RuleEngine {
                 if needNaive && !disableNaive {
                     // Matcher naive: attiva anche quando RETE è attiva; Agenda.contains evita duplicati
                     for m in matchesForActivation {
-                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
+                        var act = Activation(priority: rule.salience, ruleName: rule.displayName, bindings: m.bindings)
                         act.factIDs = m.usedFacts
                         if !env.agendaQueue.contains(act) {
                             env.agendaQueue.add(act)
                             if env.watchRules {
-                                Router.Writeln(&env, "==> Activation \(rule.name)")
-                                Router.WriteString(&env, "t", "ACT \(rule.name)\n")
+                                Router.Writeln(&env, "==> Activation \(rule.displayName)")
+                                Router.WriteString(&env, "t", "ACT \(rule.displayName)\n")
                             }
                         }
                     }
@@ -211,8 +218,8 @@ public enum RuleEngine {
             let oldBindings = env.localBindings
             if let b = act.bindings { for (k,v) in b { env.localBindings[k] = v } }
             if env.watchRules {
-                Router.Writeln(&env, "FIRE \(rule.name)")
-                Router.WriteString(&env, "t", "FIRE \(rule.name)\n")
+                Router.Writeln(&env, "FIRE \(rule.displayName)")
+                Router.WriteString(&env, "t", "FIRE \(rule.displayName)\n")
             }
             for exp in rule.rhs { _ = Evaluator.EvaluateExpression(&env, exp) }
             env.localBindings = oldBindings
@@ -247,12 +254,19 @@ public enum RuleEngine {
     static func match(env: inout Environment, pattern: Pattern, fact: Environment.FactRec, current: [String: Value]) -> [String: Value]? {
         guard pattern.name == fact.name else { return nil }
         var bindings: [String: Value] = [:]
-        // Per stabilità: prima variabili, poi costanti, infine predicate
         let entries = pattern.slots.map { ($0.key, $0.value) }
+        // sequenze multislot
+        let seqEntries = entries.filter { if case .sequence = $0.1.kind { return true } else { return false } }
+        for (slot, test) in seqEntries {
+            guard let fval = fact.slots[slot] else { return nil }
+            guard case .sequence(let items) = test.kind else { continue }
+            guard case .multifield(let arr) = fval else { return nil }
+            var outB = bindings
+            if !matchSequence(items, values: arr, current: current, bindings: &outB) { return nil }
+            bindings = outB
+        }
+        // variabili singole
         let varEntries = entries.filter { if case .variable = $0.1.kind { return true } else { return false } }
-        let constEntries = entries.filter { if case .constant = $0.1.kind { return true } else { return false } }
-        let predEntries = entries.filter { if case .predicate = $0.1.kind { return true } else { return false } }
-        // variabili
         for (slot, test) in varEntries {
             guard let fval = fact.slots[slot] else { return nil }
             if case .variable(let name) = test.kind {
@@ -261,11 +275,22 @@ public enum RuleEngine {
             }
         }
         // costanti
+        let constEntries = entries.filter { if case .constant = $0.1.kind { return true } else { return false } }
         for (slot, test) in constEntries {
             guard let fval = fact.slots[slot] else { return nil }
             if case .constant(let v) = test.kind { if v != fval { return nil } }
         }
+        // mfVariable sull'intero multislot
+        let mfEntries = entries.filter { if case .mfVariable = $0.1.kind { return true } else { return false } }
+        for (slot, test) in mfEntries {
+            guard let fval = fact.slots[slot] else { return nil }
+            if case .mfVariable(let name) = test.kind {
+                if let existing = bindings[name] ?? current[name], existing != fval { return nil }
+                bindings[name] = fval
+            }
+        }
         // predicati
+        let predEntries = entries.filter { if case .predicate = $0.1.kind { return true } else { return false } }
         for (_, test) in predEntries {
             if case .predicate(let exprNode) = test.kind {
                 let old = env.localBindings
@@ -300,6 +325,12 @@ public enum RuleEngine {
             case .variable(let name):
                 if let existing = current[name] { if existing != fval { return false } }
                 // se non bound: wildcard, nessun vincolo
+            case .mfVariable(let name):
+                if let existing = current[name] { if existing != fval { return false } }
+            case .sequence(let items):
+                if case .multifield(let arr) = fval {
+                    if !compatibleSequence(items, values: arr, current: current) { return false }
+                } else { return false }
             case .predicate(let exprNode):
                 let old = env.localBindings
                 for (k,v) in current { env.localBindings[k] = v }
@@ -321,6 +352,100 @@ public enum RuleEngine {
         return true
     }
 
+    // MARK: - Sequenze multislot helper
+    private static func minRequired(_ items: [PatternTest], from idx: Int) -> Int {
+        var count = 0
+        for i in idx..<items.count {
+            switch items[i].kind {
+            case .constant, .variable: count += 1
+            case .mfVariable: count += 0
+            case .predicate: count += 0
+            case .sequence: count += 0
+            }
+        }
+        return count
+    }
+    static func matchSequence(_ items: [PatternTest], values: [Value], current: [String: Value], bindings: inout [String: Value]) -> Bool {
+        func go(_ i: Int, _ j: Int, _ cur: inout [String: Value]) -> Bool {
+            if i == items.count { return j == values.count }
+            if j > values.count { return false }
+            switch items[i].kind {
+            case .constant(let v):
+                if j >= values.count || values[j] != v { return false }
+                return go(i+1, j+1, &cur)
+            case .variable(let name):
+                if j >= values.count { return false }
+                let val = values[j]
+                if let ex = cur[name] ?? current[name], ex != val { return false }
+                cur[name] = val
+                return go(i+1, j+1, &cur)
+            case .mfVariable(let name):
+                let minRest = minRequired(items, from: i+1)
+                let maxLen = values.count - j - minRest
+                if maxLen < 0 { return false }
+                if let ex = cur[name] ?? current[name] {
+                    if case .multifield(let arr) = ex {
+                        let len = arr.count
+                        if j+len <= values.count && Array(values[j..<(j+len)]) == arr { return go(i+1, j+len, &cur) }
+                        return false
+                    } else { return false }
+                } else {
+                    var idx = 0
+                    while idx <= maxLen {
+                        let slice = Array(values[j..<(j+idx)])
+                        cur[name] = .multifield(slice)
+                        if go(i+1, j+idx, &cur) { return true }
+                        idx += 1
+                    }
+                    cur.removeValue(forKey: name)
+                    return false
+                }
+            case .predicate:
+                return false
+            case .sequence:
+                return false
+            }
+        }
+        var tmp = bindings
+        let ok = go(0, 0, &tmp)
+        if ok { bindings = tmp }
+        return ok
+    }
+    static func compatibleSequence(_ items: [PatternTest], values: [Value], current: [String: Value]) -> Bool {
+        func go(_ i: Int, _ j: Int) -> Bool {
+            if i == items.count { return j == values.count }
+            if j > values.count { return false }
+            switch items[i].kind {
+            case .constant(let v):
+                if j >= values.count || values[j] != v { return false }
+                return go(i+1, j+1)
+            case .variable(let name):
+                if j >= values.count { return false }
+                if let ex = current[name], ex != values[j] { return false }
+                return go(i+1, j+1)
+            case .mfVariable(let name):
+                let minRest = minRequired(items, from: i+1)
+                let maxLen = values.count - j - minRest
+                if maxLen < 0 { return false }
+                if let ex = current[name] {
+                    if case .multifield(let arr) = ex {
+                        let len = arr.count
+                        if j+len <= values.count && Array(values[j..<(j+len)]) == arr { return go(i+1, j+len) }
+                        return false
+                    } else { return false }
+                } else {
+                    var idx = 0
+                    while idx <= maxLen { if go(i+1, j+idx) { return true }; idx += 1 }
+                    return false
+                }
+            case .predicate:
+                return false
+            case .sequence:
+                return false
+            }
+        }
+        return go(0, 0)
+    }
     public struct PartialMatch { let bindings: [String: Value]; let usedFacts: Set<Int> }
 
     private static func generateMatches(env: inout Environment, patterns: [Pattern], tests: [ExpressionNode], facts: [Environment.FactRec]) -> [PartialMatch] {

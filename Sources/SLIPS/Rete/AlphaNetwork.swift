@@ -194,6 +194,32 @@ public enum ReteCompiler {
                     } else {
                         if !p.exists { varLevel[v] = varLevel[v] ?? lvl }
                     }
+                case .mfVariable(let v):
+                    if bound.contains(v) {
+                        parts.append(JoinKeyPartC(slot: slot, varName: v, constValue: nil))
+                    } else {
+                        if !p.exists { varLevel[v] = varLevel[v] ?? lvl }
+                    }
+                case .sequence(let arr):
+                    var allConst = true
+                    for it in arr {
+                        switch it.kind {
+                        case .constant: break
+                        default: allConst = false
+                        }
+                    }
+                    if allConst {
+                        let consts = arr.compactMap { it -> Value? in if case .constant(let v) = it.kind { return v } else { return nil } }
+                        parts.append(JoinKeyPartC(slot: slot, varName: nil, constValue: .multifield(consts)))
+                    } else {
+                        for it in arr {
+                            switch it.kind {
+                            case .variable(let v), .mfVariable(let v):
+                                if bound.contains(v) { parts.append(JoinKeyPartC(slot: slot, varName: v, constValue: nil)) }
+                            default: break
+                            }
+                        }
+                    }
                 case .constant(let v):
                     parts.append(JoinKeyPartC(slot: slot, varName: nil, constValue: v))
                 case .predicate:
@@ -202,7 +228,13 @@ public enum ReteCompiler {
             }
             // Aggiorna bound con variabili introdotte in questo livello (solo CE positivi non-exists)
             if !p.negated && !p.exists {
-                for (_, t) in p.slots { if case .variable(let v) = t.kind { bound.insert(v) } }
+                for (_, t) in p.slots {
+                    switch t.kind {
+                    case .variable(let v): bound.insert(v)
+                    case .mfVariable(let v): bound.insert(v)
+                    default: break
+                    }
+                }
             }
             joinSpecs.append(parts.sorted(by: { $0.slot < $1.slot }))
         }

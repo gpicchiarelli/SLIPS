@@ -44,6 +44,9 @@ public enum Functions {
         env.functionTable["value"] = FunctionDefinitionSwift(name: "value", impl: builtin_value)
         env.functionTable["facts"] = FunctionDefinitionSwift(name: "facts", impl: builtin_facts)
         env.functionTable["templates"] = FunctionDefinitionSwift(name: "templates", impl: builtin_templates)
+        env.functionTable["rules"] = FunctionDefinitionSwift(name: "rules", impl: builtin_rules)
+        env.functionTable["ppdefrule"] = FunctionDefinitionSwift(name: "ppdefrule", impl: builtin_ppdefrule)
+        env.functionTable["ppdeftemplate"] = FunctionDefinitionSwift(name: "ppdeftemplate", impl: builtin_ppdeftemplate)
         env.functionTable["create$"] = FunctionDefinitionSwift(name: "create$", impl: builtin_create$)
         env.functionTable["watch"] = FunctionDefinitionSwift(name: "watch", impl: builtin_watch)
         env.functionTable["unwatch"] = FunctionDefinitionSwift(name: "unwatch", impl: builtin_unwatch)
@@ -417,6 +420,109 @@ private func builtin_templates(_ env: inout Environment, _ args: [Value]) throws
 
 private func builtin_create$(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .multifield(args)
+}
+
+// MARK: - Regole: listing e pretty-print
+private func valueString(_ v: Value) -> String {
+    switch v {
+    case .int(let i): return String(i)
+    case .float(let d): return String(d)
+    case .string(let s): return "\"" + s + "\""
+    case .symbol(let s): return s
+    case .boolean(let b): return b ? "TRUE" : "FALSE"
+    case .multifield(let arr):
+        return "(" + arr.map { valueString($0) }.joined(separator: " ") + ")"
+    case .none: return "<none>"
+    }
+}
+
+private func ppPatternTest(_ env: inout Environment, _ pt: PatternTest) -> String {
+    switch pt.kind {
+    case .constant(let v):
+        return valueString(v)
+    case .variable(let n): return "?" + n
+    case .mfVariable(let n): return "$?" + n
+    case .predicate(let e): return sexpString(e)
+    case .sequence(let arr):
+        return arr.map { ppPatternTest(&env, $0) }.joined(separator: " ")
+    }
+}
+
+private func ppPattern(_ env: inout Environment, _ p: Pattern) -> String {
+    var parts: [String] = ["(", p.name]
+    for (slot, test) in p.slots.sorted(by: { $0.key < $1.key }) {
+        parts.append(" ")
+        parts.append(slot)
+        parts.append(" ")
+        parts.append(ppPatternTest(&env, test))
+    }
+    parts.append(")")
+    return parts.joined()
+}
+
+private func builtin_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let sorted = env.rules.sorted { (a, b) in
+        if a.displayName != b.displayName { return a.displayName < b.displayName }
+        return a.name < b.name
+    }
+    for r in sorted {
+        Router.WriteString(&env, Router.STDOUT, r.displayName)
+        if r.name != r.displayName { Router.WriteString(&env, Router.STDOUT, " [" + r.name + "]") }
+        Router.WriteString(&env, Router.STDOUT, " (salience ")
+        Router.WriteString(&env, Router.STDOUT, String(r.salience))
+        Router.Writeln(&env, ")")
+    }
+    return .int(Int64(sorted.count))
+}
+
+private func builtin_ppdefrule(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue else { return .boolean(false) }
+    let rules = env.rules.filter { $0.displayName == name || $0.name == name }
+    if rules.isEmpty {
+        Router.Writeln(&env, "No such rule: \(name)")
+        return .boolean(false)
+    }
+    for r in rules {
+        Router.WriteString(&env, Router.STDOUT, "(defrule ")
+        Router.WriteString(&env, Router.STDOUT, r.displayName)
+        Router.Writeln(&env, "")
+        Router.WriteString(&env, Router.STDOUT, "  ")
+        var lhs: [String] = []
+        for p in r.patterns { lhs.append(ppPattern(&env, p)) }
+        Router.Writeln(&env, lhs.joined(separator: " "))
+        Router.WriteString(&env, Router.STDOUT, "  => ")
+        var rhs: [String] = []
+        for e in r.rhs { rhs.append(sexpString(e)) }
+        Router.Writeln(&env, rhs.joined(separator: " "))
+        Router.Writeln(&env, ")")
+    }
+    return .boolean(true)
+}
+
+private func builtin_ppdeftemplate(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let name = args.first?.stringValue, let t = env.templates[name] else { return .boolean(false) }
+    Router.WriteString(&env, Router.STDOUT, "(deftemplate ")
+    Router.WriteString(&env, Router.STDOUT, t.name)
+    for (sname, sd) in t.slots.sorted(by: { $0.key < $1.key }) {
+        Router.WriteString(&env, Router.STDOUT, sd.isMultifield ? "\n  (multislot " : "\n  (slot ")
+        Router.WriteString(&env, Router.STDOUT, sname)
+        switch sd.defaultType {
+        case .none: break
+        case .static:
+            Router.WriteString(&env, Router.STDOUT, " (default ")
+            if let v = sd.defaultStatic { PrintUtil.PrintAtom(&env, Router.STDOUT, v) }
+            Router.WriteString(&env, Router.STDOUT, ")")
+        case .dynamic:
+            Router.WriteString(&env, Router.STDOUT, " (default-dynamic ")
+            if let expr = sd.defaultDynamicExpr {
+                Router.WriteString(&env, Router.STDOUT, sexpString(expr))
+            }
+            Router.WriteString(&env, Router.STDOUT, ")")
+        }
+        Router.WriteString(&env, Router.STDOUT, ")")
+    }
+    Router.Writeln(&env, ")")
+    return .boolean(true)
 }
 
 private func builtin_watch(_ env: inout Environment, _ args: [Value]) throws -> Value {

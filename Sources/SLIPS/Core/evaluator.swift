@@ -112,7 +112,7 @@ public enum Evaluator {
                 return .symbol(tname)
             }
             if name == "defrule" {
-                // defrule parsing: (defrule name <patterns> => <actions...>)
+                // defrule parsing: (defrule name <patterns/CE> => <actions...>)
                 var cur = node.argList
                 guard let nameNode = cur else { return .boolean(false) }
                 let nameVal = try eval(&env, nameNode)
@@ -123,14 +123,13 @@ public enum Evaluator {
                 default: ruleName = "rule"
                 }
                 cur = nameNode.nextArg
-                var patterns: [Pattern] = []
                 var salience = 0
                 var tests: [ExpressionNode] = []
+                var altSets: [[Pattern]] = [[]] // alternative liste di pattern per gestione (or ...)
                 // Collect LHS until '=>' symbol
                 while let n = cur {
                     if n.type == .symbol, (n.value?.value as? String) == "=>" { cur = n.nextArg; break }
                     if n.type == .fcall, (n.value?.value as? String) == "declare" {
-                        // parse (declare (salience N))
                         var dn = n.argList
                         while let slotNode = dn {
                             if slotNode.type == .fcall, (slotNode.value?.value as? String) == "salience" {
@@ -146,10 +145,49 @@ public enum Evaluator {
                         cur = n.nextArg
                         continue
                     }
+                    if n.type == .fcall, (n.value?.value as? String) == "and" {
+                        var child = n.argList
+                        while let cn = child {
+                            if cn.type == .fcall, (cn.value?.value as? String) == "test" { tests.append(cn) }
+                            else if cn.type == .fcall, (cn.value?.value as? String) == "not" {
+                                if let inner = cn.argList, let (p, _) = parseSimplePattern(&env, inner) {
+                                    let np = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
+                                    altSets = altSets.map { $0 + [np] }
+                                }
+                            } else if cn.type == .fcall, (cn.value?.value as? String) == "exists" {
+                                if let inner = cn.argList, let (p, _) = parseSimplePattern(&env, inner) {
+                                    let ep = Pattern(name: p.name, slots: p.slots, negated: false, exists: true)
+                                    altSets = altSets.map { $0 + [ep] }
+                                }
+                            } else if let (p, preds) = parseSimplePattern(&env, cn) {
+                                altSets = altSets.map { $0 + [p] }
+                                for pr in preds { tests.append(pr) }
+                            }
+                            child = cn.nextArg
+                        }
+                        cur = n.nextArg
+                        continue
+                    }
+                    if n.type == .fcall, (n.value?.value as? String) == "or" {
+                        var newAlts: [[Pattern]] = []
+                        var child = n.argList
+                        var parsedAny = false
+                        while let cn = child {
+                            if let (p0, preds) = parseSimplePattern(&env, cn) {
+                                for alt in altSets { newAlts.append(alt + [p0]) }
+                                for pr in preds { tests.append(pr) }
+                                parsedAny = true
+                            }
+                            child = cn.nextArg
+                        }
+                        if parsedAny { altSets = newAlts }
+                        cur = n.nextArg
+                        continue
+                    }
                     if n.type == .fcall, (n.value?.value as? String) == "not" {
                         if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
                             let np = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
-                            patterns.append(np)
+                            altSets = altSets.map { $0 + [np] }
                         }
                         cur = n.nextArg
                         continue
@@ -157,25 +195,28 @@ public enum Evaluator {
                     if n.type == .fcall, (n.value?.value as? String) == "exists" {
                         if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
                             let ep = Pattern(name: p.name, slots: p.slots, negated: false, exists: true)
-                            patterns.append(ep)
+                            altSets = altSets.map { $0 + [ep] }
                         }
                         cur = n.nextArg
                         continue
                     }
                     if n.type == .fcall {
                         if let (p, preds) = parseSimplePattern(&env, n) {
-                            patterns.append(p)
-                            // Propaga predicati di slot come test esterni per singolo-pattern
+                            altSets = altSets.map { $0 + [p] }
                             for pr in preds { tests.append(pr) }
                         }
                     }
                     cur = n.nextArg
                 }
-                // RHS actions: remaining nodes are expressions
+                // RHS actions
                 var rhs: [ExpressionNode] = []
                 while let n = cur { rhs.append(n); cur = n.nextArg }
-                let rule = Rule(name: ruleName, patterns: patterns, rhs: rhs, salience: salience, tests: tests)
-                RuleEngine.addRule(&env, rule)
+                if altSets.isEmpty { altSets = [[]] }
+                for (i, pats) in altSets.enumerated() {
+                    let rname = (i == 0) ? ruleName : (ruleName + "$or" + String(i))
+                    let rule = Rule(name: rname, displayName: ruleName, patterns: pats, rhs: rhs, salience: salience, tests: tests)
+                    RuleEngine.addRule(&env, rule)
+                }
                 return .symbol(ruleName)
             }
             if name == "deffacts" {
@@ -308,22 +349,56 @@ public enum Evaluator {
         var arg = node.argList
         while let snameNode = arg {
             guard snameNode.type == .symbol, let sname = (snameNode.value?.value as? String) else { break }
-            guard let valNode = snameNode.nextArg else { break }
-            let test: PatternTest
-            switch valNode.type {
-            case .integer: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-            case .float: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-            case .string: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-            case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-            case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
-            case .fcall:
-                test = PatternTest(kind: .predicate(valNode))
-                predicates.append(valNode)
-            default:
-                test = PatternTest(kind: .constant(.none))
+            var cur = snameNode.nextArg
+            guard let valNode = cur else { break }
+            let isMulti = env.templates[pname]?.slots[sname]?.isMultifield ?? false
+            if isMulti {
+                let slotNames = Set(env.templates[pname]?.slots.keys.map { $0 } ?? [])
+                var items: [PatternTest] = []
+                var last: ExpressionNode? = nil
+                var run = true
+                while run, let vn = cur {
+                    if vn.type == .symbol, let sym = (vn.value?.value as? String), items.count > 0, slotNames.contains(sym) {
+                        break
+                    }
+                    switch vn.type {
+                    case .integer, .float, .string, .symbol:
+                        items.append(PatternTest(kind: .constant((try? eval(&env, vn)) ?? .none)))
+                    case .variable:
+                        items.append(PatternTest(kind: .variable((vn.value?.value as? String) ?? "")))
+                    case .mfVariable:
+                        items.append(PatternTest(kind: .mfVariable((vn.value?.value as? String) ?? "")))
+                    case .fcall:
+                        // Predicati dello slot: promossi a predicate esterno
+                        predicates.append(vn)
+                    default:
+                        break
+                    }
+                    last = vn
+                    cur = vn.nextArg
+                    if cur == nil { run = false }
+                }
+                let test: PatternTest = PatternTest(kind: .sequence(items))
+                slots[sname] = test
+                arg = (last?.nextArg) ?? cur
+            } else {
+                let test: PatternTest
+                switch valNode.type {
+                case .integer: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+                case .float: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+                case .string: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+                case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
+                case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
+                case .mfVariable: test = PatternTest(kind: .mfVariable((valNode.value?.value as? String) ?? ""))
+                case .fcall:
+                    test = PatternTest(kind: .predicate(valNode))
+                    predicates.append(valNode)
+                default:
+                    test = PatternTest(kind: .constant(.none))
+                }
+                slots[sname] = test
+                arg = valNode.nextArg
             }
-            slots[sname] = test
-            arg = valNode.nextArg
         }
         return (Pattern(name: pname, slots: slots, negated: false, exists: false), predicates)
     }

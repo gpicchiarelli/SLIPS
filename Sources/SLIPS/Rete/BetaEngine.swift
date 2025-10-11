@@ -49,6 +49,12 @@ extension BetaEngine {
             case .variable(let name):
                 if let existing = current[name] { if existing != fval { return false } }
                 // se non bound: wildcard, nessun vincolo
+            case .mfVariable(let name):
+                if let existing = current[name] { if existing != fval { return false } }
+            case .sequence(let items):
+                if case .multifield(let arr) = fval {
+                    if !RuleEngine.compatibleSequence(items, values: arr, current: current) { return false }
+                } else { return false }
             case .predicate(let exprNode):
                 let old = env.localBindings
                 for (k,v) in current { env.localBindings[k] = v }
@@ -200,6 +206,28 @@ extension BetaEngine {
                 if boundVarNames.contains(vname) { parts.append(JoinKeyPart(slot: slot, varName: vname, constValue: nil)) }
             case .constant(let v):
                 parts.append(JoinKeyPart(slot: slot, varName: nil, constValue: v))
+            case .mfVariable(let vname):
+                if boundVarNames.contains(vname) { parts.append(JoinKeyPart(slot: slot, varName: vname, constValue: nil)) }
+            case .sequence(let arr):
+                var allConst = true
+                var consts: [Value] = []
+                for it in arr {
+                    switch it.kind {
+                    case .constant(let v): consts.append(v)
+                    default: allConst = false
+                    }
+                }
+                if allConst {
+                    parts.append(JoinKeyPart(slot: slot, varName: nil, constValue: .multifield(consts)))
+                } else {
+                    for it in arr {
+                        switch it.kind {
+                        case .variable(let v), .mfVariable(let v):
+                            if boundVarNames.contains(v) { parts.append(JoinKeyPart(slot: slot, varName: v, constValue: nil)) }
+                        default: break
+                        }
+                    }
+                }
             case .predicate:
                 break
             }
@@ -293,6 +321,18 @@ extension BetaEngine {
             case .constant(let v): out.append((slot, v))
             case .variable(let name):
                 if let cur = current, let v = cur[name] { out.append((slot, v)) }
+            case .mfVariable(let name):
+                if let cur = current, let v = cur[name] { out.append((slot, v)) }
+            case .sequence(let arr):
+                var allConst = true
+                var consts: [Value] = []
+                for it in arr {
+                    switch it.kind {
+                    case .constant(let v): consts.append(v)
+                    default: allConst = false
+                    }
+                }
+                if allConst { out.append((slot, .multifield(consts))) }
             case .predicate:
                 break
             }
