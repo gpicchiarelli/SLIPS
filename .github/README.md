@@ -104,9 +104,9 @@ Per modificare i workflow:
 
 ### Requisiti
 
-- **macOS runner:** utilizza `macos-14` con Xcode 15.4
-- **Swift:** versione 5.9+ supportata
-- **Linux:** build testato su Ubuntu con Swift 5.9
+- **macOS runner:** utilizza `macos-15` con Xcode 16.2
+- **Swift:** versione 6.2 richiesta
+- **Linux:** build testato su Ubuntu con Swift 6.0+
 
 ## Troubleshooting
 

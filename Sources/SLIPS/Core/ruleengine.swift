@@ -40,6 +40,16 @@ public enum RuleEngine {
         for rule in env.rules {
             let hasNeg = rule.patterns.contains { $0.negated }
             let hasExists = rule.patterns.contains { $0.exists }
+            // Fast path: regola solo EXISTS unario senza vincoli → se l'anchor ha lo stesso template, attiva
+            if hasExists, !hasNeg, rule.patterns.count == 1 {
+                let p0 = rule.patterns[0]
+                if p0.exists, p0.name == fact.name, p0.slots.isEmpty {
+                    var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
+                    act.factIDs = []
+                    if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
+                    // Continua comunque per allineare rete/memorie, ma evita duplicati grazie a contains
+                }
+            }
             // Usa indice alpha per limitare i candidati ai soli template della regola
             let usedTemplates = Set(rule.patterns.map { $0.name })
             var candidateFacts: [Environment.FactRec] = []
@@ -221,6 +231,16 @@ public enum RuleEngine {
         env.agendaQueue.clear()
         let facts = Array(env.facts.values)
         for rule in env.rules {
+            // Fast path: regola solo EXISTS unario senza vincoli
+            if rule.patterns.count == 1, rule.patterns[0].exists, rule.patterns[0].slots.isEmpty {
+                let tmpl = rule.patterns[0].name
+                if let ids = env.rete.alpha.byTemplate[tmpl], !ids.isEmpty {
+                    var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
+                    act.factIDs = []
+                    if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
+                    continue
+                }
+            }
             let matches = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: facts)
             for m in matches {
                 var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)

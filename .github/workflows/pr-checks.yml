@@ -7,7 +7,7 @@ on:
 jobs:
   validate-pr:
     name: Validate Pull Request
-    runs-on: macos-14
+    runs-on: macos-15
     
     steps:
     - name: Checkout code
@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 0
       
     - name: Select Xcode version
-      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
       
     - name: Check Swift version
       run: swift --version
@@ -82,21 +82,26 @@ jobs:
           });
       continue-on-error: true
 
-  compatibility-check:
-    name: Swift Version Compatibility
-    runs-on: macos-14
-    strategy:
-      matrix:
-        swift-version: ['5.9', '5.10']
+  swift-version-check:
+    name: Verify Swift 6.2
+    runs-on: macos-15
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Test with Swift ${{ matrix.swift-version }}
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      
+    - name: Verify Swift version
       run: |
-        echo "Testing compatibility with Swift ${{ matrix.swift-version }}"
+        echo "Checking Swift version requirement (6.2)..."
         swift --version
-        swift build || echo "Build failed with Swift ${{ matrix.swift-version }}"
-      continue-on-error: true
+        SWIFT_VERSION=$(swift --version | head -n 1)
+        echo "Current Swift version: $SWIFT_VERSION"
+        if [[ ! "$SWIFT_VERSION" =~ "Swift version 6" ]]; then
+          echo "❌ Error: Swift 6.x required, found: $SWIFT_VERSION"
+          exit 1
+        fi
+        echo "✅ Swift version check passed"
 

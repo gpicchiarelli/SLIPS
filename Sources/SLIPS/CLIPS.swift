@@ -204,7 +204,17 @@ public enum CLIPS {
     public static func assert(fact: String) {
         guard currentEnv != nil else { return }
         let expr = fact.trimmingCharacters(in: .whitespacesAndNewlines)
-        let form = expr.hasPrefix("(") ? expr : "(assert \(expr))"
+        let trimmed = expr
+        let form: String
+        if trimmed.hasPrefix("(assert") {
+            form = trimmed
+        } else if trimmed.hasPrefix("(") && trimmed.hasSuffix(")") {
+            // Converte (b x 1) -> (assert b x 1)
+            let inner = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            form = "(assert \(inner))"
+        } else {
+            form = "(assert \(trimmed))"
+        }
         let ret = eval(expr: form)
         // Fallback: se esistono regole con EXISTS, ricostruisci l'agenda per attivarle correttamente
         if var env = currentEnv, env.rules.contains(where: { $0.patterns.contains(where: { $0.exists }) }) {
