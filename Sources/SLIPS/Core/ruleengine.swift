@@ -36,15 +36,46 @@ public struct Rule: Codable {
 public enum RuleEngine {
     public static func addRule(_ env: inout Environment, _ rule: Rule) {
         env.rules.append(rule)
-        let cr = ReteCompiler.compile(env, rule)
-        env.rete.rules[rule.name] = cr
-        // Costruisci il grafo nodi esplicito per la regola (mappatura 1:1 con joinOrder)
-        let g = ReteGraphBuilder.build(ruleName: rule.name, compiled: cr)
-        env.rete.graphs[rule.name] = g
+        
+        // FASE 1: Usa NetworkBuilder se flag esplicito è attivo
+        if env.useExplicitReteNodes {
+            // Costruisci rete con nodi espliciti class-based
+            _ = NetworkBuilder.buildNetwork(for: rule, env: &env)
+            
+            if env.watchRete {
+                print("[RuleEngine] Rule '\(rule.name)' added with explicit RETE nodes")
+            }
+            
+            // Mantieni anche compilazione tradizionale per backward compatibility
+            let cr = ReteCompiler.compile(env, rule)
+            env.rete.rules[rule.name] = cr
+        } else {
+            // Usa logica esistente (backward compatibility)
+            let cr = ReteCompiler.compile(env, rule)
+            env.rete.rules[rule.name] = cr
+            // Costruisci il grafo nodi esplicito per la regola (mappatura 1:1 con joinOrder)
+            let g = ReteGraphBuilder.build(ruleName: rule.name, compiled: cr)
+            env.rete.graphs[rule.name] = g
+        }
     }
 
     public static func onAssert(_ env: inout Environment, _ fact: Environment.FactRec) {
-        // Revaluta regole contro i fatti ancorando sul fatto nuovo
+        // FASE 1: Usa Propagation engine se flag esplicito è attivo
+        if env.useExplicitReteNodes {
+            // Aggiungi al vecchio alpha index (per backward compatibility)
+            env.rete.alpha.add(fact)
+            
+            // Propaga attraverso rete esplicita
+            Propagation.propagateAssert(fact: fact, env: &env)
+            
+            if env.watchRete {
+                print("[RuleEngine] Fact \(fact.id) propagated through explicit RETE")
+            }
+            
+            return
+        }
+        
+        // Usa logica esistente (backward compatibility)
         env.rete.alpha.add(fact)
         let facts = Array(env.facts.values)
         for rule in env.rules {

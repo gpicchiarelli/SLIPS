@@ -104,8 +104,19 @@ public struct ReteNetwork {
     public var betaLevels: [String: [Int: BetaMemory]] = [:]
     // Grafo dei nodi della rete per regola (scaffold esplicito per mappatura 1:1 con CLIPS)
     public var graphs: [String: RuleGraph] = [:]
+    
+    // FASE 1: Nodi espliciti class-based per RETE completa
+    // (ref: pattern.h, network.h in CLIPS)
+    /// Alpha nodes condivisi per pattern signature
+    public var alphaNodes: [String: AlphaNodeClass] = [:]
+    /// Production nodes terminali per regola
+    public var productionNodes: [String: ProductionNode] = [:]
+    
     // Config di rete
-    public struct ReteConfig { public var enableHeuristicOrder: Bool = false; public var heuristicWhitelist: Set<String> = [] }
+    public struct ReteConfig { 
+        public var enableHeuristicOrder: Bool = false
+        public var heuristicWhitelist: Set<String> = []
+    }
     public var config: ReteConfig = ReteConfig()
     public init() {}
 }

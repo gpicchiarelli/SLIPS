@@ -98,6 +98,10 @@ public final class Environment {
     public var joinActivateDefaultOnStable: Bool = false
     // Se true, mantiene il fallback naïve anche quando RETE è attiva e la regola è stabile
     public var joinNaiveFallback: Bool = true
+    
+    // FASE 1: Flag per usare nodi RETE espliciti (class-based)
+    // (ref: NetworkBuilder + Propagation engine in fase 1)
+    public var useExplicitReteNodes: Bool = false
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)

@@ -324,7 +324,16 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             }
             Router.Writeln(&env, ")")
         }
-        // Aggiorna rete: alpha e beta (sperimentale)
+        
+        // FASE 1: Usa Propagation engine se flag esplicito è attivo
+        if env.useExplicitReteNodes {
+            Propagation.propagateRetract(factID: Int(id), env: &env)
+            // Aggiorna anche alpha index tradizionale per backward compatibility
+            env.rete.alpha.remove(fact)
+            return .int(id)
+        }
+        
+        // Logica esistente (backward compatibility)
         env.rete.alpha.remove(fact)
         if env.experimentalJoinCheck || env.experimentalJoinActivate {
             for (rname, cr) in env.rete.rules {
