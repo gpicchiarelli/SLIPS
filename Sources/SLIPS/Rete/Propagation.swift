@@ -57,10 +57,20 @@ public enum Propagation {
             
             tokensGenerated += 1
             
-            // 4. Propaga token attraverso i successori (join nodes)
-            // Se l'alpha node è root (nessun predecessore), propaga direttamente
-            // Altrimenti, il join node prenderà il fatto dalla memoria alpha
+            // 4a. Propaga token attraverso i successori diretti (per root pattern)
             alphaNode.activate(token: initialToken, env: &env)
+            
+            // 4b. Notifica join nodes che usano questo alpha come rightInput
+            // Questo gestisce il caso in cui l'alpha non è il primo pattern
+            if !alphaNode.rightJoinListeners.isEmpty {
+                if env.watchRete {
+                    print("[RETE Assert]   Alpha '\(alphaNode.pattern.name)': notifying \(alphaNode.rightJoinListeners.count) right join listeners")
+                }
+                
+                for joinNode in alphaNode.rightJoinListeners {
+                    joinNode.activateFromRight(fact: fact, env: &env)
+                }
+            }
         }
         
         if let start = startTime, env.watchReteProfile {

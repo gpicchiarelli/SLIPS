@@ -114,7 +114,7 @@ public final class Environment {
 @MainActor
 public enum CLIPS {
     private static var currentEnv: Environment? = nil
-    static var currentEnvironment: Environment? { currentEnv }
+    public static var currentEnvironment: Environment? { currentEnv }
 
     @discardableResult
     public static func createEnvironment() -> Environment {

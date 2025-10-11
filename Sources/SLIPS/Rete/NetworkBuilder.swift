@@ -98,6 +98,10 @@ public enum NetworkBuilder {
                         level: currentLevel + 1
                     )
                     
+                    // IMPORTANTE: Registra questo join node come listener dell'alpha destro
+                    // Quando l'alpha riceve un fatto, notificherà questo join
+                    alphaNode.rightJoinListeners.append(joinNode)
+                    
                     linkNodes(from: prev, to: joinNode)
                     currentNode = joinNode
                     currentLevel += 1
@@ -110,12 +114,13 @@ public enum NetworkBuilder {
                     
                     // Crea beta memory iniziale per il primo pattern
                     let betaMemory = BetaMemoryNode(level: currentLevel + 1)
+                    
+                    // IMPORTANTE: Collega alpha node al beta memory per propagazione iniziale
+                    // Quando un fatto matcha l'alpha, attiverà il beta memory
+                    alphaNode.successors.append(betaMemory)
+                    
                     currentNode = betaMemory
                     currentLevel += 1
-                    
-                    // Collega alpha a beta memory (per propagazione iniziale)
-                    // In pratica, il primo pattern genera token iniziali
-                    // Questo sarà gestito dalla propagazione
                 }
                 
                 // Aggiungi beta memory node per persistenza token intermedi
@@ -197,7 +202,8 @@ public enum NetworkBuilder {
     }
     
     /// Genera chiave univoca per alpha node
-    /// Basata su template name + costanti nei slot
+    /// Basata su template name + costanti nei slot + variabili
+    /// NOTA: Alpha nodes sono condivisi SOLO se pattern e binding sono identici
     private static func alphaNodeKey(_ pattern: Pattern) -> String {
         var key = pattern.name
         
@@ -210,7 +216,24 @@ public enum NetworkBuilder {
         }.sorted()
         
         if !constants.isEmpty {
-            key += ":" + constants.joined(separator: ",")
+            key += ":C=" + constants.joined(separator: ",")
+        }
+        
+        // Aggiungi variabili per disambiguare (nomi conta!)
+        // Alpha nodes con variabili diverse NON devono essere condivisi
+        let variables = pattern.slots.compactMap { (slot, test) -> String? in
+            switch test.kind {
+            case .variable(let name):
+                return "\(slot)=?\(name)"
+            case .mfVariable(let name):
+                return "\(slot)=$?\(name)"
+            default:
+                return nil
+            }
+        }.sorted()
+        
+        if !variables.isEmpty {
+            key += ":V=" + variables.joined(separator: ",")
         }
         
         // Aggiungi flag speciali

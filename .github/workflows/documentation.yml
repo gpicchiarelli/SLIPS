@@ -1,0 +1,168 @@
+name: Documentazione
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Sources/**/*.swift'
+      - 'docs/**'
+      - '.github/workflows/documentation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-docc:
+    name: Genera DocC API
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v4
+      
+    - name: Cache Swift packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/Library/Caches/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-docs-${{ hashFiles('Package.swift') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-docs-
+          ${{ runner.os }}-spm-
+          
+    - name: Genera documentazione API con DocC
+      run: |
+        swift package --allow-writing-to-directory ./docs/api \
+          generate-documentation \
+          --target SLIPS \
+          --disable-indexing \
+          --transform-for-static-hosting \
+          --hosting-base-path SLIPS \
+          --output-path ./docs/api || \
+        echo "⚠️  DocC non disponibile, verrà usata solo documentazione statica"
+        
+    - name: Upload artifact DocC
+      uses: actions/upload-artifact@v4
+      with:
+        name: docc-documentation
+        path: docs/api
+        retention-days: 7
+        
+  deploy-pages:
+    name: Deploy su GitHub Pages
+    needs: build-docc
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v4
+      
+    - name: Download artifact DocC
+      uses: actions/download-artifact@v4
+      with:
+        name: docc-documentation
+        path: docs/api
+      continue-on-error: true
+      
+    - name: Prepara directory docs
+      run: |
+        # Crea indice per API se DocC è disponibile
+        if [ -d "docs/api" ] && [ "$(ls -A docs/api)" ]; then
+          echo '<!DOCTYPE html>
+          <html lang="it">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <meta http-equiv="refresh" content="0; url=/SLIPS/it/">
+              <title>SLIPS - Documentazione</title>
+          </head>
+          <body>
+              <p>Reindirizzamento alla <a href="/SLIPS/it/">documentazione</a>...</p>
+          </body>
+          </html>' > docs/index.html
+        else
+          echo "⚠️  DocC non disponibile, usa solo documentazione statica"
+        fi
+        
+        # Verifica struttura
+        ls -la docs/
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload artifact Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./docs
+        
+    - name: Deploy su GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      
+  validate-docs:
+    name: Valida Documentazione
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v4
+      
+    - name: Verifica link interni
+      run: |
+        echo "🔍 Verifica link nella documentazione..."
+        
+        # Installa tool per verifica link
+        npm install -g markdown-link-check
+        
+        # Verifica README
+        markdown-link-check README.md --config .github/markdown-link-check.json || true
+        
+        # Verifica documenti in docs/
+        find docs -name "*.md" -type f -exec markdown-link-check {} \; || true
+        
+    - name: Verifica HTML
+      run: |
+        echo "🔍 Verifica validità HTML..."
+        
+        # Installa html5validator
+        pip3 install html5validator
+        
+        # Valida file HTML
+        html5validator --root docs/ --ignore-re '.*api.*' || true
+        
+    - name: Analizza accessibilità
+      run: |
+        echo "♿ Analisi accessibilità..."
+        
+        # Installa pa11y
+        npm install -g pa11y-ci
+        
+        # Crea configurazione pa11y
+        cat > .pa11y.json << 'EOF'
+        {
+          "defaults": {
+            "standard": "WCAG2AA",
+            "timeout": 5000
+          },
+          "urls": [
+            "docs/index.html",
+            "docs/it/index.html",
+            "docs/en/index.html"
+          ]
+        }
+        EOF
+        
+        # Esegui verifica (non bloccante)
+        pa11y-ci --config .pa11y.json || echo "⚠️  Alcune verifiche di accessibilità non sono passate"
+

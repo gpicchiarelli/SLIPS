@@ -74,6 +74,7 @@ public enum RuleEngine {
             
             return
         }
+
         
         // Usa logica esistente (backward compatibility)
         env.rete.alpha.add(fact)

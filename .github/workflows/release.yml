@@ -4,64 +4,143 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versione da rilasciare (es. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   create-release:
-    name: Create Release
+    name: Crea Release
     runs-on: macos-15
     
-    permissions:
-      contents: write
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Determina versione
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION="${GITHUB_REF#refs/tags/}"
+        fi
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+        
+    - name: Genera changelog
+      id: changelog
+      run: |
+        if [ -f "CHANGELOG.md" ]; then
+          # Estrai le note per questa versione dal CHANGELOG
+          NOTES=$(awk '/^## \[${{ steps.version.outputs.version_number }}\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md)
+        else
+          # Genera automaticamente dalle commit
+          NOTES=$(git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD --pretty=format:"- %s" --no-merges)
+        fi
+        
+        if [ -z "$NOTES" ]; then
+          NOTES="Release ${{ steps.version.outputs.version }}"
+        fi
+        
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: Build release per macOS (Intel)
+      run: |
+        swift build -c release --arch x86_64
+        mkdir -p artifacts/x86_64
+        cp .build/release/slips-cli artifacts/x86_64/
+        cd artifacts/x86_64
+        tar -czf slips-cli-${{ steps.version.outputs.version }}-macos-x86_64.tar.gz slips-cli
+        
+    - name: Build release per macOS (Apple Silicon)
+      run: |
+        swift build -c release --arch arm64
+        mkdir -p artifacts/arm64
+        cp .build/arm64-apple-macosx/release/slips-cli artifacts/arm64/
+        cd artifacts/arm64
+        tar -czf slips-cli-${{ steps.version.outputs.version }}-macos-arm64.tar.gz slips-cli
+        
+    - name: Crea binary universale
+      run: |
+        lipo -create \
+          artifacts/x86_64/slips-cli \
+          artifacts/arm64/slips-cli \
+          -output artifacts/slips-cli
+        cd artifacts
+        tar -czf slips-cli-${{ steps.version.outputs.version }}-macos-universal.tar.gz slips-cli
+        
+    - name: Genera checksum
+      run: |
+        cd artifacts
+        shasum -a 256 *.tar.gz > checksums.txt
+        
+    - name: Crea GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        body: |
+          # 🎉 SLIPS ${{ steps.version.outputs.version }}
+          
+          ## Novità
+          
+          ${{ steps.changelog.outputs.notes }}
+          
+          ## 📦 Installazione
+          
+          ### macOS
+          
+          **Universal Binary (Intel + Apple Silicon)**
+          ```bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/slips-cli-${{ steps.version.outputs.version }}-macos-universal.tar.gz | tar xz
+          sudo mv slips-cli /usr/local/bin/
+          ```
+          
+          **Intel (x86_64)**
+          ```bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/slips-cli-${{ steps.version.outputs.version }}-macos-x86_64.tar.gz | tar xz
+          sudo mv slips-cli /usr/local/bin/
+          ```
+          
+          **Apple Silicon (ARM64)**
+          ```bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/slips-cli-${{ steps.version.outputs.version }}-macos-arm64.tar.gz | tar xz
+          sudo mv slips-cli /usr/local/bin/
+          ```
+          
+          ## 🔐 Verifica Checksum
+          
+          Scarica `checksums.txt` e verifica:
+          ```bash
+          shasum -a 256 -c checksums.txt
+          ```
+        files: |
+          artifacts/*.tar.gz
+          artifacts/checksums.txt
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+        
+  publish-library:
+    name: Pubblica su Swift Package Index
+    runs-on: macos-15
+    needs: create-release
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
+    - name: Checkout codice
+      uses: actions/checkout@v4
       
-    - name: Select Xcode version
-      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-      
-    - name: Build release binary
+    - name: Trigger Swift Package Index
       run: |
-        swift build -c release
-        
-    - name: Package binary
-      run: |
-        cd .build/release
-        tar czf slips-cli-macos.tar.gz slips-cli
-        mv slips-cli-macos.tar.gz ../../
-        
-    - name: Extract release notes
-      id: extract-notes
-      run: |
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        name: Release ${{ steps.extract-notes.outputs.tag_name }}
-        draft: false
-        prerelease: false
-        files: |
-          slips-cli-macos.tar.gz
-        body: |
-          ## SLIPS ${{ steps.extract-notes.outputs.tag_name }}
-          
-          ### Installazione
-          
-          ```bash
-          # Swift Package Manager
-          .package(url: "https://github.com/gpicchiarelli/SLIPS.git", from: "${{ steps.extract-notes.outputs.tag_name }}")
-          ```
-          
-          ### Binary CLI (macOS)
-          
-          ```bash
-          tar xzf slips-cli-macos.tar.gz
-          ./slips-cli
-          ```
-          
-          Vedi [CHANGELOG](https://github.com/gpicchiarelli/SLIPS/blob/main/README.md) per dettagli.
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+        # Swift Package Index si aggiorna automaticamente dai tag GitHub
+        echo "✅ Swift Package Index rileverà automaticamente il nuovo tag"

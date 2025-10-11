@@ -30,8 +30,11 @@ public final class AlphaNodeClass: ReteNode {
     public let pattern: Pattern
     /// Memoria alpha: IDs di fatti che matchano questo pattern
     public var memory: Set<Int> = []
-    /// Join nodes successori che dipendono da questo alpha node
-    public var successors: [JoinNodeClass] = []
+    /// Nodi successori nella catena principale (per primo pattern)
+    public var successors: [ReteNode] = []
+    /// Join nodes che usano questo alpha come rightInput
+    /// Quando un fatto viene aggiunto, questi join vengono notificati
+    public var rightJoinListeners: [JoinNodeClass] = []
     
     public init(pattern: Pattern, level: Int = 0) {
         self.id = UUID()
@@ -39,14 +42,14 @@ public final class AlphaNodeClass: ReteNode {
         self.pattern = pattern
     }
     
-    /// Attiva propagazione token ai join successori
+    /// Attiva propagazione token ai successori
     /// (ref: NetworkAssert flow in drive.c)
     public func activate(token: BetaToken, env: inout Environment) {
         if env.watchRete {
             print("[RETE] AlphaNode activate: pattern=\(pattern.name), successors=\(successors.count)")
         }
-        for join in successors {
-            join.activate(token: token, env: &env)
+        for successor in successors {
+            successor.activate(token: token, env: &env)
         }
     }
 }
@@ -129,7 +132,9 @@ public final class JoinNodeClass: ReteNode {
         env: inout Environment
     ) -> BetaToken? {
         // Verifica che il fatto sia del template giusto
-        guard rightFact.name == rightInput.pattern.name else { return nil }
+        guard rightFact.name == rightInput.pattern.name else {
+            return nil
+        }
         
         var newBindings = leftToken.bindings
         
@@ -209,6 +214,44 @@ public final class JoinNodeClass: ReteNode {
         
         return BetaToken(bindings: newBindings, usedFacts: usedFacts)
     }
+    
+    /// Attiva join quando un nuovo fatto arriva da destra (rightInput)
+    /// Fa join del fatto con tutti i token nella memoria beta sinistra
+    /// (ref: PosEntryDrive in drive.c - right-side activation)
+    public func activateFromRight(fact: Environment.FactRec, env: inout Environment) {
+        // Ottieni token dalla memoria beta del left input
+        let leftTokens = getLeftTokens(env: env)
+        
+        // Per ogni token sinistro, tenta join con il fatto destro
+        for leftToken in leftTokens {
+            if leftToken.usedFacts.contains(fact.id) {
+                continue
+            }
+            
+            if let newToken = attemptJoin(
+                leftToken: leftToken,
+                rightFact: fact,
+                env: &env
+            ) {
+                // Propaga nuovo token ai successori
+                for successor in successors {
+                    successor.activate(token: newToken, env: &env)
+                }
+            }
+        }
+    }
+    
+    /// Ottiene i token dalla memoria beta del left input
+    private func getLeftTokens(env: Environment) -> [BetaToken] {
+        // Se il leftInput è un BetaMemoryNode, restituisci i suoi token
+        if let betaMemory = leftInput as? BetaMemoryNode {
+            return betaMemory.memory.tokens
+        }
+        
+        // Altrimenti, naviga ricorsivamente
+        // Per ora, ritorna array vuoto se non è direttamente un BetaMemoryNode
+        return []
+    }
 }
 
 /// Nodo memoria beta per persistenza token
@@ -263,7 +306,8 @@ public final class BetaMemoryNode: ReteNode {
                 hashValue(&hasher, value)
             }
         }
-        return UInt(hasher.finalize())
+        // Usa bitPattern per gestire valori negativi
+        return UInt(bitPattern: hasher.finalize())
     }
     
     private func hashValue(_ hasher: inout Hasher, _ value: Value) {
