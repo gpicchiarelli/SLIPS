@@ -348,6 +348,34 @@ extension BetaEngine {
                     }
                     if !any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
                 }
+            } else if pat.exists {
+                // CE exists: propaga il token invariato se esiste almeno un fatto compatibile
+                // Ottimizzazione: se ci sono chiavi di join definite, usa bucket su fatti
+                let spec = (levels.count < compiled.joinSpecs.count) ? compiled.joinSpecs[levels.count].map { JoinKeyPart(slot: $0.slot, varName: $0.varName, constValue: $0.constValue) } : buildJoinKeySpec(for: pat, boundVarNames: boundVarNames(for: compiled, upTo: levels.count))
+                if spec.isEmpty {
+                    for tok in current {
+                        var any = false
+                        for f in facts where f.name == pat.name {
+                            if matchesNegativeLite(&env, pattern: pat, fact: f, current: tok.bindings) { any = true; break }
+                        }
+                        if any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
+                    }
+                } else {
+                    var fBucket: [UInt: [Environment.FactRec]] = [:]
+                    for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                        let hf = hashFromFact(f, spec: spec)
+                        fBucket[hf, default: []].append(f)
+                    }
+                    for tok in current {
+                        let hk = hashFromBindings(tok.bindings, spec: spec)
+                        if let cand = fBucket[hk] {
+                            var any = false
+                            for f in cand { if matchesNegativeLite(&env, pattern: pat, fact: f, current: tok.bindings) { any = true; break } }
+                            if any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
+                            factsMatchedKey += cand.count
+                        }
+                    }
+                }
             } else {
             // Hash-join preparation (usa spec precompilata se disponibile)
             let spec = (levels.count < compiled.joinSpecs.count) ? compiled.joinSpecs[levels.count].map { JoinKeyPart(slot: $0.slot, varName: $0.varName, constValue: $0.constValue) } : buildJoinKeySpec(for: pat, boundVarNames: boundVarNames(for: compiled, upTo: levels.count))
@@ -516,25 +544,33 @@ extension BetaEngine {
 
             var currentNew: [BetaToken] = []
             for lt in leftTokens {
-                if var b = RuleEngine.match(env: &env, pattern: pat, fact: anchor, current: lt.bindings) {
-                    // merge bindings
-                    var ok = true
-                    for (k,v) in lt.bindings { if let nb = b[k], nb != v { ok = false; break } }
-                    if !ok { continue }
-                    for (k,v) in lt.bindings { b[k] = v }
-                    var used = lt.usedFacts; used.insert(anchor.id)
-                    let tok = BetaToken(bindings: b, usedFacts: used)
-                    if let tl = compiled.testsByLevel[pos], !RuleEngine.applyTests(&env, tests: tl, with: tok.bindings) { continue }
-                    let wasNew: Bool
-                    if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
-                    if wasNew, env.watchRete {
-                        Router.Writeln(&env, "RETE + \(ruleName)/L\(pos) \(describeToken(tok))")
+                if pat.exists {
+                    // Per exists: se l'anchor soddisfa i vincoli con il binding corrente, propaga lt invariato
+                    if matchesNegativeLite(&env, pattern: pat, fact: anchor, current: lt.bindings) {
+                        let tok = lt
+                        if let tl = compiled.testsByLevel[pos], !RuleEngine.applyTests(&env, tests: tl, with: tok.bindings) { continue }
+                        let wasNew: Bool
+                        if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
+                        if wasNew, env.watchRete { Router.Writeln(&env, "RETE + \(ruleName)/L\(pos) \(describeToken(tok))") }
+                        if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(tok) }
+                        currentNew.append(tok)
                     }
-                    // Se questo è già l'ultimo livello pattern ed è nuovo, conteggia come aggiunto al terminale (assenza di filtro)
-                    if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew {
-                        terminalAdded.append(tok)
+                } else {
+                    if var b = RuleEngine.match(env: &env, pattern: pat, fact: anchor, current: lt.bindings) {
+                        // merge bindings
+                        var ok = true
+                        for (k,v) in lt.bindings { if let nb = b[k], nb != v { ok = false; break } }
+                        if !ok { continue }
+                        for (k,v) in lt.bindings { b[k] = v }
+                        var used = lt.usedFacts; used.insert(anchor.id)
+                        let tok = BetaToken(bindings: b, usedFacts: used)
+                        if let tl = compiled.testsByLevel[pos], !RuleEngine.applyTests(&env, tests: tl, with: tok.bindings) { continue }
+                        let wasNew: Bool
+                        if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
+                        if wasNew, env.watchRete { Router.Writeln(&env, "RETE + \(ruleName)/L\(pos) \(describeToken(tok))") }
+                        if compiled.filterNode == nil && pos == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(tok) }
+                        currentNew.append(tok)
                     }
-                    currentNew.append(tok)
                 }
             }
 
@@ -585,6 +621,27 @@ extension BetaEngine {
                                 if wasNew { produced.append(t) }
                                 if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
                             }
+                        }
+                    }
+                } else if p2.exists {
+                    // Propaga il token invariato se esiste almeno un fatto compatibile coi binding
+                    // Usa bucket su fatti per efficienza
+                    var fBucket: [UInt: [Environment.FactRec]] = [:]
+                    for f in facts where f.name == p2.name && factPassesConstants(f, pattern: p2) {
+                        let hf = hashFromFact(f, spec: spec2)
+                        fBucket[hf, default: []].append(f)
+                    }
+                    for t in nextTokens {
+                        let hk = hashFromBindings(t.bindings, spec: spec2)
+                        guard let cand = fBucket[hk] else { continue }
+                        var any = false
+                        for f in cand { if matchesNegativeLite(&env, pattern: p2, fact: f, current: t.bindings) { any = true; break } }
+                        if any {
+                            let wasNew: Bool
+                            if let mem = levels[k] { wasNew = addIfNew(mem, t) }
+                            else { let mem = BetaMemory(); wasNew = addIfNew(mem, t); levels[k] = mem }
+                            if wasNew { produced.append(t) }
+                            if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
                         }
                     }
                 } else if !spec2.isEmpty {
@@ -714,6 +771,7 @@ extension BetaEngine {
     // Rimozione delta: elimina dai livelli tutti i token che includono il factID.
     public static func updateGraphOnRetractDelta(_ env: inout Environment, ruleName: String, factID: Int) {
         guard var levels = env.rete.betaLevels[ruleName] else { return }
+        // 1) Rimuovi dai livelli i token che includono il factID
         for (idx, mem) in levels {
             let before = mem.tokens.count
             let kept = mem.tokens.filter { !$0.usedFacts.contains(factID) }
@@ -727,8 +785,175 @@ extension BetaEngine {
             if removed > 0, env.watchRete { Router.Writeln(&env, "RETE - L\(idx) removed \(removed)") }
             levels[idx] = mem
         }
+        // 2) Propagazione parziale per EXISTS: ricalcola solo i livelli EXISTS e successivi
+        guard let compiled = env.rete.rules[ruleName] else { env.rete.betaLevels[ruleName] = levels; return }
+        let patterns = compiled.patterns.map { $0.original }
+        let facts = Array(env.facts.values)
+        var recomputeFrom: Int? = nil
+        if !levels.isEmpty {
+            for k in 0..<compiled.joinOrder.count {
+                let pat = patterns[compiled.joinOrder[k]]
+                if !pat.exists { continue }
+                // left tokens sono i token del livello precedente (o token vuoto se k==0)
+                let leftTokens: [BetaToken] = (k == 0) ? [BetaToken(bindings: [:], usedFacts: [])] : (levels[k - 1]?.tokens ?? [])
+                var next: [BetaToken] = []
+                let spec = buildJoinKeySpec(for: pat, boundVarNames: boundVarNames(for: compiled, upTo: k))
+                if spec.isEmpty {
+                    for t in leftTokens {
+                        var any = false
+                        for f in facts where f.name == pat.name {
+                            if matchesNegativeLite(&env, pattern: pat, fact: f, current: t.bindings) { any = true; break }
+                        }
+                        if any { next.append(t) }
+                    }
+                } else {
+                    var fBucket: [UInt: [Environment.FactRec]] = [:]
+                    for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                        let hf = hashFromFact(f, spec: spec)
+                        fBucket[hf, default: []].append(f)
+                    }
+                    for t in leftTokens {
+                        let hk = hashFromBindings(t.bindings, spec: spec)
+                        if let cand = fBucket[hk] {
+                            var any = false
+                            for f in cand { if matchesNegativeLite(&env, pattern: pat, fact: f, current: t.bindings) { any = true; break } }
+                            if any { next.append(t) }
+                        }
+                    }
+                }
+                // Dedup
+                var seen = Set<UInt64>()
+                var uniq: [BetaToken] = []
+                for t in next { let kh = tokenKeyHash64(t); if !seen.contains(kh) { seen.insert(kh); uniq.append(t) } }
+                let cur = levels[k]?.tokens ?? []
+                // Se i token differiscono, aggiorna e segna il livello per recompute in avanti
+                let curSet = Set(cur.map(tokenKeyHash64))
+                let newSet = Set(uniq.map(tokenKeyHash64))
+                if curSet != newSet {
+                    let mem = levels[k] ?? BetaMemory()
+                    mem.tokens = uniq
+                    mem.keyIndex = Set(uniq.map(tokenKeyHash64))
+                    var buckets: [UInt: [Int]] = [:]
+                    for (i, t) in uniq.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+                    mem.hashBuckets = buckets
+                    levels[k] = mem
+                    if recomputeFrom == nil || k < recomputeFrom! { recomputeFrom = k }
+                }
+            }
+        }
+        // 3) Se necessario, ricalcola i livelli successivi a partire da recomputeFrom
+        if let start = recomputeFrom {
+            var k = start + 1
+            while k < compiled.joinOrder.count {
+                let p = patterns[compiled.joinOrder[k]]
+                let leftTokens = (k == 0) ? [BetaToken(bindings: [:], usedFacts: [])] : (levels[k - 1]?.tokens ?? [])
+                var next: [BetaToken] = []
+                if p.negated {
+                    for t in leftTokens {
+                        var any = false
+                        for f in facts where f.name == p.name {
+                            if matchesNegativeLite(&env, pattern: p, fact: f, current: t.bindings) { any = true; break }
+                        }
+                        if !any { next.append(t) }
+                    }
+                } else if p.exists {
+                    let spec = buildJoinKeySpec(for: p, boundVarNames: boundVarNames(for: compiled, upTo: k))
+                    if spec.isEmpty {
+                        for t in leftTokens {
+                            var any = false
+                            for f in facts where f.name == p.name {
+                                if matchesNegativeLite(&env, pattern: p, fact: f, current: t.bindings) { any = true; break }
+                            }
+                            if any { next.append(t) }
+                        }
+                    } else {
+                        var fBucket: [UInt: [Environment.FactRec]] = [:]
+                        for f in facts where f.name == p.name && factPassesConstants(f, pattern: p) {
+                            let hf = hashFromFact(f, spec: buildJoinKeySpec(for: p, boundVarNames: boundVarNames(for: compiled, upTo: k)))
+                            fBucket[hf, default: []].append(f)
+                        }
+                        for t in leftTokens {
+                            let hk = hashFromBindings(t.bindings, spec: buildJoinKeySpec(for: p, boundVarNames: boundVarNames(for: compiled, upTo: k)))
+                            if let cand = fBucket[hk] {
+                                var any = false
+                                for f in cand { if matchesNegativeLite(&env, pattern: p, fact: f, current: t.bindings) { any = true; break } }
+                                if any { next.append(t) }
+                            }
+                        }
+                    }
+                } else {
+                    // positivo: join
+                    let spec = buildJoinKeySpec(for: p, boundVarNames: boundVarNames(for: compiled, upTo: k))
+                    if !spec.isEmpty {
+                        var bucket: [UInt: [BetaToken]] = [:]
+                        for t in leftTokens {
+                            let hk = hashFromBindings(t.bindings, spec: spec)
+                            bucket[hk, default: []].append(t)
+                        }
+                        for f in facts where f.name == p.name && factPassesConstants(f, pattern: p) {
+                            let hf = hashFromFact(f, spec: spec)
+                            guard let lefts = bucket[hf] else { continue }
+                            for t in lefts where !t.usedFacts.contains(f.id) {
+                                if var b = RuleEngine.match(env: &env, pattern: p, fact: f, current: t.bindings) {
+                                    var ok = true
+                                    for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
+                                    if !ok { continue }
+                                    for (kk,vv) in t.bindings { b[kk] = vv }
+                                    var used = t.usedFacts; used.insert(f.id)
+                                    next.append(BetaToken(bindings: b, usedFacts: used))
+                                }
+                            }
+                        }
+                    } else {
+                        for t in leftTokens {
+                            for f in facts where f.name == p.name && !t.usedFacts.contains(f.id) && factPassesConstants(f, pattern: p) {
+                                if var b = RuleEngine.match(env: &env, pattern: p, fact: f, current: t.bindings) {
+                                    var ok = true
+                                    for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }
+                                    if !ok { continue }
+                                    for (kk,vv) in t.bindings { b[kk] = vv }
+                                    var used = t.usedFacts; used.insert(f.id)
+                                    next.append(BetaToken(bindings: b, usedFacts: used))
+                                }
+                            }
+                        }
+                    }
+                }
+                // Applica eventuali test per livello
+                if let tl = compiled.testsByLevel[k] {
+                    next = next.filter { RuleEngine.applyTests(&env, tests: tl, with: $0.bindings) }
+                }
+                // Dedup
+                var seen = Set<UInt64>()
+                var uniq: [BetaToken] = []
+                for t in next { let kh = tokenKeyHash64(t); if !seen.contains(kh) { seen.insert(kh); uniq.append(t) } }
+                let mem = levels[k] ?? BetaMemory()
+                mem.tokens = uniq
+                mem.keyIndex = Set(uniq.map(tokenKeyHash64))
+                var buckets: [UInt: [Int]] = [:]
+                for (i, t) in uniq.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+                mem.hashBuckets = buckets
+                levels[k] = mem
+                k += 1
+            }
+            // Nodo filtro terminale, se presente
+            if let filter = compiled.filterNode, !filter.tests.isEmpty {
+                let lastIdx = compiled.joinOrder.count - 1
+                let src = levels[lastIdx]?.tokens ?? []
+                var out: [BetaToken] = []
+                for t in src { if RuleEngine.applyTests(&env, tests: filter.tests, with: t.bindings) { out.append(t) } }
+                let termIdx = terminalLevelIndex(compiled)
+                let mem = levels[termIdx] ?? BetaMemory()
+                mem.tokens = out
+                mem.keyIndex = Set(out.map(tokenKeyHash64))
+                var buckets: [UInt: [Int]] = [:]
+                for (i, t) in out.enumerated() { buckets[hashForToken(t), default: []].append(i) }
+                mem.hashBuckets = buckets
+                levels[termIdx] = mem
+            }
+        }
         env.rete.betaLevels[ruleName] = levels
-        // Aggiorna snapshot terminale
+        // 4) Aggiorna snapshot terminale
         if let maxIdx = levels.keys.max(), let mem = levels[maxIdx] {
             let termMem = BetaMemory(); termMem.tokens = mem.tokens; termMem.keyIndex = mem.keyIndex; termMem.hashBuckets = mem.hashBuckets
             env.rete.beta[ruleName] = termMem

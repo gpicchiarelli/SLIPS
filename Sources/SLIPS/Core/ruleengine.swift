@@ -52,7 +52,7 @@ public enum RuleEngine {
             // Calcolo naive: separa confronto (join-check) da attivazioni per evitare duplicati
             var matchesForActivation: [PartialMatch] = []
             var matchesForCompare: [PartialMatch] = []
-            let supportRete = !hasNeg && !hasExists && (env.rete.rules[rule.name] != nil)
+            let supportRete = !hasNeg && (env.rete.rules[rule.name] != nil)
             let needNaive = hasNeg || env.experimentalJoinCheck || !supportRete
             if needNaive {
                 // Per join-check calcola i match completi solo per confronto (non per attivazione)
@@ -72,8 +72,9 @@ public enum RuleEngine {
                 // Se l'anchor appartiene a un template usato solo in CE negati per questa regola, ricorri al recompute completo
                 let anchorName = fact.name
                 _ = cr.patterns.contains { $0.original.name == anchorName && $0.original.negated }
-                let hasPosUse = cr.patterns.contains { $0.original.name == anchorName && !$0.original.negated }
-                let useDelta = hasPosUse
+                let hasPosUse = cr.patterns.contains { $0.original.name == anchorName && !$0.original.negated && !$0.original.exists }
+                let hasExistsUse = cr.patterns.contains { $0.original.name == anchorName && $0.original.exists }
+                let useDelta = hasPosUse || hasExistsUse
                 let added: [BetaToken]
                 if useDelta {
                     added = BetaEngine.updateGraphOnAssertDelta(&env, ruleName: rule.name, compiled: cr, facts: pool, anchor: fact)
@@ -135,6 +136,15 @@ public enum RuleEngine {
                     matchesForActivation = (hasNeg || hasExists)
                         ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                         : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
+                }
+                if hasExists && env.watchRules {
+                    Router.WriteString(&env, Router.STDERR, "[EXISTS] pool=\(pool.count) matches=\(matchesForActivation.count)\n")
+                }
+                if matchesForActivation.isEmpty && hasExists && rule.patterns.count == 1 && rule.patterns[0].exists {
+                    let tmpl = rule.patterns[0].name
+                    if pool.contains(where: { $0.name == tmpl }) {
+                        matchesForActivation = [PartialMatch(bindings: [:], usedFacts: Set<Int>())]
+                    }
                 }
                 for m in matchesForActivation {
                     var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)

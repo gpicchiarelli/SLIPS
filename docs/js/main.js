@@ -22,15 +22,15 @@ function highlightCode() {
         const code = block.textContent;
         const highlighted = code
             // Swift/CLIPS keywords
-            .replace(/\b(func|let|var|class|struct|enum|import|return|if|else|guard|switch|for|while|mutating|public|private|static|defrule|deftemplate|deffacts|assert|retract|printout|bind|slot|watch|run|reset)\b/g, '<span style="color: #ff79c6;">$1</span>')
+            .replace(/\b(func|let|var|class|struct|enum|import|return|if|else|guard|switch|for|while|mutating|public|private|static|defrule|deftemplate|deffacts|assert|retract|printout|bind|slot|watch|run|reset)\b/g, '<span style="color: #d73a49;">$1</span>')
             // Strings
-            .replace(/"([^"\\]|\\.)*"/g, '<span style="color: #f1fa8c;">$&</span>')
+            .replace(/"([^"\\]|\\.)*"/g, '<span style="color: #22863a;">$&</span>')
             // Comments
-            .replace(/\/\/.*$/gm, '<span style="color: #6272a4;">$&</span>')
+            .replace(/\/\/.*$/gm, '<span style="color: #6a737d;">$&</span>')
             // Numbers
-            .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #bd93f9;">$1</span>')
+            .replace(/\b(\d+\.?\d*)\b/g, '<span style="color: #005cc5;">$1</span>')
             // Variables
-            .replace(/\?[\w-]+/g, '<span style="color: #50fa7b;">$&</span>');
+            .replace(/\?[\w-]+/g, '<span style="color: #6f42c1;">$&</span>');
         
         block.innerHTML = highlighted;
     });
@@ -64,8 +64,10 @@ function addCopyButtons() {
 window.addEventListener('scroll', () => {
     const navbar = document.querySelector('.navbar');
     if (window.pageYOffset > 50) {
-        navbar.style.background = 'rgba(15, 23, 42, 0.98)';
+        navbar.style.background = 'rgba(255, 255, 255, 0.98)';
+        navbar.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
     } else {
-        navbar.style.background = 'rgba(15, 23, 42, 0.95)';
+        navbar.style.background = 'rgba(255, 255, 255, 0.95)';
+        navbar.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
     }
 });

@@ -323,11 +323,13 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         if env.experimentalJoinCheck || env.experimentalJoinActivate {
             for (rname, cr) in env.rete.rules {
                 let hasNegUse = cr.patterns.contains { $0.original.name == fact.name && $0.original.negated }
+                _ = cr.patterns.contains { $0.original.name == fact.name && $0.original.exists }
                 if hasNegUse {
                     // Per CE negati, il ritiro può sbloccare token: ricostruzione completa
                     let facts = Array(env.facts.values)
                     _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
                 } else {
+                    // CE exists parzialmente supportato in delta
                     BetaEngine.updateGraphOnRetractDelta(&env, ruleName: rname, factID: fact.id)
                 }
             }

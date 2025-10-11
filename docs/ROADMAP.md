@@ -24,3 +24,9 @@ Criteri di completamento
 - Test chiave verdi: assert/retract, deftemplate, not/exists, salience, watch
 - Esecuzione `CLIPS.commandLoop()` opzionale ma consigliata a fine progetto
 
+Stato avanzamento (aggiornato Ottobre 2025)
+- ✅ **Exists unario:** parsing/IR e valutazione LHS senza introdurre binding; aggiunto nodo `ExistsNode` nello scaffold RETE
+- ✅ **Not delta ottimizzato:** propagazione incrementale per CE negati senza full recompute, con prefiltraggio costanti e bucket hash sulle chiavi di join
+- ✅ **Join incrementale:** Beta engine con confronto tra backtracking classico e propagazione incrementale
+- 🚧 **RETE completo:** nodi espliciti alpha/beta/join in fase di sviluppo
+

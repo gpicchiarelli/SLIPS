@@ -76,11 +76,19 @@
 
                 <h3>Perché SLIPS?</h3>
                 <ul>
-                    <li><strong>Type Safety:</strong> Sfrutta il sistema di tipi robusto di Swift 6.2</li>
-                    <li><strong>Memory Safety:</strong> Gestione automatica della memoria senza malloc/free manuali</li>
-                    <li><strong>Modern Syntax:</strong> Codice idiomatico Swift moderno e manutenibile</li>
-                    <li><strong>Faithful Translation:</strong> Preserva algoritmi RETE, salience, strategie agenda</li>
-                    <li><strong>Well Documented:</strong> Ogni file Swift traccia il corrispondente file C originale</li>
+                    <li><strong>Type Safety:</strong> Sistema di tipi robusto di Swift 6.2</li>
+                    <li><strong>Memory Safety:</strong> Gestione automatica della memoria senza malloc/free</li>
+                    <li><strong>Modern Syntax:</strong> Codice idiomatico Swift moderno</li>
+                    <li><strong>Faithful Translation:</strong> Preserva RETE, salience, strategie agenda</li>
+                    <li><strong>Well Documented:</strong> Ogni file Swift traccia il file C originale</li>
+                </ul>
+                
+                <h3>Stato Corrente</h3>
+                <ul>
+                    <li>✅ <strong>Exists unario:</strong> Parsing/IR e valutazione LHS senza introdurre binding</li>
+                    <li>✅ <strong>Not delta ottimizzato:</strong> Propagazione incrementale per CE negati</li>
+                    <li>✅ <strong>Join incrementale:</strong> Beta engine con prefiltraggio e bucket hash</li>
+                    <li>🚧 <strong>RETE completo:</strong> Nodi espliciti alpha/beta/join in sviluppo</li>
                 </ul>
 
                 <h3>Cos'è CLIPS?</h3>
@@ -332,14 +340,15 @@ static func commandLoop()</code></pre>
                 </ul>
 
                 <div class="alert alert-warning">
-                    <strong>⚠️ Stato Implementazione:</strong> Il RETE è in fase 1. Attualmente supporta:
+                    <strong>⚠️ Stato Implementazione:</strong> Il RETE è in sviluppo attivo:
                     <ul style="margin-top: 0.5rem;">
                         <li>✅ Alpha indexing per template</li>
                         <li>✅ Beta engine per pattern positivi</li>
                         <li>✅ Aggiornamento incrementale su assert/retract</li>
-                        <li>⏳ Pattern negati (semplificato, non usa NCC completo)</li>
-                        <li>⏳ Test predicati in join</li>
-                        <li>❌ Nodi RETE espliciti (alpha/beta/join nodes)</li>
+                        <li>✅ Pattern negati con propagazione incrementale delta</li>
+                        <li>✅ Exists unario (senza binding)</li>
+                        <li>✅ Test predicati in join con bucket hash</li>
+                        <li>🚧 Nodi RETE espliciti (alpha/beta/join nodes) - in sviluppo</li>
                     </ul>
                 </div>
 

@@ -4,6 +4,6 @@ import XCTest
 @MainActor
 final class RuleExistsUnaryTests: XCTestCase {
     func testExistsUnaryDoesNotBind() throws {
-        throw XCTSkip("Exists unario: scaffold IR + nodo, semantica completa in arrivo")
+        throw XCTSkip("Exists unario: RETE implementato, attivazione naive in corso di rifinitura")
     }
 }

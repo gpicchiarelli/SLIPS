@@ -76,11 +76,19 @@
 
                 <h3>Why SLIPS?</h3>
                 <ul>
-                    <li><strong>Type Safety:</strong> Leverages Swift 6.2's robust type system</li>
-                    <li><strong>Memory Safety:</strong> Automatic memory management without manual malloc/free</li>
-                    <li><strong>Modern Syntax:</strong> Clean, maintainable, idiomatic Swift code</li>
-                    <li><strong>Faithful Translation:</strong> Preserves RETE algorithms, salience, agenda strategies</li>
-                    <li><strong>Well Documented:</strong> Each Swift file maps to its corresponding C source</li>
+                    <li><strong>Type Safety:</strong> Swift 6.2's robust type system</li>
+                    <li><strong>Memory Safety:</strong> Automatic memory management without malloc/free</li>
+                    <li><strong>Modern Syntax:</strong> Clean, idiomatic Swift code</li>
+                    <li><strong>Faithful Translation:</strong> Preserves RETE, salience, agenda strategies</li>
+                    <li><strong>Well Documented:</strong> Each Swift file maps to C source</li>
+                </ul>
+                
+                <h3>Current Status</h3>
+                <ul>
+                    <li>✅ <strong>Unary exists:</strong> Parsing/IR and LHS evaluation without introducing bindings</li>
+                    <li>✅ <strong>Optimized not delta:</strong> Incremental propagation for negated CEs</li>
+                    <li>✅ <strong>Incremental join:</strong> Beta engine with prefiltering and hash buckets</li>
+                    <li>🚧 <strong>Complete RETE:</strong> Explicit alpha/beta/join nodes in development</li>
                 </ul>
 
                 <h3>What is CLIPS?</h3>
@@ -332,14 +340,15 @@ static func commandLoop()</code></pre>
                 </ul>
 
                 <div class="alert alert-warning">
-                    <strong>⚠️ Implementation Status:</strong> RETE is in phase 1. Currently supports:
+                    <strong>⚠️ Implementation Status:</strong> RETE is in active development:
                     <ul style="margin-top: 0.5rem;">
                         <li>✅ Alpha indexing by template</li>
                         <li>✅ Beta engine for positive patterns</li>
                         <li>✅ Incremental updates on assert/retract</li>
-                        <li>⏳ Negated patterns (simplified, doesn't use full NCC)</li>
-                        <li>⏳ Predicate tests in joins</li>
-                        <li>❌ Explicit RETE nodes (alpha/beta/join nodes)</li>
+                        <li>✅ Negated patterns with incremental delta propagation</li>
+                        <li>✅ Unary exists (without bindings)</li>
+                        <li>✅ Predicate tests in joins with hash buckets</li>
+                        <li>🚧 Explicit RETE nodes (alpha/beta/join nodes) - in development</li>
                     </ul>
                 </div>
 

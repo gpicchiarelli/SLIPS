@@ -185,6 +185,10 @@ public enum CLIPS {
     public static func run(limit: Int? = nil) -> Int {
         guard let env0 = currentEnv else { return 0 }
         var env = env0
+        // Se l'agenda è vuota, ricostruisci da stato attuale per catturare CE come 'exists'
+        if env.agendaQueue.isEmpty {
+            RuleEngine.rebuildAgenda(&env)
+        }
         let fired = RuleEngine.run(&env, limit: limit)
         // Se il join-check o l'attivazione via rete sono attivi, riallinea le memorie beta
         if env.experimentalJoinCheck || env.experimentalJoinActivate || !env.joinActivateWhitelist.isEmpty {
