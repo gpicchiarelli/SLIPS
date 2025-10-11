@@ -57,28 +57,80 @@ public final class AlphaNodeClass: ReteNode {
 // MARK: - Beta Network Nodes
 
 /// Nodo join per combinare pattern (left × right)
-/// Esegue join tra token beta (left) e fatti alpha (right)
+/// Port FEDELE di struct joinNode (network.h linee 108-136)
 /// (ref: struct joinNode in network.h, PerformJoin in drive.c)
 public final class JoinNodeClass: ReteNode {
     public let id: UUID
     public let level: Int
-    /// Input sinistro: nodo beta precedente
-    public let leftInput: ReteNode
-    /// Input destro: alpha node con fatti candidati
-    public let rightInput: AlphaNodeClass
-    /// Variabili di join (vincoli di consistenza tra left e right)
+    
+    // NUOVE STRUTTURE - Port fedele da network.h
+    
+    /// Flags (bitfield in C)
+    public var firstJoin: Bool = false
+    public var logicalJoin: Bool = false
+    public var joinFromTheRight: Bool = false
+    public var patternIsNegated: Bool = false
+    public var patternIsExists: Bool = false
+    public var initialize: Bool = true
+    public var marked: Bool = false
+    public var rhsType: UInt8 = 0
+    public var depth: UInt16 = 0
+    
+    /// Beta memories (DUE separate come in CLIPS!)
+    /// Port di: struct betaMemory *leftMemory / *rightMemory
+    public var leftMemory: BetaMemoryHash? = nil
+    public var rightMemory: BetaMemoryHash? = nil
+    
+    /// Network tests
+    /// Port di: Expression *networkTest / *secondaryNetworkTest
+    public var networkTest: ExpressionNode? = nil
+    public var secondaryNetworkTest: ExpressionNode? = nil
+    
+    /// Hash expressions (per calcolo hash value)
+    /// Port di: Expression *leftHash / *rightHash
+    public var leftHash: ExpressionNode? = nil
+    public var rightHash: ExpressionNode? = nil
+    
+    /// Right side entry structure (per pattern nodes)
+    /// Port di: void *rightSideEntryStructure
+    public var rightSideEntryStructure: AnyObject? = nil
+    
+    /// Collegamenti successori (nextLinks in C)
+    /// Port di: struct joinLink *nextLinks
+    public var nextLinks: [JoinLink] = []
+    
+    /// Last level join (predecessore)
+    /// Port di: struct joinNode *lastLevel
+    public var lastLevel: JoinNodeClass? = nil
+    
+    /// Right match node (per join from right)
+    /// Port di: struct joinNode *rightMatchNode
+    public var rightMatchNode: JoinNodeClass? = nil
+    
+    /// Regola da attivare (production terminal)
+    /// Port di: Defrule *ruleToActivate
+    public var ruleToActivate: ProductionNode? = nil
+    
+    /// Statistics (per profiling)
+    public var memoryLeftAdds: Int64 = 0
+    public var memoryRightAdds: Int64 = 0
+    public var memoryLeftDeletes: Int64 = 0
+    public var memoryRightDeletes: Int64 = 0
+    public var memoryCompares: Int64 = 0
+    
+    // BACKWARD COMPATIBILITY (da rimuovere gradualmente)
+    public let leftInput: ReteNode?
+    public let rightInput: AlphaNodeClass?
     public let joinKeys: Set<String>
-    /// Test constraints addizionali da valutare dopo join
     public let tests: [ExpressionNode]
-    /// Nodi successori nella catena
     public var successors: [ReteNode] = []
     
     public init(
-        left: ReteNode,
-        right: AlphaNodeClass,
-        keys: Set<String>,
-        tests: [ExpressionNode],
-        level: Int
+        left: ReteNode? = nil,
+        right: AlphaNodeClass? = nil,
+        keys: Set<String> = [],
+        tests: [ExpressionNode] = [],
+        level: Int = 0
     ) {
         self.id = UUID()
         self.level = level
@@ -86,20 +138,27 @@ public final class JoinNodeClass: ReteNode {
         self.rightInput = right
         self.joinKeys = keys
         self.tests = tests
+        
+        // Inizializza beta memories
+        self.leftMemory = BetaMemoryHash(initialSize: 17)
+        self.rightMemory = BetaMemoryHash(initialSize: 17)
     }
     
     /// Attiva join: combina token con fatti dalla memoria alpha
     /// (ref: PerformJoin in drive.c)
     public func activate(token: BetaToken, env: inout Environment) {
         if env.watchRete {
-            print("[RETE] JoinNode activate: level=\(level), rightAlpha=\(rightInput.memory.count) facts")
+            let memCount = rightInput?.memory.count ?? 0
+            print("[RETE] JoinNode activate: level=\(level), rightAlpha=\(memCount) facts")
         }
         
         let startTime = env.watchReteProfile ? Date() : nil
         var joinCount = 0
         
         // Join con tutti i fatti nella memoria alpha destra
-        for factID in rightInput.memory {
+        guard let rightAlpha = rightInput else { return }
+        
+        for factID in rightAlpha.memory {
             guard let fact = env.facts[factID] else { continue }
             guard !token.usedFacts.contains(factID) else { continue } // Evita cicli
             
@@ -132,14 +191,15 @@ public final class JoinNodeClass: ReteNode {
         env: inout Environment
     ) -> BetaToken? {
         // Verifica che il fatto sia del template giusto
-        guard rightFact.name == rightInput.pattern.name else {
+        guard let rightAlpha = rightInput,
+              rightFact.name == rightAlpha.pattern.name else {
             return nil
         }
         
         var newBindings = leftToken.bindings
         
         // Verifica consistenza join keys e estrai nuovi binding
-        for (slot, test) in rightInput.pattern.slots {
+        for (slot, test) in rightAlpha.pattern.slots {
             guard let factValue = rightFact.slots[slot] else { continue }
             
             switch test.kind {
@@ -216,15 +276,65 @@ public final class JoinNodeClass: ReteNode {
     }
     
     /// Attiva join quando un nuovo fatto arriva da destra (rightInput)
-    /// Fa join del fatto con tutti i token nella memoria beta sinistra
-    /// (ref: PosEntryDrive in drive.c - right-side activation)
+    /// NUOVO: Usa hash lookup O(1) come in CLIPS C (con fallback durante transizione)
+    /// (ref: NetworkAssertRight in drive.c con GetLeftBetaMemory)
     public func activateFromRight(fact: Environment.FactRec, env: inout Environment) {
-        // Ottieni token dalla memoria beta del left input
-        let leftTokens = getLeftTokens(env: env)
+        // Crea PartialMatch dal fatto per hash value
+        let factToken = BetaToken(bindings: [:], usedFacts: [fact.id])
+        let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
         
-        // Per ogni token sinistro, tenta join con il fatto destro
-        for leftToken in leftTokens {
+        // USA HASH LOOKUP O(1) ✅ come in CLIPS C
+        var lhsBinds = ReteUtil.GetLeftBetaMemory(self, hashValue: rhsPM.hashValue)
+        
+        // FALLBACK durante transizione: se leftMemory è vuota, usa vecchio metodo
+        // Questo permette ai test di continuare a funzionare mentre migriamo
+        if lhsBinds == nil && (leftMemory == nil || leftMemory!.isEmpty) {
+            if env.watchRete {
+                print("[RETE] JoinNodeClass.activateFromRight: leftMemory empty, using legacy getLeftTokens")
+            }
+            
+            // Usa vecchio metodo (da BetaMemoryNode)
+            let leftTokens = getLeftTokens(env: env)
+            
+            for leftToken in leftTokens {
+                if leftToken.usedFacts.contains(fact.id) {
+                    continue
+                }
+                
+                if let newToken = attemptJoin(
+                    leftToken: leftToken,
+                    rightFact: fact,
+                    env: &env
+                ) {
+                    // Propaga nuovo token ai successori
+                    for successor in successors {
+                        successor.activate(token: newToken, env: &env)
+                    }
+                }
+            }
+            return
+        }
+        
+        var compared = 0
+        var joined = 0
+        
+        // NUOVO PATH: Scan SOLO token nel bucket (O(bucket size) non O(n totale))
+        while let currentLHS = lhsBinds {
+            compared += 1
+            self.memoryCompares += 1
+            
+            // CRITICO: Confronta hash value PRIMA (ottimizzazione CLIPS)
+            if currentLHS.hashValue != rhsPM.hashValue {
+                lhsBinds = currentLHS.nextInMemory
+                continue
+            }
+            
+            // Converti PartialMatch → BetaToken per attemptJoin
+            // (bridge temporaneo - dopo porteremo tutto a PartialMatch)
+            let leftToken = partialMatchToToken(currentLHS, env: env)
+            
             if leftToken.usedFacts.contains(fact.id) {
+                lhsBinds = currentLHS.nextInMemory
                 continue
             }
             
@@ -233,12 +343,54 @@ public final class JoinNodeClass: ReteNode {
                 rightFact: fact,
                 env: &env
             ) {
+                joined += 1
                 // Propaga nuovo token ai successori
                 for successor in successors {
                     successor.activate(token: newToken, env: &env)
                 }
             }
+            
+            lhsBinds = currentLHS.nextInMemory
         }
+        
+        if env.watchRete && compared > 0 {
+            print("[RETE] JoinNodeClass.activateFromRight: hash lookup found \(compared) candidates in bucket, \(joined) joins")
+        }
+    }
+    
+    /// Converte PartialMatch in BetaToken (bridge temporaneo)
+    private func partialMatchToToken(_ pm: PartialMatch, env: Environment) -> BetaToken {
+        var bindings: [String: Value] = [:]
+        var usedFacts: Set<Int> = []
+        
+        // Estrai fact IDs
+        for i in 0..<Int(pm.bcount) {
+            if let alphaMatch = pm.binds[i].theMatch,
+               let entity = alphaMatch.matchingItem {
+                usedFacts.insert(entity.factID)
+                
+                // Estrai bindings dal fatto
+                if let factEntity = entity as? FactPatternEntity {
+                    let fact = factEntity.fact
+                    // Serve il pattern per sapere quali variabili estrarre
+                    // Per ora usiamo rightInput pattern se disponibile
+                    if let rightAlpha = rightInput {
+                        for (slot, test) in rightAlpha.pattern.slots {
+                            if let value = fact.slots[slot] {
+                                switch test.kind {
+                                case .variable(let name), .mfVariable(let name):
+                                    bindings[name] = value
+                                default:
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return BetaToken(bindings: bindings, usedFacts: usedFacts)
     }
     
     /// Ottiene i token dalla memoria beta del left input
