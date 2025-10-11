@@ -285,10 +285,41 @@ extension BetaEngine {
         }
         return true
     }
+    // Costruisce l'elenco di costanti (e valori di variabili già bound) per interrogare l'AlphaIndex.
+    private static func alphaConstants(_ pattern: Pattern, current: [String: Value]? = nil) -> [(String, Value)] {
+        var out: [(String, Value)] = []
+        for (slot, t) in pattern.slots {
+            switch t.kind {
+            case .constant(let v): out.append((slot, v))
+            case .variable(let name):
+                if let cur = current, let v = cur[name] { out.append((slot, v)) }
+            case .predicate:
+                break
+            }
+        }
+        return out
+    }
+    // Recupera candidati usando l'AlphaIndex dato un pattern e (opzionalmente) i binding correnti.
+    private static func alphaCandidates(_ env: Environment, available: Set<Int>?, pattern: Pattern, current: [String: Value]? = nil) -> [Environment.FactRec] {
+        let constants = alphaConstants(pattern, current: current)
+        let ids = env.rete.alpha.ids(for: pattern.name, constants: constants)
+        if ids.isEmpty { return [] }
+        if let avail = available {
+            var res: [Environment.FactRec] = []
+            for id in ids where avail.contains(id) { if let f = env.facts[id] { res.append(f) } }
+            return res
+        } else {
+            var res: [Environment.FactRec] = []
+            for id in ids { if let f = env.facts[id] { res.append(f) } }
+            return res
+        }
+    }
 
     // Propagazione per livelli: ricostruisce tutte le memorie di livello per la regola, ritorna i nuovi token terminali
     @discardableResult
     public static func updateGraphOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec]) -> [BetaToken] {
+        // Assicurati che esista un grafo per la regola (utile per introspezione/watch)
+        if env.rete.graphs[ruleName] == nil { env.rete.graphs[ruleName] = ReteGraphBuilder.build(ruleName: ruleName, compiled: compiled) }
         // Compute all levels
         let levels = computeLevels(&env, compiled: compiled, facts: facts, ruleName: ruleName)
         // Previous last-level keys
@@ -323,7 +354,12 @@ extension BetaEngine {
         guard let compiled = env.rete.rules[ruleName] else { return }
         // Recompute levels from facts without the retracted fact
         let facts = Array(env.facts.values)
-        _ = updateGraphOnAssert(&env, ruleName: ruleName, compiled: compiled, facts: facts)
+        // Preferisci delta se memorie presenti, altrimenti ricostruisci
+        if env.rete.betaLevels[ruleName] != nil {
+            updateGraphOnRetractDelta(&env, ruleName: ruleName, factID: factID)
+        } else {
+            _ = updateGraphOnAssert(&env, ruleName: ruleName, compiled: compiled, facts: facts)
+        }
     }
 
     private static func computeLevels(_ env: inout Environment, compiled: CompiledRule, facts: [Environment.FactRec], ruleName: String? = nil) -> [[BetaToken]] {
@@ -331,6 +367,7 @@ extension BetaEngine {
         guard !patterns.isEmpty else { return [] }
         var levels: [[BetaToken]] = []
         var current: [BetaToken] = [BetaToken(bindings: [:], usedFacts: [])]
+        let availableIDs: Set<Int> = Set(facts.map { $0.id })
         for pidx in compiled.joinOrder {
             let t0 = env.watchReteProfile ? CFAbsoluteTimeGetCurrent() : 0
             let pat = patterns[pidx]
@@ -343,7 +380,8 @@ extension BetaEngine {
             if pat.negated {
                 for tok in current {
                     var any = false
-                    for f in facts where f.name == pat.name {
+                    let constOkFacts = alphaCandidates(env, available: availableIDs, pattern: pat)
+                    for f in constOkFacts {
                         if matchesNegativeLite(&env, pattern: pat, fact: f, current: tok.bindings) { any = true; break }
                     }
                     if !any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
@@ -355,14 +393,16 @@ extension BetaEngine {
                 if spec.isEmpty {
                     for tok in current {
                         var any = false
-                        for f in facts where f.name == pat.name {
+                        let constOkFacts = alphaCandidates(env, available: availableIDs, pattern: pat)
+                        for f in constOkFacts {
                             if matchesNegativeLite(&env, pattern: pat, fact: f, current: tok.bindings) { any = true; break }
                         }
                         if any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
                     }
                 } else {
                     var fBucket: [UInt: [Environment.FactRec]] = [:]
-                    for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                    let constOkFacts = alphaCandidates(env, available: availableIDs, pattern: pat)
+                    for f in constOkFacts {
                         let hf = hashFromFact(f, spec: spec)
                         fBucket[hf, default: []].append(f)
                     }
@@ -387,7 +427,8 @@ extension BetaEngine {
                     bucket[hk, default: []].append(tok)
                 }
                 // Iterate facts filtered by template and constants
-                for f in facts where f.name == pat.name && factPassesConstants(f, pattern: pat) {
+                let constOkFacts = alphaCandidates(env, available: availableIDs, pattern: pat)
+                for f in constOkFacts {
                     factsConstOK.insert(f.id)
                     let hf = hashFromFact(f, spec: spec)
                     guard let lefts = bucket[hf] else { continue }
@@ -407,7 +448,8 @@ extension BetaEngine {
             } else {
                 // Fallback nested loops
                 for tok in current {
-                    for f in facts where f.name == pat.name && !tok.usedFacts.contains(f.id) && factPassesConstants(f, pattern: pat) {
+                    let constOkFacts = alphaCandidates(env, available: availableIDs, pattern: pat)
+                    for f in constOkFacts where !tok.usedFacts.contains(f.id) {
                         factsConstOK.insert(f.id)
                         if var b = RuleEngine.match(env: &env, pattern: pat, fact: f, current: tok.bindings) {
                             var ok = true
@@ -526,6 +568,7 @@ extension BetaEngine {
     // Ritorna i token aggiunti al livello terminale (post filtro se presente).
     @discardableResult
     public static func updateGraphOnAssertDelta(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
+        if env.rete.graphs[ruleName] == nil { env.rete.graphs[ruleName] = ReteGraphBuilder.build(ruleName: ruleName, compiled: compiled) }
         ensureLevelMemories(&env, ruleName: ruleName, compiled: compiled, facts: facts)
         guard var levels = env.rete.betaLevels[ruleName] else { return [] }
         let patterns = compiled.patterns.map { $0.original }
@@ -587,7 +630,7 @@ extension BetaEngine {
                 let spec2 = buildJoinKeySpec(for: p2, boundVarNames: boundNames2)
                 if p2.negated {
                     // Ottimizzazione: prefiltra per costanti e usa bucket hash sulle chiavi di join
-                    let constOkFacts = facts.filter { $0.name == p2.name && factPassesConstants($0, pattern: p2) }
+                    let constOkFacts = alphaCandidates(env, available: Set(facts.map { $0.id }), pattern: p2)
                     if spec2.isEmpty {
                         // Nessun vincolo su variabili bound: il risultato dipende solo dall'esistenza di almeno un fatto compatibile
                         if constOkFacts.isEmpty {
@@ -627,7 +670,8 @@ extension BetaEngine {
                     // Propaga il token invariato se esiste almeno un fatto compatibile coi binding
                     // Usa bucket su fatti per efficienza
                     var fBucket: [UInt: [Environment.FactRec]] = [:]
-                    for f in facts where f.name == p2.name && factPassesConstants(f, pattern: p2) {
+                    let constOkFacts = alphaCandidates(env, available: Set(facts.map { $0.id }), pattern: p2)
+                    for f in constOkFacts {
                         let hf = hashFromFact(f, spec: spec2)
                         fBucket[hf, default: []].append(f)
                     }
@@ -890,7 +934,8 @@ extension BetaEngine {
                             let hk = hashFromBindings(t.bindings, spec: spec)
                             bucket[hk, default: []].append(t)
                         }
-                        for f in facts where f.name == p.name && factPassesConstants(f, pattern: p) {
+                        let constOkFacts = alphaCandidates(env, available: Set(facts.map { $0.id }), pattern: p)
+                        for f in constOkFacts {
                             let hf = hashFromFact(f, spec: spec)
                             guard let lefts = bucket[hf] else { continue }
                             for t in lefts where !t.usedFacts.contains(f.id) {
@@ -905,8 +950,9 @@ extension BetaEngine {
                             }
                         }
                     } else {
+                        let constOkFacts = alphaCandidates(env, available: Set(facts.map { $0.id }), pattern: p)
                         for t in leftTokens {
-                            for f in facts where f.name == p.name && !t.usedFacts.contains(f.id) && factPassesConstants(f, pattern: p) {
+                            for f in constOkFacts where !t.usedFacts.contains(f.id) {
                                 if var b = RuleEngine.match(env: &env, pattern: p, fact: f, current: t.bindings) {
                                     var ok = true
                                     for (kk,vv) in t.bindings { if let nb = b[kk], nb != vv { ok = false; break } }

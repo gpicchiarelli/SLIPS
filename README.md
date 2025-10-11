@@ -2,7 +2,7 @@
 
 # ⚡ SLIPS
 
-### Swift Language Implementation of Production Systems
+### Swift Language Implementation Production Systems
 
 [![CI](https://img.shields.io/github/actions/workflow/status/gpicchiarelli/SLIPS/ci.yml?branch=main&label=CI&logo=github&logoColor=white)](https://github.com/gpicchiarelli/SLIPS/actions/workflows/ci.yml)
 [![Deploy Pages](https://img.shields.io/github/actions/workflow/status/gpicchiarelli/SLIPS/pages.yml?branch=main&label=docs&logo=github&logoColor=white)](https://github.com/gpicchiarelli/SLIPS/actions/workflows/pages.yml)

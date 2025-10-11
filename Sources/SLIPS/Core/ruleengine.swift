@@ -31,6 +31,9 @@ public enum RuleEngine {
         env.rules.append(rule)
         let cr = ReteCompiler.compile(env, rule)
         env.rete.rules[rule.name] = cr
+        // Costruisci il grafo nodi esplicito per la regola (mappatura 1:1 con joinOrder)
+        let g = ReteGraphBuilder.build(ruleName: rule.name, compiled: cr)
+        env.rete.graphs[rule.name] = g
     }
 
     public static func onAssert(_ env: inout Environment, _ fact: Environment.FactRec) {

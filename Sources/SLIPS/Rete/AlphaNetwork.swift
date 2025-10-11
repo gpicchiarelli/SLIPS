@@ -8,18 +8,70 @@ import Foundation
 
 public struct AlphaIndex {
     public var byTemplate: [String: Set<Int>] = [:]
+    // Indici per (template -> slot -> value -> {factIDs})
+    public struct ValueKey: Hashable, Codable {
+        public let v: Value
+        public init(_ v: Value) { self.v = v }
+        public static func == (lhs: ValueKey, rhs: ValueKey) -> Bool { lhs.v == rhs.v }
+        public func hash(into hasher: inout Hasher) {
+            switch v {
+            case .int(let i): hasher.combine(1); hasher.combine(i)
+            case .float(let d): hasher.combine(2); hasher.combine(d.bitPattern)
+            case .string(let s): hasher.combine(3); hasher.combine(s)
+            case .symbol(let s): hasher.combine(4); hasher.combine(s)
+            case .boolean(let b): hasher.combine(5); hasher.combine(b)
+            case .multifield(let arr):
+                hasher.combine(6); hasher.combine(arr.count)
+                for e in arr { ValueKey(e).hash(into: &hasher) }
+            case .none: hasher.combine(0)
+            }
+        }
+    }
+    public var bySlotConst: [String: [String: [ValueKey: Set<Int>]]] = [:]
     public init() {}
     public mutating func add(_ fact: Environment.FactRec) {
         var set = byTemplate[fact.name] ?? Set<Int>()
         set.insert(fact.id)
         byTemplate[fact.name] = set
+        var slotMap = bySlotConst[fact.name] ?? [:]
+        for (slot, val) in fact.slots {
+            var valMap = slotMap[slot] ?? [:]
+            var ids = valMap[ValueKey(val)] ?? Set<Int>()
+            ids.insert(fact.id)
+            valMap[ValueKey(val)] = ids
+            slotMap[slot] = valMap
+        }
+        bySlotConst[fact.name] = slotMap
     }
     public mutating func remove(_ fact: Environment.FactRec) {
         guard var set = byTemplate[fact.name] else { return }
         set.remove(fact.id)
         if set.isEmpty { byTemplate.removeValue(forKey: fact.name) } else { byTemplate[fact.name] = set }
+        if var slotMap = bySlotConst[fact.name] {
+            for (slot, val) in fact.slots {
+                if var valMap = slotMap[slot] {
+                    if var ids = valMap[ValueKey(val)] {
+                        ids.remove(fact.id)
+                        if ids.isEmpty { valMap.removeValue(forKey: ValueKey(val)) } else { valMap[ValueKey(val)] = ids }
+                        slotMap[slot] = valMap
+                    }
+                }
+            }
+            bySlotConst[fact.name] = slotMap
+        }
     }
     public func ids(for template: String) -> [Int] { Array(byTemplate[template] ?? []) }
+    public func ids(for template: String, constants: [(String, Value)]) -> [Int] {
+        guard !constants.isEmpty else { return ids(for: template) }
+        guard let slotMap = bySlotConst[template] else { return [] }
+        var acc: Set<Int>? = nil
+        for (slot, val) in constants {
+            guard let vmap = slotMap[slot], let ids = vmap[ValueKey(val)] else { return [] }
+            if let cur = acc { acc = cur.intersection(ids) } else { acc = ids }
+            if acc?.isEmpty ?? true { return [] }
+        }
+        return Array(acc ?? [])
+    }
 }
 
 public struct CompiledPattern {
@@ -50,6 +102,8 @@ public struct ReteNetwork {
     public var beta: [String: BetaMemory] = [:]
     // Memorie beta per livello di join: ruleName -> (levelIndex -> BetaMemory)
     public var betaLevels: [String: [Int: BetaMemory]] = [:]
+    // Grafo dei nodi della rete per regola (scaffold esplicito per mappatura 1:1 con CLIPS)
+    public var graphs: [String: RuleGraph] = [:]
     // Config di rete
     public struct ReteConfig { public var enableHeuristicOrder: Bool = false; public var heuristicWhitelist: Set<String> = [] }
     public var config: ReteConfig = ReteConfig()
