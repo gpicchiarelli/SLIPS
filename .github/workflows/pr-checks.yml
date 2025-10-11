@@ -1,0 +1,102 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      
+    - name: Check Swift version
+      run: swift --version
+      
+    - name: Build
+      run: swift build -v --build-tests
+      
+    - name: Run tests with verbose output
+      run: swift test -v
+      
+    - name: Check for compilation warnings
+      run: |
+        swift build 2>&1 | tee build.log
+        WARNINGS=$(grep -c "warning:" build.log || true)
+        echo "Found $WARNINGS warnings"
+        if [ $WARNINGS -gt 0 ]; then
+          echo "⚠️ Build produced $WARNINGS warning(s)"
+          grep "warning:" build.log
+        fi
+      
+    - name: Verify package structure
+      run: |
+        swift package dump-package > package.json
+        cat package.json
+        
+    - name: Check file structure
+      run: |
+        echo "📁 Checking project structure..."
+        ls -la Sources/SLIPS/
+        echo ""
+        echo "📋 Test files:"
+        ls -la Tests/SLIPSTests/
+      
+    - name: Comment on PR
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let comment = '## 🔍 PR Validation Results\n\n';
+          
+          try {
+            const buildLog = fs.readFileSync('build.log', 'utf8');
+            const warnings = (buildLog.match(/warning:/g) || []).length;
+            
+            if (warnings === 0) {
+              comment += '✅ Build completed with no warnings\n';
+            } else {
+              comment += `⚠️ Build completed with ${warnings} warning(s)\n`;
+            }
+          } catch (e) {
+            comment += '✅ Build check completed\n';
+          }
+          
+          comment += '\n---\n';
+          comment += '*Automated check by GitHub Actions*';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+      continue-on-error: true
+
+  compatibility-check:
+    name: Swift Version Compatibility
+    runs-on: macos-14
+    strategy:
+      matrix:
+        swift-version: ['5.9', '5.10']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test with Swift ${{ matrix.swift-version }}
+      run: |
+        echo "Testing compatibility with Swift ${{ matrix.swift-version }}"
+        swift --version
+        swift build || echo "Build failed with Swift ${{ matrix.swift-version }}"
+      continue-on-error: true
+

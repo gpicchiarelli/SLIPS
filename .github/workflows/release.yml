@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: macos-14
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      
+    - name: Build release binary
+      run: |
+        swift build -c release
+        
+    - name: Package binary
+      run: |
+        cd .build/release
+        tar czf slips-cli-macos.tar.gz slips-cli
+        mv slips-cli-macos.tar.gz ../../
+        
+    - name: Extract release notes
+      id: extract-notes
+      run: |
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.extract-notes.outputs.tag_name }}
+        draft: false
+        prerelease: false
+        files: |
+          slips-cli-macos.tar.gz
+        body: |
+          ## SLIPS ${{ steps.extract-notes.outputs.tag_name }}
+          
+          ### Installazione
+          
+          ```bash
+          # Swift Package Manager
+          .package(url: "https://github.com/gpicchiarelli/SLIPS.git", from: "${{ steps.extract-notes.outputs.tag_name }}")
+          ```
+          
+          ### Binary CLI (macOS)
+          
+          ```bash
+          tar xzf slips-cli-macos.tar.gz
+          ./slips-cli
+          ```
+          
+          Vedi [CHANGELOG](https://github.com/gpicchiarelli/SLIPS/blob/main/README.md) per dettagli.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

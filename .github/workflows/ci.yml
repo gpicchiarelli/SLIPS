@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      
+    - name: Show Swift version
+      run: swift --version
+      
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: .build
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+    
+    - name: Build
+      run: swift build -v
+      
+    - name: Run tests
+      run: swift test -v --enable-code-coverage
+      
+    - name: Generate code coverage report
+      run: |
+        xcrun llvm-cov export -format="lcov" \
+          .build/debug/SLIPSPackageTests.xctest/Contents/MacOS/SLIPSPackageTests \
+          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+      continue-on-error: true
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.lcov
+        fail_ci_if_error: false
+      continue-on-error: true
+
+  linux-build:
+    name: Linux Build
+    runs-on: ubuntu-latest
+    container:
+      image: swift:5.9
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Show Swift version
+      run: swift --version
+      
+    - name: Build
+      run: swift build -v
+      
+    - name: Run tests
+      run: swift test -v
+
+  lint:
+    name: Swift Lint
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check formatting (optional)
+      run: |
+        # Verifica che non ci siano warning evidenti
+        swift build 2>&1 | tee build.log
+        if grep -q "warning:" build.log; then
+          echo "⚠️ Build warnings found"
+          grep "warning:" build.log
+        fi
+      continue-on-error: true
+

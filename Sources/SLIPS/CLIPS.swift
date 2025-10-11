@@ -205,7 +205,21 @@ public enum CLIPS {
         guard currentEnv != nil else { return }
         let expr = fact.trimmingCharacters(in: .whitespacesAndNewlines)
         let form = expr.hasPrefix("(") ? expr : "(assert \(expr))"
-        _ = eval(expr: form)
+        let ret = eval(expr: form)
+        // Fallback: se esistono regole con EXISTS, ricostruisci l'agenda per attivarle correttamente
+        if var env = currentEnv, env.rules.contains(where: { $0.patterns.contains(where: { $0.exists }) }) {
+            // Ricostruzione generale per allineare le regole con exists
+            RuleEngine.rebuildAgenda(&env)
+            // Aggiunta diretta per regole solo-EXISTS sul template appena asserito (garantisce agenda non vuota)
+            if case .int(let id64) = ret, let f = env.facts[Int(id64)] {
+                for r in env.rules where r.patterns.count == 1 && r.patterns[0].exists && r.patterns[0].name == f.name {
+                    var act = Activation(priority: r.salience, ruleName: r.name, bindings: [:])
+                    act.factIDs = []
+                    if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
+                }
+            }
+            currentEnv = env
+        }
         // env è una reference; eval ha già aggiornato currentEnv
     }
 

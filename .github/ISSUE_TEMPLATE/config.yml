@@ -1,0 +1,12 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentazione
+    url: https://gpicchiarelli.github.io/SLIPS/
+    about: Consulta la documentazione ufficiale del progetto
+  - name: 💬 Discussioni
+    url: https://github.com/gpicchiarelli/SLIPS/discussions
+    about: Partecipa alle discussioni della community
+  - name: 📖 CLIPS Reference Manual
+    url: http://clipsrules.sourceforge.net/documentation/v642/ug.pdf
+    about: Manuale di riferimento CLIPS 6.4.2 originale
+

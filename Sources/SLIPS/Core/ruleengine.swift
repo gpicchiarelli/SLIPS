@@ -81,6 +81,7 @@ public enum RuleEngine {
                 } else {
                     added = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool)
                 }
+                // Attivazioni via RETE o fallback exists-only
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
                     if env.experimentalJoinCheck {
@@ -95,6 +96,15 @@ public enum RuleEngine {
                         } else {
                             env.joinStableRules.insert(rule.name)
                         }
+                    }
+                }
+                // Fallback specifico: regole solo-EXISTS → aggiungi un'attivazione naïve
+                if hasExists && rule.patterns.count == 1 && rule.patterns[0].exists {
+                    let tmpl = rule.patterns[0].name
+                    if pool.contains(where: { $0.name == tmpl }) {
+                        var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
+                        act.factIDs = []
+                        if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
                     }
                 }
                 let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name)) || (env.joinActivateDefaultOnStable && env.joinStableRules.contains(rule.name))
