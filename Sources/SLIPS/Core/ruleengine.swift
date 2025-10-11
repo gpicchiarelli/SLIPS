@@ -118,8 +118,9 @@ public enum RuleEngine {
                             if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.name)") }
                         }
                     }
-                } else if needNaive {
-                    // Usa matcher naive per attivazioni
+                }
+                if needNaive {
+                    // Matcher naive: attiva anche quando RETE è attiva; Agenda.contains evita duplicati
                     for m in matchesForActivation {
                         var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                         act.factIDs = m.usedFacts

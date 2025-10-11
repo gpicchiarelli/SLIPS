@@ -106,6 +106,20 @@ CLIPS.eval(expr: String) -> Value
 CLIPS.commandLoop()
 ```
 
+## 🕸️ Modalità RETE
+
+- Join-check e attivazione RETE
+  - `experimentalJoinCheck`: abilitato di default per marcare regole “stabili” (equivalenza RETE ↔ matcher naïve).
+  - `joinActivateDefaultOnStable`: abilitato di default; le attivazioni usano i token RETE per le regole stabili.
+  - `joinActivateWhitelist`: elenco opzionale di regole da attivare via RETE anche senza stabilità.
+- Heuristica di ordinamento join
+  - `rete.config.enableHeuristicOrder`: abilita euristiche di ordine dei pattern (disabilitato di default, attivabile per regola).
+- Watch e profiling
+  - `watch rete`, `watch rete-profile` per statistiche e tempi per livello.
+- Casi particolari
+  - `exists` unario senza vincoli: attivazione immediata anche senza RETE; nessun binding o `factIDs` vengono introdotti.
+  - `not`: delta ottimizzato; sul retract può attivare nuovi token, quindi alcune regole con `not` possono richiedere ricostruzione completa.
+
 ### CLI eseguibile
 
 Disponibile anche come eseguibile `slips-cli` con REPL minimale:
