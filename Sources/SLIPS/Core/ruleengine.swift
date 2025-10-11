@@ -157,9 +157,6 @@ public enum RuleEngine {
                         ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                         : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
                 }
-                if hasExists && env.watchRules {
-                    Router.WriteString(&env, Router.STDERR, "[EXISTS] pool=\(pool.count) matches=\(matchesForActivation.count)\n")
-                }
                 if matchesForActivation.isEmpty && hasExists && rule.patterns.count == 1 && rule.patterns[0].exists {
                     let tmpl = rule.patterns[0].name
                     if pool.contains(where: { $0.name == tmpl }) {
