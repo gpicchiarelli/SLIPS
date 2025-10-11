@@ -161,6 +161,4 @@ Vedi [AUTHORS](AUTHORS) per la lista completa dei contributori.
 
 **[⭐ Metti una stella](https://github.com/gpicchiarelli/SLIPS/stargazers)** • **[🐛 Segnala un bug](https://github.com/gpicchiarelli/SLIPS/issues/new?template=bug_report.md)** • **[💡 Proponi una feature](https://github.com/gpicchiarelli/SLIPS/issues/new?template=feature_request.md)**
 
-Fatto con ❤️ per la community Swift
-
 </div>

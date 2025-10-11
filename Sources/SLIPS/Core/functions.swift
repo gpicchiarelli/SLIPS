@@ -336,6 +336,12 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         }
         // Rimuovi attivazioni collegate al fatto retratto (incrementale)
         env.agendaQueue.removeByFactID(fact.id)
+        // Se una regola solo-EXISTS non è più soddisfatta (nessun fatto per il template), rimuovi eventuali attivazioni residue
+        for r in env.rules where r.patterns.count == 1 && r.patterns[0].exists {
+            let tmpl = r.patterns[0].name
+            let hasAny = !(env.rete.alpha.byTemplate[tmpl]?.isEmpty ?? true)
+            if !hasAny { env.agendaQueue.removeByRuleName(r.name) }
+        }
         return .boolean(true)
     }
     return .boolean(false)

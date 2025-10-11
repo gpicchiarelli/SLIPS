@@ -59,6 +59,10 @@ public struct Agenda: Codable, Equatable {
         queue.removeAll { $0.factIDs.contains(id) }
     }
 
+    public mutating func removeByRuleName(_ name: String) {
+        queue.removeAll { $0.ruleName == name }
+    }
+
     private mutating func resort() {
         switch strategy {
         case .depth:
