@@ -28,3 +28,11 @@ public struct FilterNode: Codable {
     public var tests: [ExpressionNode]
     public init(id: Int, tests: [ExpressionNode]) { self.id = id; self.tests = tests }
 }
+
+/// Nodo "exists" unario: verifica l'esistenza di almeno un fatto compatibile
+/// con i vincoli sui binding correnti, senza introdurre nuovi binding.
+public struct ExistsNode: Codable, Equatable {
+    public var id: Int
+    public var patternIndex: Int
+    public init(id: Int, patternIndex: Int) { self.id = id; self.patternIndex = patternIndex }
+}

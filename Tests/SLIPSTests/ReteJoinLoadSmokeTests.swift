@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class ReteJoinLoadSmokeTests: XCTestCase {
     func testLoadAndRunJoinSmoke() throws {
-        var env = CLIPS.createEnvironment()
+        let env = CLIPS.createEnvironment()
         let path = FileManager.default.currentDirectoryPath + "/Tests/SLIPSTests/Assets/join_smoke.clp"
         try CLIPS.load(path)
         // Dopo i 2 run nel file, dovremmo avere 2 token finali in beta['r']
@@ -12,4 +12,3 @@ final class ReteJoinLoadSmokeTests: XCTestCase {
         XCTAssertEqual(mem.tokens.count, 2)
     }
 }
-

@@ -27,6 +27,11 @@ Stato attuale:
 - Facciata iniziale delle API disponibile (stub in evoluzione)
 - Strumenti e linee guida per la traduzione
 
+Aggiornamenti recenti
+- Pulizia warning in build/test (preferiti `let` dove appropriato).
+- Exists unario: parsing/IR e valutazione LHS senza introdurre binding; aggiunto nodo `ExistsNode` nello scaffold RETE.
+- Not delta ottimizzato: propagazione incrementale per CE negati senza full recompute, con prefiltraggio costanti e bucket hash sulle chiavi di join.
+
 Come iniziare
 - Compilare libreria + CLI: `swift build`
 - Eseguire test: `swift test`

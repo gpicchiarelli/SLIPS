@@ -54,6 +54,8 @@ public enum Functions {
         env.functionTable["get-join-check"] = FunctionDefinitionSwift(name: "get-join-check", impl: builtin_get_join_check)
         env.functionTable["set-join-activate"] = FunctionDefinitionSwift(name: "set-join-activate", impl: builtin_set_join_activate)
         env.functionTable["get-join-activate"] = FunctionDefinitionSwift(name: "get-join-activate", impl: builtin_get_join_activate)
+        env.functionTable["set-join-default"] = FunctionDefinitionSwift(name: "set-join-default", impl: builtin_set_join_default)
+        env.functionTable["get-join-default"] = FunctionDefinitionSwift(name: "get-join-default", impl: builtin_get_join_default)
         env.functionTable["set-join-heuristic"] = FunctionDefinitionSwift(name: "set-join-heuristic", impl: builtin_set_join_heuristic)
         env.functionTable["get-join-heuristic"] = FunctionDefinitionSwift(name: "get-join-heuristic", impl: builtin_get_join_heuristic)
         env.functionTable["add-join-heuristic-rule"] = FunctionDefinitionSwift(name: "add-join-heuristic-rule", impl: builtin_add_join_heuristic_rule)
@@ -488,44 +490,57 @@ private func builtin_get_join_activate(_ env: inout Environment, _ args: [Value]
     return .boolean(env.experimentalJoinActivate)
 }
 
+private func builtin_set_join_default(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    switch s {
+    case "true", "on", "1": env.joinActivateDefaultOnStable = true; return .boolean(true)
+    case "false", "off", "0": env.joinActivateDefaultOnStable = false; return .boolean(true)
+    default: return .boolean(false)
+    }
+}
+
+private func builtin_get_join_default(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .boolean(env.joinActivateDefaultOnStable)
+}
+
 private func builtin_set_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
     switch s {
-    case "true", "on", "1": ReteCompiler.enableHeuristicOrder = true; return .boolean(true)
-    case "false", "off", "0": ReteCompiler.enableHeuristicOrder = false; return .boolean(true)
+    case "true", "on", "1": env.rete.config.enableHeuristicOrder = true; return .boolean(true)
+    case "false", "off", "0": env.rete.config.enableHeuristicOrder = false; return .boolean(true)
     default: return .boolean(false)
     }
 }
 
 private func builtin_get_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    return .boolean(ReteCompiler.enableHeuristicOrder)
+    return .boolean(env.rete.config.enableHeuristicOrder)
 }
 
 private func builtin_add_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let name = args.first?.stringValue else { return .boolean(false) }
-    ReteCompiler.heuristicWhitelist.insert(name)
+    env.rete.config.heuristicWhitelist.insert(name)
     return .boolean(true)
 }
 
 private func builtin_remove_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let name = args.first?.stringValue else { return .boolean(false) }
-    ReteCompiler.heuristicWhitelist.remove(name)
+    env.rete.config.heuristicWhitelist.remove(name)
     return .boolean(true)
 }
 
 private func builtin_get_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    let arr = ReteCompiler.heuristicWhitelist.sorted().map { Value.symbol($0) }
+    let arr = env.rete.config.heuristicWhitelist.sorted().map { Value.symbol($0) }
     return .multifield(arr)
 }
 
 private func builtin_clear_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    ReteCompiler.heuristicWhitelist.removeAll()
+    env.rete.config.heuristicWhitelist.removeAll()
     return .boolean(true)
 }
 
 private func builtin_reset_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    ReteCompiler.enableHeuristicOrder = false
-    ReteCompiler.heuristicWhitelist.removeAll()
+    env.rete.config.enableHeuristicOrder = false
+    env.rete.config.heuristicWhitelist.removeAll()
     return .boolean(true)
 }
 

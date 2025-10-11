@@ -11,9 +11,8 @@ final class ReteAlphaTests: XCTestCase {
         guard case .int(let fid) = idVal else { XCTFail(); return }
         guard let env = CLIPS.currentEnvironment else { XCTFail(); return }
         XCTAssertTrue(env.rete.alpha.ids(for: "ping").contains(Int(fid)))
-        _ = CLIPS.retract(id: Int(fid))
+        CLIPS.retract(id: Int(fid))
         guard let env2 = CLIPS.currentEnvironment else { XCTFail(); return }
         XCTAssertFalse(env2.rete.alpha.ids(for: "ping").contains(Int(fid)))
     }
 }
-

@@ -94,6 +94,8 @@ public final class Environment {
     public var joinActivateWhitelist: Set<String> = []
     // Regole marcate stabili (join-check equivalente al naive)
     public var joinStableRules: Set<String> = []
+    // Default: usa attivazione via RETE per regole stabili
+    public var joinActivateDefaultOnStable: Bool = false
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
@@ -196,17 +198,17 @@ public enum CLIPS {
     }
 
     public static func assert(fact: String) {
-        guard var env = currentEnv else { return }
+        guard currentEnv != nil else { return }
         let expr = fact.trimmingCharacters(in: .whitespacesAndNewlines)
         let form = expr.hasPrefix("(") ? expr : "(assert \(expr))"
         _ = eval(expr: form)
-        currentEnv = env
+        // env è una reference; eval ha già aggiornato currentEnv
     }
 
     public static func retract(id: Int) {
-        guard var env = currentEnv else { return }
+        guard currentEnv != nil else { return }
         _ = eval(expr: "(retract \(id))")
-        currentEnv = env
+        // env è una reference; eval ha già aggiornato currentEnv
     }
 
     @discardableResult
@@ -214,7 +216,7 @@ public enum CLIPS {
         guard var env = currentEnv else { return .none }
         // Usa fast router come in CLIPS per valutare stringhe
         let router = "***EVAL***"
-        var r = RouterEnvData.ensure(&env)
+        let r = RouterEnvData.ensure(&env)
         r.FastCharGetRouter = router
         r.FastCharGetString = expr
         r.FastCharGetIndex = 0

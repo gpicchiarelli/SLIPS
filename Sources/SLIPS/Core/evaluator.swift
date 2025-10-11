@@ -148,14 +148,17 @@ public enum Evaluator {
                     }
                     if n.type == .fcall, (n.value?.value as? String) == "not" {
                         if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
-                            let np = Pattern(name: p.name, slots: p.slots, negated: true)
+                            let np = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
                             patterns.append(np)
                         }
                         cur = n.nextArg
                         continue
                     }
                     if n.type == .fcall, (n.value?.value as? String) == "exists" {
-                        if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) { patterns.append(p) }
+                        if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
+                            let ep = Pattern(name: p.name, slots: p.slots, negated: false, exists: true)
+                            patterns.append(ep)
+                        }
                         cur = n.nextArg
                         continue
                     }
@@ -322,7 +325,7 @@ public enum Evaluator {
             slots[sname] = test
             arg = valNode.nextArg
         }
-        return (Pattern(name: pname, slots: slots, negated: false), predicates)
+        return (Pattern(name: pname, slots: slots, negated: false, exists: false), predicates)
     }
 
     private static func sexpString(_ node: ExpressionNode) -> String {

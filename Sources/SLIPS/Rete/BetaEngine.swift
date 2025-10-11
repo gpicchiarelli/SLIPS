@@ -74,14 +74,14 @@ extension BetaEngine {
     public static func updateOnAssert(_ env: inout Environment, ruleName: String, compiled: CompiledRule, facts: [Environment.FactRec], anchor: Environment.FactRec) -> [BetaToken] {
         let inc = computeIncremental(&env, compiled: compiled, facts: facts, anchor: anchor)
         let mem = env.rete.beta[ruleName] ?? BetaMemory()
-        var keys = mem.keyIndex.isEmpty ? Set(mem.tokens.map(keyForToken)) : mem.keyIndex
+        var keys: Set<UInt64> = mem.keyIndex.isEmpty ? Set(mem.tokens.map(tokenKeyHash64)) : mem.keyIndex
         var toks = mem.tokens
         var added: [BetaToken] = []
         for m in inc {
-            let k = keyForMatch(m)
-            if !keys.contains(k) {
-                keys.insert(k)
-                let bt = BetaToken(bindings: m.bindings, usedFacts: m.usedFacts)
+            let bt = BetaToken(bindings: m.bindings, usedFacts: m.usedFacts)
+            let kh = tokenKeyHash64(bt)
+            if !keys.contains(kh) {
+                keys.insert(kh)
                 toks.append(bt)
                 added.append(bt)
             }
@@ -94,7 +94,7 @@ extension BetaEngine {
     public static func updateOnRetract(_ env: inout Environment, ruleName: String, factID: Int) {
         guard let mem = env.rete.beta[ruleName] else { return }
         let toks = mem.tokens.filter { !$0.usedFacts.contains(factID) }
-        let newMem = BetaMemory(); newMem.tokens = toks; newMem.keyIndex = Set(toks.map(keyForToken))
+        let newMem = BetaMemory(); newMem.tokens = toks; newMem.keyIndex = Set(toks.map(tokenKeyHash64))
         env.rete.beta[ruleName] = newMem
     }
 
@@ -163,6 +163,19 @@ extension BetaEngine {
         let b = t.bindings.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
         let f = t.usedFacts.sorted().map { String($0) }.joined(separator: ",")
         return "{" + b + " | [" + f + "]}"
+    }
+    // Hash stabile 64-bit per BetaToken (bindings+facts) per dedup
+    public static func tokenKeyHash64(_ t: BetaToken) -> UInt64 {
+        var h = fnv64Init()
+        for (k, v) in t.bindings.sorted(by: { $0.key < $1.key }) {
+            let ks = hashString(k); var x = ks; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: x)); x >>= 8 }
+            let hv = hashValue(v); var y = hv; for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: y)); y >>= 8 }
+        }
+        for fid in t.usedFacts.sorted() {
+            var z: UInt64 = UInt64(fid)
+            for _ in 0..<8 { fnv64Combine(&h, UInt8(truncatingIfNeeded: z)); z >>= 8 }
+        }
+        return h
     }
 
     // MARK: - Hash-Join helpers
@@ -282,11 +295,11 @@ extension BetaEngine {
         let prevLevels = env.rete.betaLevels[ruleName] ?? [:]
         // Individua l'ultimo livello precedente (può includere livello filtro)
         let prevLast = (prevLevels.keys.max().flatMap { prevLevels[$0]?.tokens }) ?? []
-        var prevSet = Set(prevLast.map(keyForToken))
+        let prevSet = Set(prevLast.map(tokenKeyHash64))
         // Store new levels and compute added
         var store: [Int: BetaMemory] = [:]
         for (idx, toks) in levels.enumerated() {
-            let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+            let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(tokenKeyHash64))
             var buckets: [UInt: [Int]] = [:]
             for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
             mem.hashBuckets = buckets
@@ -295,17 +308,14 @@ extension BetaEngine {
         env.rete.betaLevels[ruleName] = store
         // Update terminal beta snapshot as convenience
         // Snapshot terminale (post filtro se presente)
-        let termMem = BetaMemory(); termMem.tokens = levels.last ?? []; termMem.keyIndex = Set((levels.last ?? []).map(keyForToken))
+        let termMem = BetaMemory(); termMem.tokens = levels.last ?? []; termMem.keyIndex = Set((levels.last ?? []).map(tokenKeyHash64))
         var tb: [UInt: [Int]] = [:]
         for (i, t) in (levels.last ?? []).enumerated() { tb[hashForToken(t), default: []].append(i) }
         termMem.hashBuckets = tb
         env.rete.beta[ruleName] = termMem
         // Added tokens on terminal level
         var added: [BetaToken] = []
-        for t in levels.last ?? [] {
-            let k = keyForToken(t)
-            if !prevSet.contains(k) { added.append(t) }
-        }
+        for t in levels.last ?? [] { let kh = tokenKeyHash64(t); if !prevSet.contains(kh) { added.append(t) } }
         return added
     }
 
@@ -339,9 +349,8 @@ extension BetaEngine {
                     if !any { next.append(tok); usedLeftSet.insert(keyForToken(tok)) }
                 }
             } else {
-            // Hash-join preparation
-            let boundNames = boundVarNames(for: compiled, upTo: levels.count)
-            let spec = buildJoinKeySpec(for: pat, boundVarNames: boundNames)
+            // Hash-join preparation (usa spec precompilata se disponibile)
+            let spec = (levels.count < compiled.joinSpecs.count) ? compiled.joinSpecs[levels.count].map { JoinKeyPart(slot: $0.slot, varName: $0.varName, constValue: $0.constValue) } : buildJoinKeySpec(for: pat, boundVarNames: boundVarNames(for: compiled, upTo: levels.count))
             if !spec.isEmpty {
                 // Build bucket from left tokens
                 var bucket: [UInt: [BetaToken]] = [:]
@@ -387,12 +396,16 @@ extension BetaEngine {
                 factsMatchedKey = factsConstOK.count
             }
             }
+            // Applica eventuali test intermedi per questo livello
+            if let tl = compiled.testsByLevel[levels.count] {
+                next = next.filter { RuleEngine.applyTests(&env, tests: tl, with: $0.bindings) }
+            }
             // Dedup per livello
-            var seen = Set<String>()
+            var seen = Set<UInt64>()
             var uniq: [BetaToken] = []
             for t in next {
-                let k = keyForToken(t)
-                if !seen.contains(k) { seen.insert(k); uniq.append(t) }
+                let kh = tokenKeyHash64(t)
+                if !seen.contains(kh) { seen.insert(kh); uniq.append(t) }
             }
             levels.append(uniq)
             current = uniq
@@ -454,7 +467,7 @@ extension BetaEngine {
             let levels = computeLevels(&env, compiled: compiled, facts: facts)
             var store: [Int: BetaMemory] = [:]
             for (idx, toks) in levels.enumerated() {
-                let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+                let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(tokenKeyHash64))
                 var buckets: [UInt: [Int]] = [:]
                 for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
                 mem.hashBuckets = buckets
@@ -463,7 +476,7 @@ extension BetaEngine {
             env.rete.betaLevels[ruleName] = store
             // Terminal snapshot
             let term = levels.last ?? []
-            let termMem = BetaMemory(); termMem.tokens = term; termMem.keyIndex = Set(term.map(keyForToken))
+            let termMem = BetaMemory(); termMem.tokens = term; termMem.keyIndex = Set(term.map(tokenKeyHash64))
             var tb: [UInt: [Int]] = [:]
             for (i, t) in term.enumerated() { tb[hashForToken(t), default: []].append(i) }
             termMem.hashBuckets = tb
@@ -472,7 +485,7 @@ extension BetaEngine {
     }
 
     private static func addIfNew(_ mem: BetaMemory, _ tok: BetaToken) -> Bool {
-        let k = keyForToken(tok)
+        let k = tokenKeyHash64(tok)
         if mem.keyIndex.contains(k) { return false }
         mem.keyIndex.insert(k)
         mem.tokens.append(tok)
@@ -511,6 +524,7 @@ extension BetaEngine {
                     for (k,v) in lt.bindings { b[k] = v }
                     var used = lt.usedFacts; used.insert(anchor.id)
                     let tok = BetaToken(bindings: b, usedFacts: used)
+                    if let tl = compiled.testsByLevel[pos], !RuleEngine.applyTests(&env, tests: tl, with: tok.bindings) { continue }
                     let wasNew: Bool
                     if let mem = levels[pos] { wasNew = addIfNew(mem, tok) } else { let mem = BetaMemory(); wasNew = addIfNew(mem, tok); levels[pos] = mem }
                     if wasNew, env.watchRete {
@@ -536,17 +550,41 @@ extension BetaEngine {
                 let boundNames2 = boundVarNames(for: compiled, upTo: k)
                 let spec2 = buildJoinKeySpec(for: p2, boundVarNames: boundNames2)
                 if p2.negated {
-                    for t in nextTokens {
-                        var any = false
-                        for f in facts where f.name == p2.name {
-                            if matchesNegativeLite(&env, pattern: p2, fact: f, current: t.bindings) { any = true; break }
+                    // Ottimizzazione: prefiltra per costanti e usa bucket hash sulle chiavi di join
+                    let constOkFacts = facts.filter { $0.name == p2.name && factPassesConstants($0, pattern: p2) }
+                    if spec2.isEmpty {
+                        // Nessun vincolo su variabili bound: il risultato dipende solo dall'esistenza di almeno un fatto compatibile
+                        if constOkFacts.isEmpty {
+                            for t in nextTokens {
+                                let wasNew: Bool
+                                if let mem = levels[k] { wasNew = addIfNew(mem, t) }
+                                else { let mem = BetaMemory(); wasNew = addIfNew(mem, t); levels[k] = mem }
+                                if wasNew { produced.append(t) }
+                                if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
+                            }
+                        } // else: esiste almeno un fatto => nessun token passa il not
+                    } else {
+                        var fBuckets: [UInt: [Environment.FactRec]] = [:]
+                        for f in constOkFacts {
+                            let hf = hashFromFact(f, spec: spec2)
+                            fBuckets[hf, default: []].append(f)
                         }
-                        if !any {
-                            let wasNew: Bool
-                            if let mem = levels[k] { wasNew = addIfNew(mem, t) }
-                            else { let mem = BetaMemory(); wasNew = addIfNew(mem, t); levels[k] = mem }
-                            if wasNew { produced.append(t) }
-                            if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
+                        for t in nextTokens {
+                            let hk = hashFromBindings(t.bindings, spec: spec2)
+                            let cand = fBuckets[hk] ?? []
+                            var any = false
+                            if !cand.isEmpty {
+                                for f in cand {
+                                    if matchesNegativeLite(&env, pattern: p2, fact: f, current: t.bindings) { any = true; break }
+                                }
+                            }
+                            if !any {
+                                let wasNew: Bool
+                                if let mem = levels[k] { wasNew = addIfNew(mem, t) }
+                                else { let mem = BetaMemory(); wasNew = addIfNew(mem, t); levels[k] = mem }
+                                if wasNew { produced.append(t) }
+                                if compiled.filterNode == nil && k == (compiled.joinOrder.count - 1) && wasNew { terminalAdded.append(t) }
+                            }
                         }
                     }
                 } else if !spec2.isEmpty {
@@ -566,6 +604,7 @@ extension BetaEngine {
                                 for (kk,vv) in t.bindings { b[kk] = vv }
                                 var used = t.usedFacts; used.insert(f.id)
                                 let nt = BetaToken(bindings: b, usedFacts: used)
+                                if let tl = compiled.testsByLevel[k], !RuleEngine.applyTests(&env, tests: tl, with: nt.bindings) { continue }
                                 let wasNew: Bool
                                 if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
                                 else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
@@ -587,6 +626,7 @@ extension BetaEngine {
                                 for (kk,vv) in t.bindings { b[kk] = vv }
                                 var used = t.usedFacts; used.insert(f.id)
                                 let nt = BetaToken(bindings: b, usedFacts: used)
+                                if let tl = compiled.testsByLevel[k], !RuleEngine.applyTests(&env, tests: tl, with: nt.bindings) { continue }
                                 let wasNew: Bool
                                 if let mem = levels[k] { wasNew = addIfNew(mem, nt) }
                                 else { let mem = BetaMemory(); wasNew = addIfNew(mem, nt); levels[k] = mem }
@@ -637,7 +677,7 @@ extension BetaEngine {
         env.rete.betaLevels[ruleName] = levels
         let termIdx = terminalLevelIndex(compiled)
         let termTokens = levels[termIdx]?.tokens ?? (levels[compiled.joinOrder.count - 1]?.tokens ?? [])
-        let termMem = BetaMemory(); termMem.tokens = termTokens; termMem.keyIndex = Set(termTokens.map(keyForToken))
+        let termMem = BetaMemory(); termMem.tokens = termTokens; termMem.keyIndex = Set(termTokens.map(tokenKeyHash64))
         env.rete.beta[ruleName] = termMem
 
         // Se il join-check è attivo, verifica consistenza contro ricostruzione completa
@@ -647,21 +687,21 @@ extension BetaEngine {
             let recomputed = computeLevels(&env, compiled: compiled, facts: allFacts)
             let termIdx2 = terminalLevelIndex(compiled)
             let full = (termIdx2 < recomputed.count) ? recomputed[termIdx2] : (recomputed.last ?? [])
-            let curSet = Set((levels[termIdx]?.tokens ?? []).map(keyForToken))
-            let fullSet = Set(full.map(keyForToken))
+            let curSet = Set((levels[termIdx]?.tokens ?? []).map(tokenKeyHash64))
+            let fullSet = Set(full.map(tokenKeyHash64))
             if curSet != fullSet {
                 // Allinea livelli e snapshot a ricostruzione completa
                 if env.watchRete { Router.Writeln(&env, "RETE sync full recompute for \(ruleName)") }
                 var store: [Int: BetaMemory] = [:]
                 for (idx, toks) in recomputed.enumerated() {
-                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(keyForToken))
+                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map(tokenKeyHash64))
                     var buckets: [UInt: [Int]] = [:]
                     for (i, t) in toks.enumerated() { buckets[hashForToken(t), default: []].append(i) }
                     mem.hashBuckets = buckets
                     store[idx] = mem
                 }
                 env.rete.betaLevels[ruleName] = store
-                let termMem2 = BetaMemory(); termMem2.tokens = full; termMem2.keyIndex = Set(full.map(keyForToken))
+                let termMem2 = BetaMemory(); termMem2.tokens = full; termMem2.keyIndex = Set(full.map(tokenKeyHash64))
                 var tb: [UInt: [Int]] = [:]
                 for (i, t) in full.enumerated() { tb[hashForToken(t), default: []].append(i) }
                 termMem2.hashBuckets = tb
@@ -678,7 +718,7 @@ extension BetaEngine {
             let before = mem.tokens.count
             let kept = mem.tokens.filter { !$0.usedFacts.contains(factID) }
             mem.tokens = kept
-            mem.keyIndex = Set(kept.map(keyForToken))
+            mem.keyIndex = Set(kept.map(tokenKeyHash64))
             // rebuild hash buckets
             var buckets: [UInt: [Int]] = [:]
             for (i, t) in kept.enumerated() { buckets[hashForToken(t), default: []].append(i) }

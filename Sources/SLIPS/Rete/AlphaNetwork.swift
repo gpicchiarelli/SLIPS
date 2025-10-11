@@ -35,7 +35,13 @@ public struct CompiledRule {
     // LHS predicate CE (es. (test ...)) estratti come nodi filtro post-join
     public let tests: [ExpressionNode]
     public let filterNode: FilterNode?
+    // Join spec precompilata per livello (in ordine di join)
+    public let joinSpecs: [[JoinKeyPartC]]
+    // Test distribuiti per livello (min level in cui sono valutabili)
+    public let testsByLevel: [Int: [ExpressionNode]]
     public let joinOrder: [Int]
+    // Exists nodes (unari) nel piano dei pattern
+    public let existsNodes: [ExistsNode]
 }
 
 public struct ReteNetwork {
@@ -44,23 +50,32 @@ public struct ReteNetwork {
     public var beta: [String: BetaMemory] = [:]
     // Memorie beta per livello di join: ruleName -> (levelIndex -> BetaMemory)
     public var betaLevels: [String: [Int: BetaMemory]] = [:]
+    // Config di rete
+    public struct ReteConfig { public var enableHeuristicOrder: Bool = false; public var heuristicWhitelist: Set<String> = [] }
+    public var config: ReteConfig = ReteConfig()
     public init() {}
 }
 
+public struct JoinKeyPartC: Codable { public let slot: String; public let varName: String?; public let constValue: Value? }
+
 public enum ReteCompiler {
-    // Flag opzionale: riordina i pattern per aumentare la selettività (euristica)
-    nonisolated(unsafe) public static var enableHeuristicOrder: Bool = false
-    nonisolated(unsafe) public static var heuristicWhitelist: Set<String> = []
-    public static func compile(_ rule: Rule) -> CompiledRule {
+    public static func compile(_ env: Environment, _ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
-        let order: [Int]
-        if enableHeuristicOrder || heuristicWhitelist.contains(rule.name) {
-            order = heuristicOrder(rule.patterns)
-        } else {
-            order = Array(0..<cps.count)
+        let useHeur = env.rete.config.enableHeuristicOrder || env.rete.config.heuristicWhitelist.contains(rule.name)
+        let order: [Int] = useHeur ? heuristicOrder(rule.patterns) : Array(0..<cps.count)
+        // Precompute bound levels for variables
+        let (joinSpecs, varLevel) = precomputeJoinSpecs(rule.patterns, order: order)
+        // Distribuisci tests per livello
+        let (testsByLevel, terminalTests) = distributeTests(rule.tests, varLevel: varLevel, patternCount: order.count)
+        let filter: FilterNode? = terminalTests.isEmpty ? nil : FilterNode(id: 0, tests: terminalTests)
+        // Exists nodes scaffold (solo unari, mappati su posizioni nell'ordine di join)
+        var existsNodes: [ExistsNode] = []
+        for (idx, pidx) in order.enumerated() {
+            if rule.patterns[pidx].exists {
+                existsNodes.append(ExistsNode(id: idx, patternIndex: pidx))
+            }
         }
-        let filter: FilterNode? = rule.tests.isEmpty ? nil : FilterNode(id: 0, tests: rule.tests)
-        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, filterNode: filter, joinOrder: order)
+        return CompiledRule(name: rule.name, patterns: cps, salience: rule.salience, tests: rule.tests, filterNode: filter, joinSpecs: joinSpecs, testsByLevel: testsByLevel, joinOrder: order, existsNodes: existsNodes)
     }
     // Euristica: prima pattern più selettivi (più costanti), poi greedy massimizzando variabili condivise con già scelti
     private static func heuristicOrder(_ pats: [Pattern]) -> [Int] {
@@ -108,5 +123,62 @@ public enum ReteCompiler {
             for (_, t) in pats[next].slots { if case .variable(let v) = t.kind { bound.insert(v) } }
         }
         return order
+    }
+
+    private static func precomputeJoinSpecs(_ pats: [Pattern], order: [Int]) -> ([[JoinKeyPartC]], [String: Int]) {
+        var joinSpecs: [[JoinKeyPartC]] = []
+        var bound: Set<String> = []
+        var varLevel: [String: Int] = [:]
+        for (lvl, pidx) in order.enumerated() {
+            let p = pats[pidx]
+            var parts: [JoinKeyPartC] = []
+            for (slot, t) in p.slots {
+                switch t.kind {
+                case .variable(let v):
+                    if bound.contains(v) {
+                        parts.append(JoinKeyPartC(slot: slot, varName: v, constValue: nil))
+                    } else {
+                        if !p.exists { varLevel[v] = varLevel[v] ?? lvl }
+                    }
+                case .constant(let v):
+                    parts.append(JoinKeyPartC(slot: slot, varName: nil, constValue: v))
+                case .predicate:
+                    break
+                }
+            }
+            // Aggiorna bound con variabili introdotte in questo livello (solo CE positivi non-exists)
+            if !p.negated && !p.exists {
+                for (_, t) in p.slots { if case .variable(let v) = t.kind { bound.insert(v) } }
+            }
+            joinSpecs.append(parts.sorted(by: { $0.slot < $1.slot }))
+        }
+        return (joinSpecs, varLevel)
+    }
+
+    private static func distributeTests(_ tests: [ExpressionNode], varLevel: [String:Int], patternCount: Int) -> ([Int: [ExpressionNode]], [ExpressionNode]) {
+        var map: [Int: [ExpressionNode]] = [:]
+        var terminal: [ExpressionNode] = []
+        for t in tests {
+            let vars = freeVars(t)
+            let minLvl = vars.map { varLevel[$0] ?? (patternCount) }.max() ?? 0
+            if minLvl >= patternCount { terminal.append(t) }
+            else { map[minLvl, default: []].append(t) }
+        }
+        return (map, terminal)
+    }
+
+    private static func freeVars(_ node: ExpressionNode?) -> Set<String> {
+        var res: Set<String> = []
+        func walk(_ n: ExpressionNode?) {
+            guard let n = n else { return }
+            switch n.type {
+            case .variable, .mfVariable:
+                if let s = n.value?.value as? String { res.insert(s) }
+            default: break
+            }
+            walk(n.argList); walk(n.nextArg)
+        }
+        walk(node)
+        return res
     }
 }

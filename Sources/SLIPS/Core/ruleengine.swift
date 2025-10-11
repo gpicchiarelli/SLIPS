@@ -15,6 +15,7 @@ public struct Pattern: Codable {
     public let name: String
     public let slots: [String: PatternTest]
     public let negated: Bool
+    public let exists: Bool
 }
 
 public struct Rule: Codable {
@@ -28,7 +29,7 @@ public struct Rule: Codable {
 public enum RuleEngine {
     public static func addRule(_ env: inout Environment, _ rule: Rule) {
         env.rules.append(rule)
-        let cr = ReteCompiler.compile(rule)
+        let cr = ReteCompiler.compile(env, rule)
         env.rete.rules[rule.name] = cr
     }
 
@@ -38,6 +39,7 @@ public enum RuleEngine {
         let facts = Array(env.facts.values)
         for rule in env.rules {
             let hasNeg = rule.patterns.contains { $0.negated }
+            let hasExists = rule.patterns.contains { $0.exists }
             // Usa indice alpha per limitare i candidati ai soli template della regola
             let usedTemplates = Set(rule.patterns.map { $0.name })
             var candidateFacts: [Environment.FactRec] = []
@@ -50,7 +52,7 @@ public enum RuleEngine {
             // Calcolo naive: separa confronto (join-check) da attivazioni per evitare duplicati
             var matchesForActivation: [PartialMatch] = []
             var matchesForCompare: [PartialMatch] = []
-            let supportRete = !hasNeg && (env.rete.rules[rule.name] != nil)
+            let supportRete = !hasNeg && !hasExists && (env.rete.rules[rule.name] != nil)
             let needNaive = hasNeg || env.experimentalJoinCheck || !supportRete
             if needNaive {
                 // Per join-check calcola i match completi solo per confronto (non per attivazione)
@@ -58,7 +60,7 @@ public enum RuleEngine {
                     matchesForCompare = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 }
                 // Per attivazioni: usa ancorato quando possibile per evitare di riaggiungere match già fired
-                if hasNeg {
+                if hasNeg || hasExists {
                     matchesForActivation = generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                 } else {
                     matchesForActivation = generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
@@ -69,7 +71,7 @@ public enum RuleEngine {
             if let cr = env.rete.rules[rule.name], supportRete && (env.experimentalJoinCheck || env.experimentalJoinActivate || env.joinActivateWhitelist.contains(rule.name)) {
                 // Se l'anchor appartiene a un template usato solo in CE negati per questa regola, ricorri al recompute completo
                 let anchorName = fact.name
-                let hasNegUse = cr.patterns.contains { $0.original.name == anchorName && $0.original.negated }
+                _ = cr.patterns.contains { $0.original.name == anchorName && $0.original.negated }
                 let hasPosUse = cr.patterns.contains { $0.original.name == anchorName && !$0.original.negated }
                 let useDelta = hasPosUse
                 let added: [BetaToken]
@@ -94,7 +96,7 @@ public enum RuleEngine {
                         }
                     }
                 }
-                let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name))
+                let useReteActivation = env.experimentalJoinActivate || (env.joinActivateWhitelist.contains(rule.name) && env.joinStableRules.contains(rule.name)) || (env.joinActivateDefaultOnStable && env.joinStableRules.contains(rule.name))
                 if useReteActivation {
                     for t in added {
                         var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: t.bindings)
@@ -124,13 +126,13 @@ public enum RuleEngine {
                     // Riallinea la snapshot terminale con il calcolo completo
                     let ms = BetaEngine.computeMatches(&env, compiled: cr, facts: allFacts)
                     let toks = ms.map { BetaToken(bindings: $0.bindings, usedFacts: $0.usedFacts) }
-                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map { BetaEngine.keyForToken($0) })
+                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map { BetaEngine.tokenKeyHash64($0) })
                     env.rete.beta[rule.name] = mem
                 }
             } else {
                 // Percorso standard: solo naive
                 if matchesForActivation.isEmpty {
-                    matchesForActivation = hasNeg
+                    matchesForActivation = (hasNeg || hasExists)
                         ? generateMatches(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool)
                         : generateMatchesAnchored(env: &env, patterns: rule.patterns, tests: rule.tests, facts: pool, anchor: fact)
                 }
@@ -306,6 +308,13 @@ public enum RuleEngine {
                     if matchesNegative(env: &env, pattern: pat, fact: f, current: current) { any = true; break }
                 }
                 if any { return } else { backtrack(idx + 1, current, used) }
+            } else if pat.exists {
+                // Pass if any fact matches with current binding (no new bindings)
+                var any = false
+                for f in facts where f.name == pat.name {
+                    if matchesNegative(env: &env, pattern: pat, fact: f, current: current) { any = true; break }
+                }
+                if any { backtrack(idx + 1, current, used) } else { return }
             } else {
                 for f in facts where f.name == pat.name && !used.contains(f.id) {
                     if var b = match(env: &env, pattern: pat, fact: f, current: current) {
@@ -345,6 +354,17 @@ public enum RuleEngine {
                             if matchesNegative(env: &env, pattern: p, fact: f, current: current) { any = true; break }
                         }
                         if any { return } else { backtrack(pidx + 1, current, used) }
+                    } else if p.exists {
+                        var any = false
+                        if p.name == anchor.name {
+                            if matchesNegative(env: &env, pattern: p, fact: anchor, current: current) { any = true }
+                        }
+                        if !any {
+                            for f in facts where f.name == p.name {
+                                if matchesNegative(env: &env, pattern: p, fact: f, current: current) { any = true; break }
+                            }
+                        }
+                        if any { backtrack(pidx + 1, current, used) }
                     } else {
                         for f in facts where f.name == p.name && !used.contains(f.id) {
                             if var nb = match(env: &env, pattern: p, fact: f, current: current) {
