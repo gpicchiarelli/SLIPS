@@ -140,6 +140,53 @@ public enum DriveEngine {
         }
     }
     
+    // MARK: - NetworkAssertLeft
+    
+    /// Primary routine for filtering a partial match through join network from LHS
+    /// Port di NetworkAssertLeft (simmetrico a NetworkAssertRight)
+    public static func NetworkAssertLeft(
+        _ theEnv: inout Environment,
+        _ lhsBinds: PartialMatch,
+        _ join: JoinNodeClass,
+        _ operation: Int
+    ) {
+        if theEnv.watchRete {
+            print("[RETE] NetworkAssertLeft: entering join at level \(join.level)")
+        }
+        
+        // Aggiungi a leftMemory
+        ReteUtil.AddToLeftMemory(join, lhsBinds)
+        
+        // Cerca match nel rightMemory
+        var rhsBinds = ReteUtil.GetRightBetaMemory(join, hashValue: lhsBinds.hashValue)
+        
+        while let currentRHS = rhsBinds {
+            // Verifica compatibilità e crea join
+            if isCompatible(lhsBinds, currentRHS, join, &theEnv) {
+                let newPM = mergePartialMatches(lhsBinds, currentRHS)
+                
+                // Propaga attraverso nextLinks
+                for link in join.nextLinks {
+                    if let targetJoin = link.join {
+                        if link.enterDirection == LHS {
+                            NetworkAssertLeft(&theEnv, newPM, targetJoin, operation)
+                        } else {
+                            NetworkAssertRight(&theEnv, newPM, targetJoin, operation)
+                        }
+                    }
+                }
+                
+                // Se è terminal, crea attivazione
+                if join.nextLinks.isEmpty, let production = join.ruleToActivate {
+                    let token = partialMatchToBetaToken(newPM)
+                    production.activate(token: token, env: &theEnv)
+                }
+            }
+            
+            rhsBinds = currentRHS.nextInMemory
+        }
+    }
+    
     // MARK: - EmptyDrive
     
     /// Handles entry of alpha memory partial match from RHS of first join
@@ -282,16 +329,11 @@ public enum DriveEngine {
             }
             linker.hashValue = hashValue
             
-            // Aggiungi a beta memory
+            // Aggiungi a beta memory e propaga
             if let targetJoin = currentLink.join {
                 if currentLink.enterDirection == LHS {
-                    ReteUtil.AddToLeftMemory(targetJoin, linker)
-                    // NetworkAssertLeft (da implementare - placeholder)
-                    if theEnv.watchRete {
-                        print("[RETE] EmptyDrive: propagating LEFT to join level \(targetJoin.level)")
-                    }
+                    NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
                 } else {
-                    ReteUtil.AddToRightMemory(targetJoin, linker)
                     NetworkAssertRight(&theEnv, linker, targetJoin, operation)
                 }
             }
@@ -320,10 +362,22 @@ public enum DriveEngine {
         return merged
     }
     
+    /// Verifica se due PartialMatch sono compatibili per join
+    private static func isCompatible(
+        _ lhs: PartialMatch,
+        _ rhs: PartialMatch,
+        _ join: JoinNodeClass,
+        _ theEnv: inout Environment
+    ) -> Bool {
+        // TODO: Implementare check completo con join tests
+        // Per ora ritorna true (ottimistico)
+        return true
+    }
+    
     /// Converte PartialMatch in BetaToken (bridge tra C-style e Swift-style)
     private static func partialMatchToBetaToken(_ pm: PartialMatch) -> BetaToken {
-        var bindings: [String: Value] = [:]
-        var usedFacts: Set<Int> = []
+        let bindings: [String: Value] = [:]
+        let usedFacts: Set<Int> = []
         
         // Estrai binding da partial match (da completare)
         // Per ora, partial match semplificato

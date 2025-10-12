@@ -283,78 +283,19 @@ public final class JoinNodeClass: ReteNode {
         let factToken = BetaToken(bindings: [:], usedFacts: [fact.id])
         let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
         
-        // USA HASH LOOKUP O(1) ✅ come in CLIPS C
-        var lhsBinds = ReteUtil.GetLeftBetaMemory(self, hashValue: rhsPM.hashValue)
-        
-        // FALLBACK durante transizione: se leftMemory è vuota, usa vecchio metodo
-        // Questo permette ai test di continuare a funzionare mentre migriamo
-        if lhsBinds == nil && (leftMemory == nil || leftMemory!.isEmpty) {
+        // CRITICO: Usa DriveEngine per tutta la propagazione (Fase 1.5 - CLIPS C)
+        if self.firstJoin {
+            // First join: usa EmptyDrive
             if env.watchRete {
-                print("[RETE] JoinNodeClass.activateFromRight: leftMemory empty, using legacy getLeftTokens")
+                print("[RETE] JoinNodeClass.activateFromRight: FIRST JOIN, calling EmptyDrive")
             }
-            
-            // Usa vecchio metodo (da BetaMemoryNode)
-            let leftTokens = getLeftTokens(env: env)
-            
-            for leftToken in leftTokens {
-                if leftToken.usedFacts.contains(fact.id) {
-                    continue
-                }
-                
-                if let newToken = attemptJoin(
-                    leftToken: leftToken,
-                    rightFact: fact,
-                    env: &env
-                ) {
-                    // Propaga nuovo token ai successori
-                    for successor in successors {
-                        successor.activate(token: newToken, env: &env)
-                    }
-                }
+            DriveEngine.EmptyDrive(&env, self, rhsPM, DriveEngine.NETWORK_ASSERT)
+        } else {
+            // Join successivo: usa NetworkAssertRight
+            if env.watchRete {
+                print("[RETE] JoinNodeClass.activateFromRight: calling NetworkAssertRight at level \(self.level)")
             }
-            return
-        }
-        
-        var compared = 0
-        var joined = 0
-        
-        // NUOVO PATH: Scan SOLO token nel bucket (O(bucket size) non O(n totale))
-        while let currentLHS = lhsBinds {
-            compared += 1
-            self.memoryCompares += 1
-            
-            // CRITICO: Confronta hash value PRIMA (ottimizzazione CLIPS)
-            if currentLHS.hashValue != rhsPM.hashValue {
-                lhsBinds = currentLHS.nextInMemory
-                continue
-            }
-            
-            // Converti PartialMatch → BetaToken per attemptJoin
-            // (bridge temporaneo - dopo porteremo tutto a PartialMatch)
-            let leftToken = partialMatchToToken(currentLHS, env: env)
-            
-            if leftToken.usedFacts.contains(fact.id) {
-                lhsBinds = currentLHS.nextInMemory
-                continue
-            }
-            
-            if let newToken = attemptJoin(
-                leftToken: leftToken,
-                rightFact: fact,
-                env: &env
-            ) {
-                joined += 1
-                // Propaga nuovo token ai successori
-                for successor in successors {
-                    successor.activate(token: newToken, env: &env)
-                }
-            }
-            
-            lhsBinds = currentLHS.nextInMemory
-        }
-        
-        if env.watchRete && compared > 0 {
-            print("[RETE] JoinNodeClass.activateFromRight: hash lookup found \(compared) candidates in bucket, \(joined) joins")
+            DriveEngine.NetworkAssertRight(&env, rhsPM, self, DriveEngine.NETWORK_ASSERT)
         }
     }
     
@@ -442,6 +383,7 @@ public final class BetaMemoryNode: ReteNode {
             }
             
             // Propaga ai successori
+            // NOTA: leftMemory viene popolata da DriveEngine, non qui (Fase 1.5)
             for successor in successors {
                 successor.activate(token: token, env: &env)
             }

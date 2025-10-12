@@ -29,6 +29,8 @@ public enum NetworkBuilder {
         
         var currentLevel = 0
         var currentNode: ReteNode? = nil
+        var firstJoinCreated = false  // Track if we've created the first join
+        var lastJoinNode: JoinNodeClass? = nil  // Track last join for nextLinks
         
         // Per ogni pattern, costruisci la catena di nodi
         for (index, pattern) in rule.patterns.enumerated() {
@@ -98,6 +100,28 @@ public enum NetworkBuilder {
                         level: currentLevel + 1
                     )
                     
+                    // CRITICO: Marca il primo join della regola (per EmptyDrive in drive.c)
+                    if !firstJoinCreated {
+                        joinNode.firstJoin = true
+                        firstJoinCreated = true
+                        if env.watchRete {
+                            print("[RETE Build]     *** FIRST JOIN marked for rule '\(rule.name)'")
+                        }
+                    }
+                    
+                    // CRITICO: Popola nextLinks del join precedente (per propagazione in drive.c)
+                    if let prevJoin = lastJoinNode {
+                        let link = JoinLink()
+                        link.join = joinNode
+                        link.enterDirection = "l"  // Left entry (LHS) - match proviene dalla catena precedente
+                        prevJoin.nextLinks.append(link)
+                        
+                        if env.watchRete {
+                            print("[RETE Build]     *** Added nextLink LHS from join level \(prevJoin.level) to \(joinNode.level)")
+                        }
+                    }
+                    lastJoinNode = joinNode
+                    
                     // IMPORTANTE: Registra questo join node come listener dell'alpha destro
                     // Quando l'alpha riceve un fatto, notificherà questo join
                     alphaNode.rightJoinListeners.append(joinNode)
@@ -159,6 +183,14 @@ public enum NetworkBuilder {
         
         if let prev = currentNode {
             linkNodes(from: prev, to: productionNode)
+        }
+        
+        // CRITICO: Collega ultimo join al production node (per attivazioni in EmptyDrive)
+        if let lastJoin = lastJoinNode {
+            lastJoin.ruleToActivate = productionNode
+            if env.watchRete {
+                print("[RETE Build] *** Linked last join (level \(lastJoin.level)) to production '\(rule.name)'")
+            }
         }
         
         // 4. Registra production node nell'environment
