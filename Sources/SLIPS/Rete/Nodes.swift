@@ -283,6 +283,14 @@ public final class JoinNodeClass: ReteNode {
         let factToken = BetaToken(bindings: [:], usedFacts: [fact.id])
         let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
         
+        // CRITICO: Aggiungi fatto a rightMemory PRIMA di propagare (come in CLIPS C)
+        if !self.firstJoin {
+            ReteUtil.AddToRightMemory(self, rhsPM)
+            if env.watchRete {
+                print("[RETE] JoinNodeClass.activateFromRight: added to rightMemory at level \(self.level), size=\(self.rightMemory?.count ?? 0)")
+            }
+        }
+        
         // CRITICO: Usa DriveEngine per tutta la propagazione (Fase 1.5 - CLIPS C)
         if self.firstJoin {
             // First join: usa EmptyDrive

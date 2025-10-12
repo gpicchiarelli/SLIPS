@@ -146,7 +146,7 @@ extension PartialMatch {
         linker.rhsMemory = false
         linker.deleting = false
         linker.bcount = self.bcount
-        linker.hashValue = 0  // Ricalcolato dopo
+        linker.hashValue = self.hashValue  // CRITICO: Mantieni hash originale!
         
         // Copia bindings
         linker.binds = self.binds.map { gm in

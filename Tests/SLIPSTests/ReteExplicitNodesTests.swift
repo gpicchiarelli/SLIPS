@@ -12,11 +12,11 @@ final class ReteExplicitNodesTests: XCTestCase {
     
     // MARK: - Setup
     
-    private func createEnv() -> Environment {
+    private func createEnv(watchRete: Bool = false) -> Environment {
         var env = CLIPS.createEnvironment()
         // ABILITA nodi espliciti RETE
         env.useExplicitReteNodes = true
-        env.watchRete = false
+        env.watchRete = watchRete
         return env
     }
     
@@ -103,7 +103,7 @@ final class ReteExplicitNodesTests: XCTestCase {
     }
     
     func testJoinNodeWithMultiplePatterns() {
-        _ = createEnv()
+        _ = createEnv(watchRete: false)  // Disabilita per test normale
         
         _ = CLIPS.eval(expr: "(deftemplate node (slot id) (slot next))")
         _ = CLIPS.eval(expr: "(defrule chain (node id ?a next ?b) (node id ?b next ?c) (node id ?c) => (printout t \"chain\"))")

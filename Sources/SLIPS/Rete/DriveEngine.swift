@@ -151,7 +151,7 @@ public enum DriveEngine {
         _ operation: Int
     ) {
         if theEnv.watchRete {
-            print("[RETE] NetworkAssertLeft: entering join at level \(join.level)")
+            print("[RETE] NetworkAssertLeft: entering join at level \(join.level), leftMemory size=\(join.leftMemory?.count ?? 0)")
         }
         
         // Aggiungi a leftMemory
@@ -160,14 +160,39 @@ public enum DriveEngine {
         // Cerca match nel rightMemory
         var rhsBinds = ReteUtil.GetRightBetaMemory(join, hashValue: lhsBinds.hashValue)
         
+        if theEnv.watchRete {
+            let rhsCount = join.rightMemory?.count ?? 0
+            print("[RETE] NetworkAssertLeft: searching rightMemory (size=\(rhsCount)) for matches with hash=\(lhsBinds.hashValue)")
+            
+            // DEBUG: Mostra hash dei primi elementi in rightMemory
+            if let rightMem = join.rightMemory, rhsCount > 0 {
+                for i in 0..<min(3, rightMem.size) {
+                    if let pm = rightMem.beta[i] {
+                        print("[RETE]   rightMemory[\(i)] hash=\(pm.hashValue)")
+                    }
+                }
+            }
+        }
+        
+        var matchCount = 0
+        var compatibleCount = 0
         while let currentRHS = rhsBinds {
+            matchCount += 1
             // Verifica compatibilità e crea join
             if isCompatible(lhsBinds, currentRHS, join, &theEnv) {
+                compatibleCount += 1
                 let newPM = mergePartialMatches(lhsBinds, currentRHS)
+                
+                if theEnv.watchRete {
+                    print("[RETE] NetworkAssertLeft: compatible match found, merged PM has \(newPM.bcount) patterns")
+                }
                 
                 // Propaga attraverso nextLinks
                 for link in join.nextLinks {
                     if let targetJoin = link.join {
+                        if theEnv.watchRete {
+                            print("[RETE] NetworkAssertLeft: propagating to level \(targetJoin.level) via \(link.enterDirection == LHS ? "LHS" : "RHS")")
+                        }
                         if link.enterDirection == LHS {
                             NetworkAssertLeft(&theEnv, newPM, targetJoin, operation)
                         } else {
@@ -178,12 +203,19 @@ public enum DriveEngine {
                 
                 // Se è terminal, crea attivazione
                 if join.nextLinks.isEmpty, let production = join.ruleToActivate {
+                    if theEnv.watchRete {
+                        print("[RETE] NetworkAssertLeft: TERMINAL - creating activation for '\(production.ruleName)'")
+                    }
                     let token = partialMatchToBetaToken(newPM)
                     production.activate(token: token, env: &theEnv)
                 }
             }
             
             rhsBinds = currentRHS.nextInMemory
+        }
+        
+        if theEnv.watchRete {
+            print("[RETE] NetworkAssertLeft: checked \(matchCount) RHS candidates, \(compatibleCount) compatible")
         }
     }
     
@@ -293,16 +325,27 @@ public enum DriveEngine {
         // Propaga attraverso nextLinks
         var listOfJoins = join.nextLinks.first
         
+        if theEnv.watchRete {
+            print("[RETE] EmptyDrive: join level \(join.level) has \(join.nextLinks.count) nextLinks")
+        }
+        
         if listOfJoins == nil {
             if theEnv.watchRete {
-                print("[RETE] EmptyDrive: no nextLinks, might be terminal")
+                print("[RETE] EmptyDrive: no nextLinks, checking if terminal")
             }
             
             // Se è terminal (ruleToActivate), crea attivazione
             if let production = join.ruleToActivate {
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: CREATING ACTIVATION for rule '\(production.ruleName)'")
+                }
                 // Converti rhsBinds in BetaToken per attivazione
                 let token = partialMatchToBetaToken(rhsBinds)
                 production.activate(token: token, env: &theEnv)
+            } else {
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: ERROR - no nextLinks AND no ruleToActivate!")
+                }
             }
             return
         }
@@ -316,21 +359,17 @@ public enum DriveEngine {
                 linker = rhsBinds.copy()
             }
             
-            // Calcola hash value
-            var hashValue: UInt = 0
-            if let targetJoin = currentLink.join {
-                if currentLink.enterDirection == LHS {
-                    hashValue = targetJoin.leftHash != nil ?
-                        computeHashValue(for: linker, using: targetJoin.leftHash) : 0
-                } else {
-                    hashValue = targetJoin.rightHash != nil ?
-                        computeHashValue(for: linker, using: targetJoin.rightHash) : 0
-                }
+            // Hash value già calcolato in linker.copy() o CreateEmptyPartialMatch
+            // Non sovrascrivere! (In CLIPS C usa leftHash/rightHash functions, qui usiamo hash già presente)
+            if theEnv.watchRete {
+                print("[RETE] EmptyDrive: linker hash=\(linker.hashValue) for propagation")
             }
-            linker.hashValue = hashValue
             
             // Aggiungi a beta memory e propaga
             if let targetJoin = currentLink.join {
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: propagating to join level \(targetJoin.level) via \(currentLink.enterDirection == LHS ? "LHS" : "RHS")")
+                }
                 if currentLink.enterDirection == LHS {
                     NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
                 } else {
@@ -350,14 +389,24 @@ public enum DriveEngine {
         _ rhs: PartialMatch
     ) -> PartialMatch {
         let merged = PartialMatch()
+        merged.initializeLinks()  // Inizializza i link a nil
         merged.bcount = lhs.bcount + rhs.bcount
-        merged.hashValue = 0 // Ricalcolato dopo
         
         // Combina binds
         var allBinds: [GenericMatch] = []
         allBinds.append(contentsOf: lhs.binds)
         allBinds.append(contentsOf: rhs.binds)
         merged.binds = allBinds
+        
+        // Calcola hash combinato
+        var hasher = Hasher()
+        for i in 0..<Int(merged.bcount) {
+            if let alphaMatch = merged.binds[i].theMatch,
+               let entity = alphaMatch.matchingItem {
+                hasher.combine(entity.factID)
+            }
+        }
+        merged.hashValue = UInt(bitPattern: hasher.finalize())
         
         return merged
     }
@@ -369,18 +418,67 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ theEnv: inout Environment
     ) -> Bool {
-        // TODO: Implementare check completo con join tests
-        // Per ora ritorna true (ottimistico)
+        // 1. Verifica che non ci siano fact ID duplicati
+        // Estrai fact IDs da LHS
+        var lhsFactIDs: Set<Int> = []
+        for i in 0..<Int(lhs.bcount) {
+            if let alphaMatch = lhs.binds[i].theMatch,
+               let entity = alphaMatch.matchingItem {
+                lhsFactIDs.insert(entity.factID)
+            }
+        }
+        
+        // Verifica che RHS non abbia fact duplicati
+        var rhsFactIDs: Set<Int> = []
+        for i in 0..<Int(rhs.bcount) {
+            if let alphaMatch = rhs.binds[i].theMatch,
+               let entity = alphaMatch.matchingItem {
+                rhsFactIDs.insert(entity.factID)
+                if lhsFactIDs.contains(entity.factID) {
+                    // Stesso fatto usato due volte - non compatibile
+                    if theEnv.watchRete {
+                        print("[RETE] isCompatible: FAIL - fact \(entity.factID) appears in both LHS and RHS")
+                    }
+                    return false
+                }
+            }
+        }
+        
+        if theEnv.watchRete {
+            print("[RETE] isCompatible: OK - LHS facts=\(lhsFactIDs), RHS facts=\(rhsFactIDs)")
+        }
+        
+        // 2. TODO: Applicare join.networkTest se presente
+        // Per ora, compatibilità basata solo su fact uniqueness
+        
         return true
     }
     
     /// Converte PartialMatch in BetaToken (bridge tra C-style e Swift-style)
     private static func partialMatchToBetaToken(_ pm: PartialMatch) -> BetaToken {
-        let bindings: [String: Value] = [:]
-        let usedFacts: Set<Int> = []
+        var bindings: [String: Value] = [:]
+        var usedFacts: Set<Int> = []
         
-        // Estrai binding da partial match (da completare)
-        // Per ora, partial match semplificato
+        // Estrai fact IDs da binds[]
+        for i in 0..<Int(pm.bcount) {
+            if let alphaMatch = pm.binds[i].theMatch,
+               let entity = alphaMatch.matchingItem {
+                usedFacts.insert(entity.factID)
+                
+                // Se entity è FactPatternEntity, estrai slot come bindings
+                if let factEntity = entity as? FactPatternEntity {
+                    let fact = factEntity.fact
+                    
+                    // Per ogni slot del fatto, crea binding con nome slot
+                    // (questo è semplificato - idealmente servirebbe il pattern per nomi variabili)
+                    for (slotName, value) in fact.slots {
+                        // Usa nome slot come chiave (approssimazione)
+                        // In regole reali, il pattern map slotName → varName
+                        bindings[slotName] = value
+                    }
+                }
+            }
+        }
         
         return BetaToken(bindings: bindings, usedFacts: usedFacts)
     }
