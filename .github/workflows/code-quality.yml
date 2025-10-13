@@ -18,7 +18,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Installa SwiftLint
       run: brew install swiftlint
@@ -56,7 +56,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Installa SwiftFormat
       run: brew install swiftformat
@@ -71,7 +71,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Risoluzione dipendenze
       run: swift package resolve
@@ -95,7 +95,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Verifica versione Swift
       run: swift --version
@@ -124,7 +124,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Installa lizard
       run: pip3 install lizard
@@ -149,7 +149,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Installa tokei
       run: brew install tokei

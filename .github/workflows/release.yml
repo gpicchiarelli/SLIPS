@@ -21,7 +21,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
         
@@ -138,7 +138,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Trigger Swift Package Index
       run: |
