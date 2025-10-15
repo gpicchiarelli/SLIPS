@@ -182,7 +182,7 @@ Un nodo production $\pi_r$ per la regola $r$:
   every node/.style={font=\small},
   alpha/.style={rectangle, draw=blue!50, fill=blue!10, thick, minimum width=2cm, minimum height=0.8cm},
   beta/.style={rectangle, draw=green!50, fill=green!10, thick, minimum width=2cm, minimum height=0.8cm},
-  join/.style={diamond, draw=orange!50, fill=orange!10, thick, minimum width=1.5cm, minimum height=1.5cm},
+  joinnode/.style={diamond, draw=orange!50, fill=orange!10, thick, minimum width=1.5cm, minimum height=1.5cm},
   prod/.style={ellipse, draw=red!50, fill=red!10, thick, minimum width=2cm, minimum height=0.8cm}
 ]
 
@@ -192,11 +192,11 @@ Un nodo production $\pi_r$ per la regola $r$:
 \node[alpha, right=of a2] (a3) {$\alpha_3$: P3};
 
 % Beta network - level 1
-\node[join, below=of a1] (j1) {$J_1$};
+\node[joinnode, below=of a1] (j1) {$J_1$};
 \node[beta, below=of j1] (b1) {$\beta_1$};
 
 % Beta network - level 2
-\node[join, below=of b1] (j2) {$J_2$};
+\node[joinnode, below=of b1] (j2) {$J_2$};
 \node[beta, below=of j2] (b2) {$\beta_2$};
 
 % Production node
