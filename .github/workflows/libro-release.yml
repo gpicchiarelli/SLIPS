@@ -1,0 +1,155 @@
+name: Release Libro (Manuale)
+
+# Questo workflow crea una release del libro manualmente
+# Utile per versioni milestone (es. 1.0, 2.0)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versione libro (es. 1.0, 2.0-draft)'
+        required: true
+        default: '1.0'
+      prerelease:
+        description: 'È una pre-release?'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  release-libro:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Compile LaTeX (multi-pass)
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+          # Post-compile: bibliografia e indice
+          post_compile: |
+            biber main || true
+            makeindex main || true
+      
+      # Seconda e terza passata per risolvere riferimenti
+      - name: Second pass
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+      
+      - name: Third pass (final)
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+      
+      - name: Rename PDF with version
+        run: |
+          mv libro/main.pdf libro/SLIPS-Libro-v${{ github.event.inputs.version }}.pdf
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libro-slips-v${{ github.event.inputs.version }}
+          path: libro/SLIPS-Libro-v${{ github.event.inputs.version }}.pdf
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: libro-v${{ github.event.inputs.version }}
+          name: "📚 Libro SLIPS v${{ github.event.inputs.version }}"
+          body: |
+            ## 📚 SLIPS - Libro Accademico v${{ github.event.inputs.version }}
+            
+            **Swift Language Implementation of Production Systems**  
+            *Teoria, Implementazione e Guida Tecnica*
+            
+            ### 📖 Informazioni
+            
+            - **Versione**: ${{ github.event.inputs.version }}
+            - **Data**: ${{ github.event.head_commit.timestamp }}
+            - **Formato**: PDF (A4, 12pt)
+            - **Pagine**: ~400
+            - **Lingua**: Italiano
+            - **Licenza**: Creative Commons BY-SA 4.0
+            
+            ### 📊 Contenuto
+            
+            #### Capitoli Completi (~190 pagine)
+            - ✅ Cap. 1: Introduzione (15 pag)
+            - ✅ Cap. 2: Sistemi a Produzione (25 pag)
+            - ✅ Cap. 6: Introduzione RETE (30 pag)
+            - ✅ Cap. 16: Architettura SLIPS (35 pag)
+            - ✅ Cap. 20: Sistema Moduli (25 pag)
+            - ✅ Cap. 22: Testing e Validazione (22 pag)
+            - ✅ Cap. 24: Best Practices (18 pag)
+            - ✅ Appendici A-D: Reference complete (40 pag)
+            
+            #### Capitoli Stub (~210 pagine)
+            - ⏳ 19 capitoli con outline (da espandere)
+            
+            ### 🎯 Pubblico
+            
+            - Studenti di informatica (AI, sistemi esperti)
+            - Ricercatori in AI simbolica
+            - Sviluppatori Swift
+            - Ingegneri di traduzione C→Swift
+            
+            ### 📥 Download
+            
+            Scarica **SLIPS-Libro-v${{ github.event.inputs.version }}.pdf** dagli asset qui sotto.
+            
+            ### 📚 Contenuto Highlights
+            
+            - **Teoria formale** dei sistemi a produzione
+            - **Algoritmo RETE** con dimostrazioni matematiche
+            - **Mappatura completa** C → Swift
+            - **Implementazione dettagliata** con 750+ LOC codice
+            - **91 test** analizzati e spiegati
+            - **Best practices** per sviluppo
+            - **API reference** completa
+            - **Bibliografia accademica** (20+ titoli)
+            
+            ### 🤝 Contributi
+            
+            Il libro è open source! Contributi benvenuti:
+            - Correzioni e miglioramenti
+            - Completamento capitoli stub
+            - Nuovi esempi e casi di studio
+            - Traduzione in altre lingue
+            
+            Vedere `libro/CONTRIBUTI.md` per dettagli.
+            
+            ### ⚖️ Licenza
+            
+            Questo libro è distribuito con licenza **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)**.
+            
+            Sei libero di:
+            - ✅ Condividere e redistribuire
+            - ✅ Adattare e modificare
+            - ✅ Uso commerciale
+            
+            Con obbligo di:
+            - Attribution (citare autori)
+            - ShareAlike (stessa licenza per derivati)
+            
+            Il codice sorgente SLIPS mantiene licenza MIT separata.
+            
+            ---
+            
+            **Maintainer**: Contributori SLIPS  
+            **Repository**: https://github.com/gpicchiarelli/SLIPS  
+            **Documentazione**: https://gpicchiarelli.github.io/SLIPS/
+          files: libro/SLIPS-Libro-v${{ github.event.inputs.version }}.pdf
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

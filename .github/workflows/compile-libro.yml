@@ -1,0 +1,87 @@
+name: Compila Libro LaTeX
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'libro/**'
+      - '.github/workflows/compile-libro.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'libro/**'
+  workflow_dispatch:  # Permette esecuzione manuale
+
+jobs:
+  compile-pdf:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode -halt-on-error
+          # Compila multipli passaggi per riferimenti
+          post_compile: |
+            biber main
+            makeindex main
+      
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libro-slips
+          path: libro/main.pdf
+          retention-days: 90
+      
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      
+      - name: Create Release (solo su main)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: libro-${{ steps.date.outputs.date }}
+          name: "Libro SLIPS - ${{ steps.date.outputs.date }}"
+          body: |
+            ## 📚 Libro Accademico SLIPS
+            
+            **SLIPS - Swift Language Implementation of Production Systems**  
+            *Teoria, Implementazione e Guida Tecnica*
+            
+            ### 📖 Contenuto
+            - ~400 pagine totali
+            - 190 pagine complete di contenuto denso
+            - 12 capitoli completi + 19 stub
+            - Formule matematiche, algoritmi, codice Swift
+            - Bibliografia accademica
+            
+            ### 📊 Copertura
+            - Parte I: Fondamenti Teorici (50%)
+            - Parte II: Algoritmo RETE (17%)
+            - Parte IV: Implementazione SLIPS (57%)
+            - Parte V: Best Practices (20%)
+            - Appendici: Reference complete (100%)
+            
+            ### ⚖️ Licenza
+            Creative Commons BY-SA 4.0
+            
+            ### 📥 Download
+            - Scarica `libro-slips.pdf` dagli artifact qui sotto
+            
+            ---
+            
+            Generato automaticamente da GitHub Actions  
+            Commit: ${{ github.sha }}  
+            Branch: ${{ github.ref_name }}
+          files: libro/main.pdf
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

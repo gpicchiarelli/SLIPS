@@ -1,0 +1,92 @@
+name: Deploy Libro su GitHub Pages
+
+# Compila e pubblica libro su GitHub Pages (opzionale)
+# Il PDF sarà scaricabile da: https://gpicchiarelli.github.io/SLIPS/libro.pdf
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'libro/**'
+  workflow_dispatch:
+
+# Permessi per GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "libro-pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Compile LaTeX (full)
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+          post_compile: |
+            biber main || true
+            makeindex main || true
+      
+      - name: Second pass
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+      
+      - name: Third pass
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: libro
+          args: -pdf -interaction=nonstopmode
+      
+      - name: Prepare Pages directory
+        run: |
+          mkdir -p _site
+          cp libro/main.pdf _site/libro.pdf
+          
+          # Crea index.html per redirect
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="0; url=libro.pdf">
+            <title>Libro SLIPS</title>
+          </head>
+          <body>
+            <p>Redirecting to <a href="libro.pdf">libro.pdf</a>...</p>
+          </body>
+          </html>
+          EOF
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}libro.pdf
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
