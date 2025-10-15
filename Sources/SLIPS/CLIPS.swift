@@ -102,6 +102,22 @@ public final class Environment {
     // FASE 1: Flag per usare nodi RETE espliciti (class-based)
     // (ref: NetworkBuilder + Propagation engine in fase 1)
     public var useExplicitReteNodes: Bool = false
+    
+    // FASE 3: Sistema di moduli (ref: struct defmoduleData in moduldef.h linee 209-236)
+    // Lista di tutti i moduli
+    internal var _listOfDefmodules: Defmodule? = nil
+    // Modulo corrente
+    internal var _currentModule: Defmodule? = nil
+    // Ultimo modulo creato
+    internal var _lastDefmodule: Defmodule? = nil
+    // Lista di tipi di item registrati
+    internal var _listOfModuleItems: ModuleItem? = nil
+    // Ultimo module item registrato
+    internal var _lastModuleItem: ModuleItem? = nil
+    // Numero di tipi di item registrati
+    internal var _numberOfModuleItems: UInt = 0
+    // Stack di focus
+    internal var _moduleStack: ModuleStackItem? = nil
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
@@ -122,6 +138,8 @@ public enum CLIPS {
         // Inizializza moduli minimi per eval
         Functions.registerBuiltins(&env)
         ExpressionEnv.InitExpressionData(&env)
+        // Inizializza sistema di moduli (FASE 3)
+        env.initializeModules()
         // Strategia agenda di default
         env.agendaQueue.setStrategy(.depth)
         // Abilita join-check e attivazione via RETE di default su regole stabili

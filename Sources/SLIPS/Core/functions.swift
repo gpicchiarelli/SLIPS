@@ -73,6 +73,13 @@ public enum Functions {
         env.functionTable["get-join-stable"] = FunctionDefinitionSwift(name: "get-join-stable", impl: builtin_get_join_stable)
         env.functionTable["set-join-naive-fallback"] = FunctionDefinitionSwift(name: "set-join-naive-fallback", impl: builtin_set_join_naive_fallback)
         env.functionTable["get-join-naive-fallback"] = FunctionDefinitionSwift(name: "get-join-naive-fallback", impl: builtin_get_join_naive_fallback)
+        
+        // FASE 3: Funzioni per moduli (ref: modulbsc.c)
+        env.functionTable["focus"] = FunctionDefinitionSwift(name: "focus", impl: builtin_focus)
+        env.functionTable["get-current-module"] = FunctionDefinitionSwift(name: "get-current-module", impl: builtin_get_current_module)
+        env.functionTable["set-current-module"] = FunctionDefinitionSwift(name: "set-current-module", impl: builtin_set_current_module)
+        env.functionTable["list-defmodules"] = FunctionDefinitionSwift(name: "list-defmodules", impl: builtin_list_defmodules)
+        env.functionTable["get-defmodule-list"] = FunctionDefinitionSwift(name: "get-defmodule-list", impl: builtin_get_defmodule_list)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
@@ -715,8 +722,32 @@ private func builtin_get_join_stable(_ env: inout Environment, _ args: [Value]) 
 
 // Agenda listing
 private func builtin_agenda(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    // (agenda) o (agenda <module-name>)
+    // Se specificato un modulo, mostra solo attivazioni di quel modulo
+    var moduleFilter: String? = nil
+    
+    if !args.isEmpty {
+        switch args[0] {
+        case .symbol(let s): moduleFilter = s
+        case .string(let s): moduleFilter = s
+        default:
+            print("[ERROR] agenda argument must be a module name")
+            return .int(0)
+        }
+    }
+    
     let q = env.agendaQueue.queue
-    Router.Writeln(&env, "AGENDA: \(q.count) item(s)")
+    
+    // Se c'è un filtro, mostra solo attivazioni del modulo specificato
+    // Per ora non abbiamo module info nelle attivazioni, quindi ignoriamo il filtro
+    // TODO FASE3: Aggiungere module info alle attivazioni
+    
+    if let moduleName = moduleFilter {
+        Router.Writeln(&env, "AGENDA for module \(moduleName): \(q.count) item(s)")
+    } else {
+        Router.Writeln(&env, "AGENDA: \(q.count) item(s)")
+    }
+    
     for (idx, a) in q.enumerated() {
         Router.WriteString(&env, Router.STDOUT, String(idx+1))
         Router.WriteString(&env, Router.STDOUT, ") ")
@@ -814,4 +845,104 @@ private func sexpString(_ node: ExpressionNode) -> String {
     case .instanceName:
         return "[" + ((node.value?.value as? String) ?? "inst") + "]"
     }
+}
+
+// MARK: - Module Functions (Fase 3)
+
+/// (focus <module-name>+)
+/// Imposta il focus su uno o più moduli nello stack
+/// (ref: FocusCommand in modulbsc.c)
+private func builtin_focus(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard !args.isEmpty else {
+        print("[ERROR] focus requires at least one argument")
+        return .boolean(false)
+    }
+    
+    // Push moduli nello stack (ultimo arg diventa top dello stack)
+    for arg in args {
+        let moduleName: String
+        switch arg {
+        case .symbol(let s): moduleName = s
+        case .string(let s): moduleName = s
+        default:
+            print("[ERROR] focus arguments must be symbols or strings")
+            return .boolean(false)
+        }
+        
+        // Trova il modulo
+        guard let module = env.findDefmodule(name: moduleName) else {
+            print("[ERROR] Unable to find defmodule \(moduleName)")
+            return .boolean(false)
+        }
+        
+        // Push nello stack di focus
+        env.focusPush(module: module)
+    }
+    
+    return .boolean(true)
+}
+
+/// (get-current-module)
+/// Ritorna il nome del modulo corrente
+/// (ref: GetCurrentModuleCommand in modulbsc.c)
+private func builtin_get_current_module(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let currentModule = env.getCurrentModule() else {
+        return .symbol("FALSE")
+    }
+    return .symbol(currentModule.name)
+}
+
+/// (set-current-module <module-name>)
+/// Imposta il modulo corrente
+/// (ref: SetCurrentModuleCommand in modulbsc.c)
+private func builtin_set_current_module(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard args.count == 1 else {
+        print("[ERROR] set-current-module requires exactly one argument")
+        return .boolean(false)
+    }
+    
+    let moduleName: String
+    switch args[0] {
+    case .symbol(let s): moduleName = s
+    case .string(let s): moduleName = s
+    default:
+        print("[ERROR] set-current-module argument must be a symbol or string")
+        return .boolean(false)
+    }
+    
+    // Trova il modulo
+    guard let module = env.findDefmodule(name: moduleName) else {
+        print("[ERROR] Unable to find defmodule \(moduleName)")
+        return .boolean(false)
+    }
+    
+    // Imposta come corrente
+    let previousModule = env.setCurrentModule(module)
+    return .symbol(previousModule?.name ?? "FALSE")
+}
+
+/// (list-defmodules)
+/// Lista tutti i moduli definiti
+/// (ref: ListDefmodulesCommand in modulbsc.c)
+private func builtin_list_defmodules(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let moduleNames = env.listDefmodules()
+    
+    if moduleNames.isEmpty {
+        print("No defmodules defined")
+    } else {
+        for name in moduleNames {
+            print(name)
+        }
+    }
+    
+    return .boolean(true)
+}
+
+/// (get-defmodule-list)
+/// Ritorna lista di tutti i moduli come multifield
+/// (ref: GetDefmoduleList in modulbsc.c)
+private func builtin_get_defmodule_list(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let moduleNames = env.listDefmodules()
+    let symbols = moduleNames.map { Value.symbol($0) }
+    return .multifield(symbols)
 }

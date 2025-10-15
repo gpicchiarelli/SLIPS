@@ -219,6 +219,80 @@ public enum Evaluator {
                 }
                 return .symbol(ruleName)
             }
+            if name == "defmodule" {
+                // (defmodule <name> [export-list] [import-list])
+                // Parsing del modulo (ref: ParseDefmodule in modulpsr.c)
+                var cur = node.argList
+                guard let nameNode = cur else { return .boolean(false) }
+                let nameVal = try eval(&env, nameNode)
+                let moduleName: String
+                switch nameVal {
+                case .string(let s): moduleName = s
+                case .symbol(let s): moduleName = s
+                default: moduleName = "UNNAMED"
+                }
+                
+                cur = nameNode.nextArg
+                var exportList: PortItem? = nil
+                var importList: PortItem? = nil
+                
+                // Parsing export/import list
+                while let clause = cur {
+                    if clause.type == .fcall {
+                        let clauseName = (clause.value?.value as? String) ?? ""
+                        
+                        if clauseName == "export" {
+                            // (export ?ALL) o (export <type> <names>...)
+                            var arg = clause.argList
+                            if let firstArg = arg, firstArg.type == .symbol,
+                               let sym = firstArg.value?.value as? String, sym == "?ALL" {
+                                // Export tutto
+                                exportList = PortItem(moduleName: "*", constructType: nil, constructName: nil)
+                            } else if let typeArg = arg {
+                                let constructType = (typeArg.value?.value as? String) ?? ""
+                                arg = typeArg.nextArg
+                                // Export specifici costrutti
+                                while let nameArg = arg {
+                                    let constructName = (nameArg.value?.value as? String) ?? ""
+                                    let item = PortItem(moduleName: moduleName, constructType: constructType, constructName: constructName)
+                                    item.next = exportList
+                                    exportList = item
+                                    arg = nameArg.nextArg
+                                }
+                            }
+                        } else if clauseName == "import" {
+                            // (import <module-name> <type> <names>...)
+                            var arg = clause.argList
+                            guard let fromModuleArg = arg else { cur = clause.nextArg; continue }
+                            let fromModule = (fromModuleArg.value?.value as? String) ?? ""
+                            arg = fromModuleArg.nextArg
+                            
+                            guard let typeArg = arg else { cur = clause.nextArg; continue }
+                            let constructType = (typeArg.value?.value as? String) ?? ""
+                            arg = typeArg.nextArg
+                            
+                            // Import specifici costrutti
+                            while let nameArg = arg {
+                                let constructName = (nameArg.value?.value as? String) ?? ""
+                                let item = PortItem(moduleName: fromModule, constructType: constructType, constructName: constructName)
+                                item.next = importList
+                                importList = item
+                                arg = nameArg.nextArg
+                            }
+                        }
+                    }
+                    cur = clause.nextArg
+                }
+                
+                // Crea il modulo
+                if let newModule = env.createDefmodule(name: moduleName, importList: importList, exportList: exportList) {
+                    // Imposta come modulo corrente
+                    _ = env.setCurrentModule(newModule)
+                    return .symbol(moduleName)
+                } else {
+                    return .boolean(false)
+                }
+            }
             if name == "deffacts" {
                 // Special form: non valutare come chiamata normale; salva i fatti
                 var cur = node.argList
