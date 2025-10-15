@@ -185,7 +185,7 @@ final class RuleEngineTests: XCTestCase {
         (defrule find-adult
           (person (name ?n) (age ?a&:(>= ?a 18)))
           =>
-          (printout t ?n " è maggiorenne" crlf))
+          (printout t ?n " e' maggiorenne" crlf))
         """)
         
         // 3. Assert facts
@@ -589,7 +589,7 @@ var env = CLIPS.createEnvironment()
 env.watchRete = true  // Abilita trace RETE
 
 // Esegui test case
-// Output mostrerà propagazione step-by-step
+// Output mostrera' propagazione step-by-step
 \end{lstlisting}
 
 \section{Regression Testing}
@@ -778,9 +778,9 @@ CLIPS.eval(expr: "(watch activations)")
 CLIPS.eval(expr: "(watch rete)")
 
 // Output:
-// ==> f-1 (person (nome "Mario") (età 25))
+// ==> f-1 (person (nome "Mario") (eta 25))
 // ==> Activation 0: find-adult (salience 0)
-// <== f-1 (person (nome "Mario") (età 25))
+// <== f-1 (person (nome "Mario") (eta 25))
 \end{lstlisting}
 
 \subsection{RETE Tracing}
@@ -863,7 +863,7 @@ XCTAssertEqual(result, 42)
 XCTAssertEqual(
     result,
     42,
-    "La regola dovrebbe generare esattamente 1 attivazione per il fatto (person (età 25))"
+    "La regola dovrebbe generare esattamente 1 attivazione per il fatto (person (eta 25))"
 )
 \end{lstlisting}
 

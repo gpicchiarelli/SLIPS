@@ -22,7 +22,7 @@ Pattern più specifici riducono il conflict set e migliorano performance.
 \textbf{Buon esempio}:
 \begin{lstlisting}[language=CLIPS]
 (defrule specifica
-  (persona (età ?e&:(>= ?e 18)) (città "Roma"))  ; Molto selettiva
+  (persona (eta ?e&:(>= ?e 18)) (citta "Roma"))  ; Molto selettiva
   =>
   ...)
 \end{lstlisting}

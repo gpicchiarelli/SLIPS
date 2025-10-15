@@ -252,13 +252,13 @@ Un \textit{pattern} è un'espressione che può contenere:
 
 \begin{esempio}[Pattern CLIPS]
 \begin{lstlisting}[language=CLIPS]
-(persona (nome ?n) (età ?e&:(>= ?e 18)))
+(persona (nome ?n) (eta ?e&:(>= ?e 18)))
 \end{lstlisting}
 
 Questo pattern matcha ogni fatto \texttt{persona} dove:
 \begin{itemize}
 \item \texttt{nome} viene legato alla variabile \texttt{?n}
-\item \texttt{età} viene legato a \texttt{?e}, con vincolo $\text{età} \geq 18$
+\item \texttt{eta} viene legato a \texttt{?e}, con vincolo $\text{eta} \geq 18$
 \end{itemize}
 \end{esempio}
 
