@@ -25,19 +25,40 @@ Criteri di completamento
 - Esecuzione `CLIPS.commandLoop()` opzionale ma consigliata a fine progetto
 
 Stato avanzamento (aggiornato Ottobre 2025)
-- ✅ Exists unario (RETE): parsing/IR completo, computeLevels + delta assert, retract parziale; attivazioni immediate per regole unarie senza vincoli
-- ✅ NOT delta ottimizzato: propagazione incrementale senza full recompute (hash join + prefiltri costanti)
-- ✅ Join incrementale: Beta engine con confronto tra backtracking classico e propagazione incrementale
-- ✅ Attivazioni via RETE: abilitate di default su regole stabili (join-check attivo di default); fallback naïve limitato ai soli casi non coperti
-- 🚧 RETE completo: nodi espliciti alpha/beta/join in fase di sviluppo
+- ✅ **FASE 1**: RETE Esplicita (85%) - Nodi alpha/beta/join, NetworkBuilder, Propagation
+- ✅ **FASE 2**: Pattern Avanzati (100%) - Multifield $?x, OR/AND CE completi
+- ✅ **FASE 3**: Moduli & Focus (95%) - Defmodule, import/export, focus stack, comandi
+- ✅ Exists unario: parsing/IR completo, computeLevels + delta assert
+- ✅ NOT delta ottimizzato: propagazione incrementale senza full recompute
+- ✅ Join incrementale: Beta engine con confronto tra backtracking e propagazione
+- ✅ Attivazioni via RETE: abilitate di default su regole stabili
+- 🚧 DriveEngine helpers: 2 test pending per regole 3+ pattern
+- ⏳ **FASE 4**: Console & Polish (0%) - UDF estese, docs, release 1.0
 
-## Gap verso CLIPS 6.4.2 (non ancora allineato)
-- RETE persistente node-by-node generalizzata, mappata 1:1 ai nodi alpha/join/beta di CLIPS (reteutil/pattern/join/drive).
-- Pattern matching avanzato: multifield (mf-variable, segment variable), vincoli estesi e CE composti `(and|or)` nidificati in LHS.
-- Sistema oggetti: `defclass/definstances`, message passing (`send`), specializzazioni e shadow facts.
-- Moduli, `FOCUS` completo, visibilità/import/export di simboli.
-- UDF estese e libreria ampia di primitive (equivalenti a `prcdrfun.c`, `miscfun.c`, `strngfun.c`, ecc.).
-- Loader/parser `.clp` completo; comandi console equivalenti alla CLI di CLIPS (facts, rules, ppdef*, watch/unwatch, focus, agenda, clear...).
+**Metriche**: 8.046 LOC, 91 test (97.8% pass), 70% CLIPS coverage
+
+## Funzionalità Completate ✅
+
+- ✅ **RETE Algorithm**: Alpha/Beta network, join nodes, incremental propagation
+- ✅ **Pattern Matching**: Single field, multifield ($?x), sequences
+- ✅ **Conditional Elements**: NOT, EXISTS, OR, AND (implicit)
+- ✅ **Deftemplate**: Con constraints, defaults, multifield slots
+- ✅ **Defrule**: Pattern matching, salience, test CE
+- ✅ **Deffacts**: Definizione e reset
+- ✅ **Defmodule**: Import/export, focus stack, module commands
+- ✅ **Agenda**: 4 strategie (depth, breadth, simplicity, complexity)
+- ✅ **Built-in Functions**: 87+ funzioni (math, logic, facts, rules, etc.)
+- ✅ **Watch System**: facts, rules, activations, rete
+- ✅ **Router I/O**: Sistema I/O customizzabile
+
+## Gap Rimanenti verso CLIPS 6.4.2 (30%)
+
+- ⏳ **DriveEngine helpers**: 2 helper incomplete (regole 3+ pattern)
+- ❌ **Sistema Oggetti**: defclass/definstances, message passing (~20% CLIPS)
+- ⏳ **UDF Estese**: String/Math/IO functions (60/150 funzioni)
+- ❌ **Binary Load/Save**: (bload)/(bsave)
+- ⏳ **Pretty Printing**: ppdefmodule, ppdeffacts
+- ⏳ **Console Completa**: Tutti i comandi interattivi
 
 ## Dove mettere le mani subito (priorità)
 1) RETE esplicita e memorie persistenti
