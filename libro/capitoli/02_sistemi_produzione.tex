@@ -273,17 +273,16 @@ Date due espressioni $e_1$ ed $e_2$, l'\textit{unificazione} è una sostituzione
 Se tale $\theta$ esiste, $e_1$ ed $e_2$ sono \textit{unificabili}.
 \end{definizione}
 
-\begin{algoritmo}[Unificazione di Robinson]
-L'algoritmo classico procede ricorsivamente:
+L'algoritmo classico di unificazione di Robinson procede ricorsivamente:
 
 \begin{algorithm}[H]
 \caption{Unify($e_1$, $e_2$, $\theta$)}
 \begin{algorithmic}[1]
 \If{$e_1 = e_2$}
     \State \Return $\theta$ \Comment{Identici}
-\ElsIf{$e_1$ è variabile}
+\ElsIf{$e_1$ e' variabile}
     \State \Return $\text{unify\_var}(e_1, e_2, \theta)$
-\ElsIf{$e_2$ è variabile}
+\ElsIf{$e_2$ e' variabile}
     \State \Return $\text{unify\_var}(e_2, e_1, \theta)$
 \ElsIf{$e_1 = f(a_1, \ldots, a_n)$ e $e_2 = g(b_1, \ldots, b_m)$}
     \If{$f \neq g$ o $n \neq m$}
@@ -302,7 +301,6 @@ L'algoritmo classico procede ricorsivamente:
 \EndIf
 \end{algorithmic}
 \end{algorithm}
-\end{algoritmo}
 
 \subsection{Multi-Pattern Matching}
 
