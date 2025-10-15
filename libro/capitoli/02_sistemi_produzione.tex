@@ -1,0 +1,694 @@
+% Capitolo 2: Sistemi a Produzione
+
+\chapter{Sistemi a Produzione}
+\label{cap:sistemi_produzione}
+
+\section{Introduzione ai Production Systems}
+
+Un \textit{sistema a produzione} (production system) è un modello computazionale per la rappresentazione e l'esecuzione della conoscenza basato su regole. Inventato da Allen Newell e Herbert Simon alla fine degli anni '50, rappresenta uno dei paradigmi fondamentali dell'intelligenza artificiale simbolica.
+
+\subsection{Definizione Formale}
+
+\begin{definizione}[Sistema a Produzione]
+Un sistema a produzione è una quadrupla $\mathcal{P} = \langle WM, PM, CS, \sigma \rangle$ dove:
+\begin{itemize}
+\item $WM$ (Working Memory) è l'insieme dei \textit{fatti} attualmente noti
+\item $PM$ (Production Memory) è l'insieme delle \textit{regole} di produzione
+\item $CS$ (Conflict Set) è l'insieme delle regole applicabili
+\item $\sigma$ (Conflict Resolution Strategy) è la strategia di selezione
+\end{itemize}
+\end{definizione}
+
+\subsubsection{Working Memory}
+
+La working memory $WM$ è un insieme dinamico di \textit{working memory elements} (WME):
+
+\begin{equation}
+WM = \{w_1, w_2, \ldots, w_m\}
+\end{equation}
+
+dove ogni $w_i$ è un fatto atomico della forma:
+
+\begin{equation}
+w_i = \text{predicato}(\text{arg}_1, \text{arg}_2, \ldots, \text{arg}_n)
+\end{equation}
+
+\begin{esempio}[Fatti in Working Memory]
+In un sistema di gestione universitaria:
+\begin{align*}
+w_1 &= \text{studente}(\text{id}: 12345, \text{nome}: \text{"Mario Rossi"}, \text{anno}: 3)\\
+w_2 &= \text{esame}(\text{studente}: 12345, \text{corso}: \text{"AI"}, \text{voto}: 28)\\
+w_3 &= \text{corso}(\text{nome}: \text{"AI"}, \text{crediti}: 9, \text{anno}: 3)
+\end{align*}
+\end{esempio}
+
+\subsubsection{Production Memory}
+
+La production memory $PM$ è un insieme statico di regole:
+
+\begin{equation}
+PM = \{r_1, r_2, \ldots, r_n\}
+\end{equation}
+
+Ogni regola $r_i$ ha la forma:
+
+\begin{equation}
+r_i: \text{LHS}_i \Rightarrow \text{RHS}_i
+\end{equation}
+
+dove:
+\begin{itemize}
+\item $\text{LHS}_i$ (Left-Hand Side) è la \textit{condizione} o \textit{pattern}
+\item $\text{RHS}_i$ (Right-Hand Side) è l'\textit{azione} da eseguire
+\end{itemize}
+
+\begin{esempio}[Regola di Produzione]
+Regola per assegnare la lode:
+\begin{equation*}
+\begin{split}
+\text{LHS}: &\quad \exists s \in WM: \text{studente}(s.\text{id}, s.\text{nome}, s.\text{anno})\\
+&\quad \land \exists e \in WM: \text{esame}(e.\text{studente} = s.\text{id}, e.\text{corso}, e.\text{voto} \geq 30)\\
+\text{RHS}: &\quad \text{assert}(\text{lode}(s.\text{id}, e.\text{corso}))
+\end{split}
+\end{equation*}
+\end{esempio}
+
+\subsection{Il Ciclo Recognize-Act}
+
+L'esecuzione di un sistema a produzione segue il \textit{ciclo recognize-act}:
+
+\begin{algorithm}[H]
+\caption{Ciclo Recognize-Act}
+\label{alg:recognize_act}
+\begin{algorithmic}[1]
+\Require Working Memory $WM$, Production Memory $PM$, Strategia $\sigma$
+\State $halt \gets \text{false}$
+\While{$\neg halt$}
+    \State $CS \gets \text{Match}(WM, PM)$ \Comment{Phase: Match}
+    \If{$CS = \emptyset$}
+        \State $halt \gets \text{true}$ \Comment{Nessuna regola applicabile}
+    \Else
+        \State $r^* \gets \sigma(CS)$ \Comment{Phase: Conflict Resolution}
+        \State $\text{Execute}(r^*.RHS)$ \Comment{Phase: Act}
+        \State $WM \gets \text{Update}(WM, r^*.RHS)$ \Comment{Modifica WM}
+    \EndIf
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Fase di Match}
+
+La fase di match determina il \textit{conflict set}:
+
+\begin{equation}
+CS = \{(r, \theta) \mid r \in PM \land \theta \text{ unifica } r.LHS \text{ con } WM\}
+\end{equation}
+
+dove $\theta$ è una \textit{sostituzione} (binding) che mappa variabili in $r.LHS$ a valori in $WM$.
+
+\begin{definizione}[Istanziazione]
+Un'istanziazione è una coppia $(r, \theta)$ dove:
+\begin{itemize}
+\item $r$ è una regola in $PM$
+\item $\theta: Var(r.LHS) \to Val(WM)$ è una sostituzione
+\item $\theta(r.LHS)$ è vero in $WM$
+\end{itemize}
+\end{definizione}
+
+\subsubsection{Fase di Conflict Resolution}
+
+La strategia $\sigma$ seleziona una singola istanziazione da $CS$:
+
+\begin{equation}
+\sigma: 2^{PM \times \Theta} \to PM \times \Theta
+\end{equation}
+
+Strategie comuni includono:
+
+\begin{enumerate}
+\item \textbf{Depth}: LIFO --- ultima regola matchata viene eseguita per prima
+\item \textbf{Breadth}: FIFO --- prima regola matchata viene eseguita per prima  
+\item \textbf{Simplicity}: preferisce regole con meno condizioni
+\item \textbf{Complexity}: preferisce regole con più condizioni
+\item \textbf{LEX}: (Least Recently Activated) ordina per novità dei fatti
+\item \textbf{MEA}: (Most Recently Activated) preferisce fatti nuovi
+\end{enumerate}
+
+\subsubsection{Fase di Act}
+
+L'esecuzione del RHS può:
+
+\begin{itemize}
+\item \textbf{Asserire} nuovi fatti: $WM \gets WM \cup \{w_{\text{new}}\}$
+\item \textbf{Ritrarre} fatti esistenti: $WM \gets WM \setminus \{w_{\text{old}}\}$
+\item \textbf{Modificare} fatti: combinazione di retract e assert
+\item \textbf{Eseguire} side effects (I/O, chiamate funzioni)
+\end{itemize}
+
+\section{Semantica Formale}
+
+\subsection{Stati e Transizioni}
+
+Formalizziamo la semantica operazionale come sistema di transizioni:
+
+\begin{definizione}[Stato del Sistema]
+Uno stato è una coppia $s = (WM, A)$ dove:
+\begin{itemize}
+\item $WM$ è la working memory corrente
+\item $A$ è l'agenda (insieme ordinato di istanziazioni attive)
+\end{itemize}
+\end{definizione}
+
+\begin{definizione}[Relazione di Transizione]
+La relazione $\to \subseteq S \times S$ definisce le transizioni:
+\begin{equation}
+(WM, A) \xrightarrow{r, \theta} (WM', A')
+\end{equation}
+significa che eseguendo l'istanziazione $(r, \theta)$ si passa da stato $(WM, A)$ a $(WM', A')$.
+\end{definizione}
+
+\subsection{Regole di Inferenza}
+
+Definiamo le regole che governano le transizioni:
+
+\paragraph{Regola MATCH}
+
+\begin{equation}
+\frac{
+  r \in PM \quad \theta \vDash r.LHS[WM] \quad (r, \theta) \notin A
+}{
+  (WM, A) \to (WM, A \cup \{(r, \theta)\})
+}
+\end{equation}
+
+Significato: se una regola $r$ matcha con sostituzione $\theta$ e non è già nell'agenda, viene aggiunta.
+
+\paragraph{Regola FIRE}
+
+\begin{equation}
+\frac{
+  (r, \theta) = \max_\sigma A \quad WM' = \text{exec}(r.RHS, \theta, WM)
+}{
+  (WM, A) \to (WM', A \setminus \{(r, \theta)\})
+}
+\end{equation}
+
+Significato: l'istanziazione con priorità massima secondo $\sigma$ viene eseguita, modificando $WM$ e venendo rimossa da $A$.
+
+\paragraph{Regola RETRACT}
+
+\begin{equation}
+\frac{
+  w \in WM \quad A' = \{(r, \theta) \in A \mid w \notin \text{support}(r, \theta)\}
+}{
+  (WM \setminus \{w\}, A) \to (WM \setminus \{w\}, A')
+}
+\end{equation}
+
+Significato: ritrarre un fatto $w$ rimuove dall'agenda tutte le istanziazioni che dipendevano da $w$.
+
+\subsection{Terminazione e Correttezza}
+
+\begin{teorema}[Terminazione]
+Un sistema a produzione termina se e solo se esiste un $k \in \mathbb{N}$ tale che dopo $k$ passi:
+\begin{equation}
+\text{Match}(WM_k, PM) = \emptyset
+\end{equation}
+\end{teorema}
+
+\begin{proof}
+($\Rightarrow$) Se il sistema termina, per definizione nessuna regola è applicabile nell'ultimo stato.
+
+($\Leftarrow$) Se $CS = \emptyset$, l'algoritmo \ref{alg:recognize_act} imposta $halt = \text{true}$ e termina.
+\end{proof}
+
+\begin{warningbox}[Non Determinismo]
+In generale, sistemi a produzione possono essere \textbf{non-deterministici}: l'ordine di esecuzione dipende dalla strategia $\sigma$ e può influenzare il risultato finale.
+\end{warningbox}
+
+\begin{teorema}[Confluenza]
+Un sistema a produzione è \textit{confluente} se per ogni coppia di esecuzioni $e_1, e_2$ partendo dallo stesso stato iniziale:
+\begin{equation}
+e_1(s_0) = WM_1 \land e_2(s_0) = WM_2 \Rightarrow WM_1 = WM_2
+\end{equation}
+\end{teorema}
+
+\begin{osservazione}
+La confluenza è una proprietà desiderabile ma NON garantita in generale. CLIPS offre meccanismi (salience, strategie) per controllare il comportamento.
+\end{osservazione}
+
+\section{Pattern Matching e Unificazione}
+
+\subsection{Pattern e Template}
+
+Un \textit{pattern} è un'espressione che può contenere:
+
+\begin{itemize}
+\item \textbf{Costanti}: valori fissi che devono matchare esattamente
+\item \textbf{Variabili}: simboli che vengono legati (bound) a valori
+\item \textbf{Wildcard}: segnaposto che matchano qualsiasi valore
+\item \textbf{Predicati}: test condizionali sui valori
+\end{itemize}
+
+\begin{esempio}[Pattern CLIPS]
+\begin{lstlisting}[language=CLIPS]
+(persona (nome ?n) (età ?e&:(>= ?e 18)))
+\end{lstlisting}
+
+Questo pattern matcha ogni fatto \texttt{persona} dove:
+\begin{itemize}
+\item \texttt{nome} viene legato alla variabile \texttt{?n}
+\item \texttt{età} viene legato a \texttt{?e}, con vincolo $\text{età} \geq 18$
+\end{itemize}
+\end{esempio}
+
+\subsection{Unificazione}
+
+\begin{definizione}[Unificazione]
+Date due espressioni $e_1$ ed $e_2$, l'\textit{unificazione} è una sostituzione $\theta$ tale che:
+\begin{equation}
+\theta(e_1) = \theta(e_2)
+\end{equation}
+
+Se tale $\theta$ esiste, $e_1$ ed $e_2$ sono \textit{unificabili}.
+\end{definizione}
+
+\begin{algoritmo}[Unificazione di Robinson]
+L'algoritmo classico procede ricorsivamente:
+
+\begin{algorithm}[H]
+\caption{Unify($e_1$, $e_2$, $\theta$)}
+\begin{algorithmic}[1]
+\If{$e_1 = e_2$}
+    \State \Return $\theta$ \Comment{Identici}
+\ElsIf{$e_1$ è variabile}
+    \State \Return $\text{unify\_var}(e_1, e_2, \theta)$
+\ElsIf{$e_2$ è variabile}
+    \State \Return $\text{unify\_var}(e_2, e_1, \theta)$
+\ElsIf{$e_1 = f(a_1, \ldots, a_n)$ e $e_2 = g(b_1, \ldots, b_m)$}
+    \If{$f \neq g$ o $n \neq m$}
+        \State \Return $\bot$ \Comment{Fallimento}
+    \Else
+        \For{$i = 1$ to $n$}
+            \State $\theta \gets \text{Unify}(a_i, b_i, \theta)$
+            \If{$\theta = \bot$}
+                \State \Return $\bot$
+            \EndIf
+        \EndFor
+        \State \Return $\theta$
+    \EndIf
+\Else
+    \State \Return $\bot$ \Comment{Tipo incompatibile}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+\end{algoritmo}
+
+\subsection{Multi-Pattern Matching}
+
+Una regola con $k$ condizioni richiede match simultaneo:
+
+\begin{equation}
+\text{LHS} = C_1 \land C_2 \land \cdots \land C_k
+\end{equation}
+
+dove ogni $C_i$ è un pattern. Una sostituzione $\theta$ soddisfa LHS se:
+
+\begin{equation}
+\forall i \in [1, k]: \exists w \in WM: \theta(C_i) = w
+\end{equation}
+
+\begin{osservazione}[Complessità Naïve]
+Enumerare tutte le possibili combinazioni richiede:
+\begin{equation}
+O\left(\binom{|WM|}{k}\right) = O\left(\frac{|WM|^k}{k!}\right) \approx O(|WM|^k)
+\end{equation}
+confronti. Con $|WM| = 10000$ e $k = 5$, otteniamo $10^{20}$ operazioni!
+\end{osservazione}
+
+\section{Controllo del Flusso}
+
+\subsection{Forward Chaining}
+
+CLIPS implementa \textit{forward chaining} (data-driven):
+
+\begin{equation}
+\text{Fatti} + \text{Regole} \xRightarrow{\text{inferenza}} \text{Nuovi Fatti}
+\end{equation}
+
+Il processo parte dai dati osservati e applica regole per derivare conclusioni.
+
+\begin{esempio}[Forward Chaining]
+Dato:
+\begin{itemize}
+\item Fatto: "Piove"
+\item Regola: "Se piove $\Rightarrow$ la strada è bagnata"
+\end{itemize}
+
+Il sistema inferisce: "La strada è bagnata"
+\end{esempio}
+
+\subsection{Backward Chaining (Cenni)}
+
+Per completezza, menzioniamo il \textit{backward chaining} (goal-driven):
+
+\begin{equation}
+\text{Goal} + \text{Regole} \xRightarrow{\text{ricerca}} \text{Fatti Necessari}
+\end{equation}
+
+CLIPS non implementa backward chaining nativamente, ma può essere simulato.
+
+\subsection{Refraction}
+
+\begin{definizione}[Refraction]
+Una regola già eseguita con un dato binding $\theta$ non viene rieseguita con lo stesso $\theta$ finché i fatti che la supportano non cambiano.
+\end{definizione}
+
+Implementazione:
+\begin{equation}
+\text{fired} = \{(r, \theta) \mid (r, \theta) \text{ è stata eseguita}\}
+\end{equation}
+
+\begin{equation}
+CS' = CS \setminus \text{fired}
+\end{equation}
+
+\section{Salience e Priorità}
+
+\subsection{Definizione di Salience}
+
+In CLIPS, ogni regola ha una \textit{salience} (salienza):
+
+\begin{equation}
+\text{salience}: PM \to \mathbb{Z}
+\end{equation}
+
+dove valori più alti indicano priorità maggiore.
+
+\begin{esempio}[Dichiarazione Salience]
+\begin{lstlisting}[language=CLIPS]
+(defrule regola-urgente
+  (declare (salience 100))
+  (condizione-critica ?x)
+  =>
+  (azione-immediata ?x))
+\end{lstlisting}
+\end{esempio}
+
+\subsection{Ordinamento nell'Agenda}
+
+L'agenda ordina le istanziazioni secondo:
+
+\begin{equation}
+(r_1, \theta_1) \prec_A (r_2, \theta_2) \Leftrightarrow 
+\begin{cases}
+\text{salience}(r_1) > \text{salience}(r_2) & \text{o}\\
+\text{salience}(r_1) = \text{salience}(r_2) \land \sigma((r_1, \theta_1), (r_2, \theta_2)) & 
+\end{cases}
+\end{equation}
+
+dove $\sigma$ è la strategia di conflict resolution.
+
+\section{Conditional Elements}
+
+\subsection{NOT Conditional Element}
+
+Il CE \texttt{not} implementa negazione per assenza:
+
+\begin{equation}
+\text{not}(P) \text{ è vero in } WM \Leftrightarrow \nexists w \in WM: w \text{ matcha } P
+\end{equation}
+
+\begin{esempio}[Uso di NOT]
+\begin{lstlisting}[language=CLIPS]
+(defrule nessun-esame-superato
+  (studente (id ?s))
+  (not (esame (studente ?s) (voto ?v&:(>= ?v 18))))
+  =>
+  (printout t "Studente " ?s " non ha superato esami" crlf))
+\end{lstlisting}
+\end{esempio}
+
+\subsection{EXISTS Conditional Element}
+
+Il CE \texttt{exists} implementa quantificatore esistenziale:
+
+\begin{equation}
+\text{exists}(P) \text{ è vero in } WM \Leftrightarrow \exists w \in WM: w \text{ matcha } P
+\end{equation}
+
+\textbf{Differenza con pattern normale}: \texttt{exists} non introduce binding, verifica solo l'esistenza.
+
+\subsection{OR Conditional Element}
+
+Il CE \texttt{or} implementa disgiunzione:
+
+\begin{equation}
+\text{or}(P_1, P_2, \ldots, P_n) \Leftrightarrow P_1 \lor P_2 \lor \cdots \lor P_n
+\end{equation}
+
+CLIPS espande \texttt{or} in regole multiple (una per branch):
+
+\begin{esempio}[Espansione OR]
+\begin{lstlisting}[language=CLIPS]
+(defrule check
+  (or (tipo-A (id ?x))
+      (tipo-B (id ?x)))
+  (altro (id ?x))
+  =>
+  (azione ?x))
+\end{lstlisting}
+
+Viene espanso in:
+\begin{lstlisting}[language=CLIPS]
+(defrule check-A
+  (tipo-A (id ?x))
+  (altro (id ?x))
+  =>
+  (azione ?x))
+
+(defrule check-B
+  (tipo-B (id ?x))
+  (altro (id ?x))
+  =>
+  (azione ?x))
+\end{lstlisting}
+\end{esempio}
+
+\section{Vantaggi e Svantaggi}
+
+\subsection{Vantaggi dei Production Systems}
+
+\begin{enumerate}
+\item \textbf{Modularità}
+\begin{itemize}
+\item Regole indipendenti e componibili
+\item Facile aggiungere/rimuovere conoscenza
+\item Manutenzione incrementale
+\end{itemize}
+
+\item \textbf{Trasparenza}
+\begin{itemize}
+\item Regole leggibili da esperti del dominio
+\item Spiegazione del ragionamento (trace)
+\item Debugging facilitato
+\end{itemize}
+
+\item \textbf{Separazione Conoscenza-Controllo}
+\begin{itemize}
+\item Conoscenza: nelle regole (dichiarativo)
+\item Controllo: nel motore (procedurale)
+\item Modifica senza riprogrammazione
+\end{itemize}
+
+\item \textbf{Scalabilità (con RETE)}
+\begin{itemize}
+\item Match incrementale efficiente
+\item Gestione di grandi basi di conoscenza
+\item Performance prevedibili
+\end{itemize}
+\end{enumerate}
+
+\subsection{Svantaggi e Limiti}
+
+\begin{enumerate}
+\item \textbf{Problema del Match}
+\begin{itemize}
+\item Complessità intrinseca elevata
+\item Richiede ottimizzazioni sofisticate (RETE)
+\item Consumo di memoria per nodi intermedi
+\end{itemize}
+
+\item \textbf{Opacità del Controllo}
+\begin{itemize}
+\item Difficile predire ordine di esecuzione
+\item Debugging complesso per interazioni regole
+\item Possibile non-determinismo
+\end{itemize}
+
+\item \textbf{Rappresentazione Limitata}
+\begin{itemize}
+\item Difficoltà con conoscenza probabilistica
+\item Mancanza di apprendimento automatico
+\item Incertezza gestita in modo ad-hoc
+\end{itemize}
+
+\item \textbf{Knowledge Acquisition Bottleneck}
+\begin{itemize}
+\item Estrazione conoscenza da esperti è costosa
+\item Validazione e testing complessi
+\item Manutenzione nel tempo
+\end{itemize}
+\end{enumerate}
+
+\section{Confronto con Altri Paradigmi}
+
+\subsection{Production Systems vs Sistemi Procedurali}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Aspetto} & \textbf{Production System} & \textbf{Procedurale} \\
+\midrule
+Controllo & Data-driven & Control-flow esplicito \\
+Modularità & Alta (regole indipendenti) & Bassa (chiamate funzioni) \\
+Ordine & Determinato da engine & Determinato da programmatore \\
+Manutenibilità & Alta (regole isolate) & Media (dipendenze) \\
+Performance & Variabile (dipende da RETE) & Prevedibile \\
+Debugging & Complesso (emergent behavior) & Diretto (stack trace) \\
+\bottomrule
+\end{tabular}
+\caption{Confronto Production Systems vs Programmazione Procedurale}
+\label{tab:prod_vs_proc}
+\end{table}
+
+\subsection{Production Systems vs Sistemi Logici (Prolog)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Aspetto} & \textbf{CLIPS} & \textbf{Prolog} \\
+\midrule
+Paradigma & Forward chaining & Backward chaining \\
+Controllo & Data-driven & Goal-driven \\
+Matching & RETE (ottimizzato) & Unificazione (naïve) \\
+Backtracking & No & Sì (automatico) \\
+Modifiche WM & Esplicite (assert/retract) & Implicite (fail) \\
+Persistenza & Fatti persistono & Backtrack annulla \\
+\bottomrule
+\end{tabular}
+\caption{Confronto CLIPS vs Prolog}
+\label{tab:clips_vs_prolog}
+\end{table}
+
+\section{Domini Applicativi}
+
+I sistemi a produzione sono particolarmente adatti per:
+
+\subsection{Configurazione e Pianificazione}
+
+\begin{itemize}
+\item Configurazione di sistemi complessi (hardware, software)
+\item Pianificazione di azioni (robotica, logistica)
+\item Scheduling di risorse limitate
+\end{itemize}
+
+\textbf{Esempio}: XCON/R1 (Digital Equipment) configurava sistemi VAX con migliaia di componenti. Risparmi stimati: \$40M/anno negli anni '80.
+
+\subsection{Diagnosi e Troubleshooting}
+
+\begin{itemize}
+\item Diagnosi medica (MYCIN, Internist)
+\item Diagnosi guasti in sistemi tecnici
+\item Analisi cause-radice (root cause analysis)
+\end{itemize}
+
+\subsection{Monitoraggio e Controllo}
+
+\begin{itemize}
+\item Monitoraggio processi industriali
+\item Sistemi di allarme intelligenti
+\item Controllo qualità in produzione
+\end{itemize}
+
+\subsection{Business Rules}
+
+\begin{itemize}
+\item Validazione transazioni finanziarie
+\item Approvazione workflow
+\item Compliance e audit
+\item Pricing dinamico
+\end{itemize}
+
+\section{Evoluzione Storica}
+
+\subsection{Timeline}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Anno} & \textbf{Milestone} \\
+\midrule
+1956 & Logic Theorist (Newell \& Simon) - primo sistema a regole \\
+1972 & MYCIN (Stanford) - sistema esperto medico \\
+1979 & Algoritmo RETE (Forgy) - breakthrough performance \\
+1981 & OPS5 - primo sistema RETE pubblico \\
+1984 & CLIPS - NASA inizia sviluppo \\
+1985 & CLIPS 1.0 - prima release pubblica \\
+1991 & CLIPS 5.0 - aggiunta orientazione a oggetti \\
+2002 & CLIPS 6.2 - stabilizzazione architettura \\
+2017 & CLIPS 6.4 - ultima major release \\
+2025 & SLIPS 1.0 - traduzione Swift \\
+\bottomrule
+\end{tabular}
+\caption{Timeline evoluzione sistemi a produzione}
+\label{tab:timeline}
+\end{table}
+
+\subsection{Declino e Rinascita}
+
+Dopo l'entusiasmo degli anni '80, i sistemi esperti subirono un declino ("AI winter") per:
+\begin{itemize}
+\item Aspettative non realistiche
+\item Limiti nella rappresentazione di incertezza
+\item Costi elevati di sviluppo e manutenzione
+\item Avvento di machine learning
+\end{itemize}
+
+Tuttavia, nel XXI secolo si assiste a una rinascita come:
+\begin{itemize}
+\item \textbf{Business Rules Engines}: per compliance e governance
+\item \textbf{Complex Event Processing}: in sistemi real-time
+\item \textbf{Hybrid Systems}: combinati con ML per spiegabilità
+\item \textbf{Sistemi Critici}: dove trasparenza e verificabilità sono essenziali
+\end{itemize}
+
+\section{Conclusioni del Capitolo}
+
+In questo capitolo abbiamo:
+
+\begin{itemize}
+\item Definito formalmente i sistemi a produzione
+\item Introdotto il ciclo recognize-act
+\item Presentato pattern matching e unificazione
+\item Analizzato il problema della complessità
+\item Contestualizzato storicamente CLIPS e SLIPS
+\end{itemize}
+
+Nel prossimo capitolo approfondiremo i fondamenti logici necessari per comprendere la semantica formale dei sistemi a regole.
+
+\vspace{1cm}
+
+\begin{successbox}[Punti Chiave]
+\begin{itemize}
+\item I production systems separano conoscenza (regole) e controllo (engine)
+\item Il pattern matching ha complessità $O(n \cdot m^k)$ naïve
+\item L'algoritmo RETE riduce a $O(n \cdot m)$ con tecniche incrementali
+\item CLIPS è lo standard de facto, SLIPS ne offre versione type-safe in Swift
+\end{itemize}
+\end{successbox}
+

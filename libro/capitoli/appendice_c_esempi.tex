@@ -1,0 +1,46 @@
+% Appendice C: Esempi Completi
+
+\chapter{Esempi Completi e Casi di Studio}
+\label{app:esempi}
+
+\section{Esempio 1: Sistema di Raccomandazioni}
+
+\begin{lstlisting}[language=CLIPS]
+;; Template
+(deftemplate utente
+  (slot id (type INTEGER))
+  (slot nome (type STRING))
+  (multislot interessi))
+
+(deftemplate prodotto
+  (slot id (type INTEGER))
+  (slot nome (type STRING))
+  (slot categoria)
+  (slot prezzo (type FLOAT)))
+
+(deftemplate raccomandazione
+  (slot utente-id)
+  (slot prodotto-id)
+  (slot score (type FLOAT)))
+
+;; Regole
+(defrule raccomanda-per-interesse
+  (utente (id ?uid) (interessi $? ?cat $?))
+  (prodotto (id ?pid) (categoria ?cat) (prezzo ?p&:(< ?p 100)))
+  =>
+  (assert (raccomandazione 
+    (utente-id ?uid)
+    (prodotto-id ?pid)
+    (score 0.8))))
+
+;; Uso
+(assert (utente (id 1) (nome "Mario") (interessi sport tecnologia)))
+(assert (prodotto (id 101) (nome "Laptop") (categoria tecnologia) (prezzo 899.00)))
+(run)
+\end{lstlisting}
+
+\section{Esempio 2: Workflow Approval}
+
+\textit{Vedere sorgenti online per esempi estesi.}
+\end{lstlisting}
+

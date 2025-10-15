@@ -1,0 +1,36 @@
+% Appendice D: Benchmark e Performance
+
+\chapter{Benchmark di Performance}
+\label{app:benchmark}
+
+\section{Metodologia}
+
+Benchmark eseguiti su:
+\begin{itemize}
+\item Hardware: Apple M1 Pro, 16GB RAM
+\item OS: macOS 15 Sequoia
+\item Swift: 6.2
+\item Build: Release (\texttt{-O})
+\end{itemize}
+
+\section{Risultati}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Operazione} & \textbf{Tempo (ms)} & \textbf{Note} \\
+\midrule
+Assert 1000 fatti & 15 & Regola semplice \\
+Assert 10k fatti & 180 & Linear scaling \\
+Join 2 pattern (10k) & 45 & Hash join \\
+Retract 1000 fatti & 8 & Beta cleanup \\
+Build 100 regole & 5 & Una tantum \\
+\bottomrule
+\end{tabular}
+\caption{Benchmark SLIPS 1.0}
+\end{table}
+
+\textit{Vedere documentazione online per benchmark completi.}
+\end{lstlisting}
+

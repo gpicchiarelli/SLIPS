@@ -1,0 +1,405 @@
+% SLIPS - Swift Language Implementation of Production Systems
+% Libro Accademico - Versione 1.0
+% Copyright (c) 2025 - Creative Commons BY-SA 4.0
+
+\documentclass[12pt,a4paper,twoside,openright]{book}
+
+% Pacchetti essenziali
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% Layout e geometria
+\usepackage[a4paper,top=3cm,bottom=3cm,left=3.5cm,right=2.5cm,headheight=15pt]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% Matematica
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+
+% Figure e grafica
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc,trees,graphs}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Codice sorgente
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Definizione colori
+\definecolor{swiftKeyword}{RGB}{170,13,145}
+\definecolor{swiftString}{RGB}{196,26,22}
+\definecolor{swiftComment}{RGB}{87,166,74}
+\definecolor{swiftNumber}{RGB}{28,0,207}
+\definecolor{cKeyword}{RGB}{0,0,255}
+\definecolor{codeBackground}{RGB}{248,248,248}
+
+% Configurazione Swift
+\lstdefinelanguage{Swift}{
+  keywords={class,struct,enum,func,var,let,if,else,switch,case,return,public,private,internal,static,final,override,protocol,extension,import,guard,for,while,repeat,try,catch,throw,throws,inout,mutating,self,init,deinit,nil,true,false,where,in,is,as,async,await},
+  keywordstyle=\color{swiftKeyword}\bfseries,
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{swiftComment}\itshape,
+  stringstyle=\color{swiftString},
+  string=[b]",
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  showstringspaces=false,
+  breaklines=true,
+  frame=lines,
+  backgroundcolor=\color{codeBackground},
+  basicstyle=\small\ttfamily,
+  captionpos=b
+}
+
+% Configurazione C
+\lstdefinelanguage{C}{
+  keywords={auto,break,case,char,const,continue,default,do,double,else,enum,extern,float,for,goto,if,int,long,register,return,short,signed,sizeof,static,struct,switch,typedef,union,unsigned,void,volatile,while},
+  keywordstyle=\color{cKeyword}\bfseries,
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{swiftComment}\itshape,
+  stringstyle=\color{swiftString},
+  string=[b]",
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  showstringspaces=false,
+  breaklines=true,
+  frame=lines,
+  backgroundcolor=\color{codeBackground},
+  basicstyle=\small\ttfamily,
+  captionpos=b
+}
+
+% Configurazione CLIPS
+\lstdefinelanguage{CLIPS}{
+  morekeywords={defrule,deftemplate,deffacts,defmodule,assert,retract,printout,bind,if,then,else,while,and,or,not,exists,test,declare,salience,import,export,focus},
+  keywordstyle=\color{swiftKeyword}\bfseries,
+  sensitive=false,
+  comment=[l]{;},
+  commentstyle=\color{swiftComment}\itshape,
+  stringstyle=\color{swiftString},
+  string=[b]",
+  showstringspaces=false,
+  breaklines=true,
+  frame=lines,
+  backgroundcolor=\color{codeBackground},
+  basicstyle=\small\ttfamily,
+  captionpos=b
+}
+
+\lstset{language=Swift}
+
+% Tabelle
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% Collegamenti
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+
+% Bibliografia
+\usepackage[style=alphabetic,backend=biber]{biblatex}
+\addbibresource{bibliografia.bib}
+
+% Indice analitico
+\usepackage{makeidx}
+\makeindex
+
+% Intestazioni personalizzate
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE]{\nouppercase{\leftmark}}
+\fancyhead[RO]{\nouppercase{\rightmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Teoremi e definizioni
+\theoremstyle{definition}
+\newtheorem{definizione}{Definizione}[chapter]
+\newtheorem{teorema}{Teorema}[chapter]
+\newtheorem{proposizione}{Proposizione}[chapter]
+\newtheorem{lemma}{Lemma}[chapter]
+\newtheorem{corollario}{Corollario}[chapter]
+
+\theoremstyle{remark}
+\newtheorem{osservazione}{Osservazione}[chapter]
+\newtheorem{esempio}{Esempio}[chapter]
+\newtheorem{nota}{Nota}[chapter]
+
+% Algoritmi
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+% Box colorati
+\usepackage[most]{tcolorbox}
+\newtcolorbox{infobox}[1][]{
+  colback=blue!5!white,
+  colframe=blue!75!black,
+  fonttitle=\bfseries,
+  title=#1
+}
+
+\newtcolorbox{warningbox}[1][]{
+  colback=orange!5!white,
+  colframe=orange!75!black,
+  fonttitle=\bfseries,
+  title=#1
+}
+
+\newtcolorbox{successbox}[1][]{
+  colback=green!5!white,
+  colframe=green!75!black,
+  fonttitle=\bfseries,
+  title=#1
+}
+
+% Metadati
+\title{%
+  {\Huge\textbf{SLIPS}}\\[0.5cm]
+  {\Large Swift Language Implementation of Production Systems}\\[1cm]
+  {\large Teoria, Implementazione e Guida Tecnica}\\[0.5cm]
+  {\large Un Sistema Esperto Moderno in Swift}
+}
+\author{Contributori SLIPS}
+\date{Ottobre 2025 --- Versione 1.0}
+
+% Informazioni PDF
+\hypersetup{
+  pdftitle={SLIPS - Swift Language Implementation of Production Systems},
+  pdfauthor={Contributori SLIPS},
+  pdfsubject={Sistemi Esperti, Algoritmo RETE, Swift Programming},
+  pdfkeywords={SLIPS, CLIPS, Swift, Expert Systems, Production Systems, RETE Algorithm}
+}
+
+\begin{document}
+
+% Frontespizio
+\frontmatter
+\maketitle
+
+% Pagina copyright
+\cleardoublepage
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+\begin{minipage}{0.8\textwidth}
+\small
+
+\textbf{SLIPS --- Swift Language Implementation of Production Systems}
+
+Teoria, Implementazione e Guida Tecnica
+
+\bigskip
+
+Copyright \copyright\ 2025 Contributori SLIPS
+
+\bigskip
+
+\textbf{Licenza Creative Commons BY-SA 4.0}
+
+Quest'opera è distribuita con Licenza Creative Commons Attribuzione - Condividi allo stesso modo 4.0 Internazionale.
+
+Per leggere una copia della licenza visita:\\
+\url{http://creativecommons.org/licenses/by-sa/4.0/}
+
+\bigskip
+
+\textbf{Codice Sorgente}
+
+Il codice sorgente di SLIPS è disponibile su GitHub:\\
+\url{https://github.com/gpicchiarelli/SLIPS}
+
+Licenza del codice: MIT License
+
+\bigskip
+
+\textbf{Riferimenti}
+
+Basato su CLIPS (C Language Integrated Production System) versione 6.4.2\\
+Sviluppato originariamente dalla NASA\\
+\url{https://www.clipsrules.net/}
+
+\bigskip
+
+Prima edizione: Ottobre 2025
+
+\end{minipage}
+\end{center}
+\vspace*{\fill}
+
+% Dedica
+\cleardoublepage
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+\textit{A tutti coloro che credono che la conoscenza debba essere libera,\\
+condivisa e accessibile a tutti.}
+
+\bigskip
+
+\textit{Ai pionieri dell'intelligenza artificiale simbolica\\
+che hanno gettato le fondamenta su cui costruiamo oggi.}
+\end{center}
+\vspace*{\fill}
+
+% Prefazione
+\chapter*{Prefazione}
+\addcontentsline{toc}{chapter}{Prefazione}
+
+Questo libro nasce dall'ambizioso progetto di tradurre integralmente il motore di produzione CLIPS (C Language Integrated Production System), sviluppato dalla NASA negli anni '80, nel moderno linguaggio Swift 6.2. Non si tratta di una semplice wrapper o binding, ma di una traduzione semantica fedele, file per file, che preserva la logica e gli algoritmi originali adattandoli ai paradigmi di programmazione sicura e moderna del XXI secolo.
+
+SLIPS (Swift Language Implementation of Production Systems) rappresenta più di un semplice port tecnologico: è un ponte tra due ere dell'informatica. Da un lato, la robustezza e l'efficienza dei sistemi esperti degli anni '80, dall'altro le garanzie di sicurezza della memoria e type safety delle tecnologie contemporanee.
+
+\section*{Perché questo libro}
+
+Esistono numerosi testi sui sistemi esperti e su CLIPS in particolare, ma manca una risorsa che unisca:
+
+\begin{itemize}
+\item La teoria formale dei sistemi a produzione
+\item L'algoritmo RETE nella sua completezza matematica
+\item Un'implementazione moderna e commentata
+\item Una guida pratica all'uso e all'estensione
+\item Best practices per lo sviluppo di sistemi esperti
+\end{itemize}
+
+Questo volume colma tale lacuna fornendo una trattazione completa che va dalla teoria formale all'implementazione pratica, passando per decisioni architetturali, ottimizzazioni e pattern di progettazione.
+
+\section*{A chi si rivolge}
+
+Il libro è pensato per:
+
+\begin{itemize}
+\item \textbf{Studenti} di informatica interessati all'intelligenza artificiale simbolica
+\item \textbf{Ricercatori} che lavorano con sistemi a regole e ragionamento automatico
+\item \textbf{Sviluppatori} Swift che desiderano comprendere sistemi complessi
+\item \textbf{Ingegneri} che devono tradurre codice legacy in linguaggi moderni
+\item \textbf{Architetti software} interessati a pattern di sistemi esperti
+\end{itemize}
+
+\section*{Struttura del libro}
+
+Il volume è organizzato in cinque parti:
+
+\textbf{Parte I: Fondamenti Teorici} introduce i sistemi a produzione, la logica proposizionale e del primo ordine, e i fondamenti matematici necessari.
+
+\textbf{Parte II: L'Algoritmo RETE} presenta in dettaglio l'algoritmo di pattern matching inventato da Charles Forgy, con analisi della complessità e dimostrazione di correttezza.
+
+\textbf{Parte III: Architettura di CLIPS} analizza il design originale del motore C, le strutture dati, e le decisioni implementative.
+
+\textbf{Parte IV: Implementazione SLIPS} descrive la traduzione in Swift, le scelte architetturali, i pattern utilizzati e le ottimizzazioni.
+
+\textbf{Parte V: Sviluppo e Manutenzione} fornisce guide pratiche per estendere SLIPS, aggiungere funzionalità, e contribuire al progetto.
+
+\section*{Convenzioni utilizzate}
+
+Nel corso del testo:
+\begin{itemize}
+\item Il codice C è mostrato in \texttt{font monospaziato blu}
+\item Il codice Swift è mostrato in \texttt{font monospaziato viola}
+\item Le formule matematiche seguono la notazione standard
+\item I concetti chiave sono evidenziati in \textbf{grassetto}
+\item Le definizioni formali sono in box dedicati
+\end{itemize}
+
+\section*{Ringraziamenti}
+
+Si ringraziano:
+\begin{itemize}
+\item Gary Riley e il team della NASA per CLIPS
+\item La comunità Swift per gli strumenti eccellenti
+\item Tutti i contributori al progetto SLIPS
+\item I revisori di questo volume
+\end{itemize}
+
+\vspace{1cm}
+\begin{flushright}
+I Contributori SLIPS\\
+Ottobre 2025
+\end{flushright}
+
+\tableofcontents
+\listoffigures
+\listoftables
+\lstlistoflistings
+
+% Corpo del testo
+\mainmatter
+
+% PARTE I: FONDAMENTI TEORICI
+\part{Fondamenti Teorici dei Sistemi a Produzione}
+
+\input{capitoli/01_introduzione}
+\input{capitoli/02_sistemi_produzione}
+\input{capitoli/03_logica_formale}
+\input{capitoli/04_rappresentazione_conoscenza}
+
+% PARTE II: L'ALGORITMO RETE
+\part{L'Algoritmo RETE: Teoria e Analisi}
+
+\input{capitoli/05_pattern_matching}
+\input{capitoli/06_rete_introduzione}
+\input{capitoli/07_rete_alpha}
+\input{capitoli/08_rete_beta}
+\input{capitoli/09_rete_complessita}
+\input{capitoli/10_rete_ottimizzazioni}
+
+% PARTE III: ARCHITETTURA CLIPS
+\part{CLIPS: Architettura e Design}
+
+\input{capitoli/11_clips_overview}
+\input{capitoli/12_clips_strutture}
+\input{capitoli/13_clips_memoria}
+\input{capitoli/14_clips_agenda}
+\input{capitoli/15_clips_moduli}
+
+% PARTE IV: IMPLEMENTAZIONE SLIPS
+\part{SLIPS: Traduzione in Swift}
+
+\input{capitoli/16_slips_architettura}
+\input{capitoli/17_slips_core}
+\input{capitoli/18_slips_rete}
+\input{capitoli/19_slips_agenda}
+\input{capitoli/20_slips_moduli}
+\input{capitoli/21_slips_pattern_matching}
+\input{capitoli/22_slips_testing}
+
+% PARTE V: SVILUPPO E MANUTENZIONE
+\part{Guida allo Sviluppo}
+
+\input{capitoli/23_estendere_slips}
+\input{capitoli/24_best_practices}
+\input{capitoli/25_performance}
+\input{capitoli/26_debugging}
+\input{capitoli/27_futuro}
+
+% Appendici
+\appendix
+\input{capitoli/appendice_a_api}
+\input{capitoli/appendice_b_builtin}
+\input{capitoli/appendice_c_esempi}
+\input{capitoli/appendice_d_benchmark}
+
+% Bibliografia e indice
+\backmatter
+\printbibliography[heading=bibintoc]
+\printindex
+
+\end{document}
+

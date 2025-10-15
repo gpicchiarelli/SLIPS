@@ -1,0 +1,648 @@
+% Capitolo 24: Best Practices
+
+\chapter{Best Practices per Sviluppo con SLIPS}
+\label{cap:best_practices}
+
+\section{Progettazione di Regole Efficienti}
+
+\subsection{Principio della Specificità}
+
+\begin{infobox}[Regola d'Oro]
+Pattern più specifici riducono il conflict set e migliorano performance.
+\end{infobox}
+
+\textbf{Cattivo esempio}:
+\begin{lstlisting}[language=CLIPS]
+(defrule troppo-generica
+  (persona)  ; Matcha TUTTE le persone!
+  =>
+  ...)
+\end{lstlisting}
+
+\textbf{Buon esempio}:
+\begin{lstlisting}[language=CLIPS]
+(defrule specifica
+  (persona (età ?e&:(>= ?e 18)) (città "Roma"))  ; Molto selettiva
+  =>
+  ...)
+\end{lstlisting}
+
+\subsection{Ordinamento Pattern}
+
+\textbf{Euristica}: Pattern più selettivi prima.
+
+\begin{lstlisting}[language=CLIPS]
+; BAD: pattern generico prima
+(defrule bad-order
+  (persona (nome ?n))           ; 10000 match
+  (vip (nome ?n))               ; 10 match
+  =>
+  ...)
+
+; GOOD: pattern selettivo prima
+(defrule good-order
+  (vip (nome ?n))               ; 10 match
+  (persona (nome ?n))           ; Ridotto a 10 check
+  =>
+  ...)
+\end{lstlisting}
+
+\textbf{Risparmio}: da $10000 \times 10 = 100k$ a $10 \times 1 = 10$ confronti!
+
+\subsection{Uso delle Costanti}
+
+Costanti nei pattern attivano ottimizzazioni RETE:
+
+\begin{lstlisting}[language=CLIPS]
+; Senza costanti: alpha node generale
+(defrule generic
+  (item (type ?t) (value ?v))
+  =>
+  ...)
+
+; Con costanti: alpha node specializzato
+(defrule specific
+  (item (type "premium") (value ?v&:(> ?v 1000)))
+  =>
+  ...)
+\end{lstlisting}
+
+Alpha node con costanti può usare hash index per match $O(1)$.
+
+\section{Gestione della Working Memory}
+
+\subsection{Minimizzare Fatti Ridondanti}
+
+\textbf{Problema}: WM cresce senza controllo.
+
+\begin{lstlisting}[language=CLIPS]
+; BAD: accumula fatti
+(defrule process-item
+  (item ?i)
+  =>
+  (assert (processed ?i))
+  (assert (timestamp (now)))   ; Nuovo fatto ogni volta!
+  ...)
+\end{lstlisting}
+
+\textbf{Soluzione}: Retract fatti temporanei.
+
+\begin{lstlisting}[language=CLIPS]
+; GOOD: pulizia esplicita
+(defrule process-item
+  ?f <- (item ?i)
+  =>
+  (retract ?f)                  ; Rimuovi item processato
+  (assert (processed ?i))
+  ...)
+\end{lstlisting}
+
+\subsection{Fact Temporal Validity}
+
+Per fatti temporanei, usa pattern:
+
+\begin{lstlisting}[language=CLIPS]
+(deftemplate event
+  (slot type)
+  (slot data)
+  (slot timestamp)
+  (slot ttl (default 100)))  ; Time-to-live
+
+(defrule expire-events
+  ?e <- (event (timestamp ?ts) (ttl ?ttl))
+  (test (> (- (now) ?ts) ?ttl))
+  =>
+  (retract ?e))
+\end{lstlisting}
+
+\section{Modularizzazione e Riuso}
+
+\subsection{Design Pattern: Utility Modules}
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule STRING-UTILS
+  (export deffunction starts-with)
+  (export deffunction ends-with)
+  (export deffunction contains))
+
+(deffunction starts-with (?str ?prefix)
+  (eq (sub-string 1 (str-length ?prefix) ?str) ?prefix))
+
+(deffunction ends-with (?str ?suffix)
+  (bind ?len (str-length ?str))
+  (bind ?slen (str-length ?suffix))
+  (eq (sub-string (- ?len ?slen -1) ?len ?str) ?suffix))
+
+;; Altri moduli importano
+(defmodule VALIDATION
+  (import STRING-UTILS deffunction starts-with))
+\end{lstlisting}
+
+\subsection{Design Pattern: Pipeline}
+
+Moduli organizzati in pipeline:
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule INPUT-PROCESSING
+  (export deftemplate cleaned-data))
+
+(defmodule VALIDATION
+  (import INPUT-PROCESSING deftemplate cleaned-data)
+  (export deftemplate validated-data))
+
+(defmodule ENRICHMENT
+  (import VALIDATION deftemplate validated-data)
+  (export deftemplate enriched-data))
+
+(defmodule OUTPUT
+  (import ENRICHMENT deftemplate enriched-data))
+
+; Main orchestra il flusso
+(defmodule MAIN)
+(defrule start
+  =>
+  (focus INPUT-PROCESSING VALIDATION ENRICHMENT OUTPUT))
+\end{lstlisting}
+
+\section{Performance Optimization}
+
+\subsection{Profiling-Guided Optimization}
+
+\begin{enumerate}
+\item \textbf{Measure}: Usa Instruments per identificare bottleneck
+\item \textbf{Analyze}: Determina causa (algoritmo? struttura dati?)
+\item \textbf{Optimize}: Intervento mirato
+\item \textbf{Verify}: Conferma miglioramento senza breaking changes
+\end{enumerate}
+
+\subsection{Common Hotspots}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Hotspot} & \textbf{Causa} & \textbf{Fix} \\
+\midrule
+Join operations & Pattern generici & Aggiungi costanti/constraints \\
+Alpha matching & Linear scan fatti & Hash indexing (già implementato) \\
+Beta memory growth & Join produttivo & Limita prodotto cartesiano \\
+Agenda operations & Troppi tie & Usa salience \\
+\bottomrule
+\end{tabular}
+\caption{Hotspot comuni e soluzioni}
+\label{tab:hotspots}
+\end{table}
+
+\subsection{Salience Strategy}
+
+Usa salience per controllo esplicito:
+
+\begin{lstlisting}[language=CLIPS]
+; Alta priorità: cleanup urgente
+(defrule cleanup-critical-error
+  (declare (salience 1000))
+  (error (severity critical))
+  =>
+  (halt))
+
+; Priorità normale: processing
+(defrule process-data
+  (declare (salience 0))
+  (data ?d)
+  =>
+  ...)
+
+; Bassa priorità: logging
+(defrule log-completion
+  (declare (salience -1000))
+  (all-done)
+  =>
+  (printout t "Completato" crlf))
+\end{lstlisting}
+
+\section{Memory Management}
+
+\subsection{Evitare Memory Leaks}
+
+In Swift con ARC, leaks tipicamente da:
+
+\begin{enumerate}
+\item \textbf{Reference Cycles}
+
+\begin{lstlisting}[language=Swift]
+// BAD: ciclo forte
+class Node {
+    var parent: Node?  // Strong reference
+    var children: [Node] = []  // Strong references
+}
+
+// GOOD: weak parent
+class Node {
+    weak var parent: Node?  // Weak!
+    var children: [Node] = []
+}
+\end{lstlisting}
+
+\item \textbf{Closures Capturing Self}
+
+\begin{lstlisting}[language=Swift]
+// BAD: self captured strongly
+class Handler {
+    var callback: (() -> Void)?
+    
+    func setup() {
+        callback = {
+            self.doSomething()  // Strong capture!
+        }
+    }
+}
+
+// GOOD: weak self
+func setup() {
+    callback = { [weak self] in
+        self?.doSomething()
+    }
+}
+\end{lstlisting}
+\end{enumerate}
+
+\subsection{Monitoring con Instruments}
+
+Usa \textbf{Leaks} instrument:
+
+\begin{enumerate}
+\item Run con Instruments
+\item Esegui operazioni (assert/retract ciclo)
+\item Verifica che memoria rimane costante
+\item Indaga picchi o crescita continua
+\end{enumerate}
+
+\section{Code Style e Convenzioni}
+
+\subsection{Swift Style Guide}
+
+Seguiamo convenzioni Swift standard:
+
+\begin{lstlisting}[language=Swift]
+// Naming: camelCase per funzioni/variabili
+func evaluateExpression(_ env: inout Environment, _ node: ExpressionNode) -> Value
+
+// Naming: PascalCase per tipi
+class AlphaNodeClass: ReteNode
+
+// Indentazione: 4 spazi
+func example() {
+    if condition {
+        doSomething()
+    }
+}
+
+// Line length: < 120 caratteri (soft limit)
+// Function length: < 50 linee (soft limit)
+
+// Access control esplicito
+public func publicAPI()
+internal func internalHelper()
+private func implementationDetail()
+\end{lstlisting}
+
+\subsection{Documentazione Inline}
+
+\begin{lstlisting}[language=Swift]
+/// Propaga assert di un fatto attraverso la rete RETE
+///
+/// Questa funzione implementa la logica di NetworkAssert da drive.c (CLIPS).
+/// Quando un fatto viene asserito, viene propagato attraverso alpha nodes
+/// che matchano il pattern, generando token che fluiscono attraverso
+/// join nodes fino ai production nodes.
+///
+/// - Parameters:
+///   - fact: Il fatto da propagare
+///   - env: Environment (modificato in-place)
+///
+/// - Complexity: O(α × j × β) dove:
+///   - α = numero alpha nodes matchanti
+///   - j = numero join per alpha
+///   - β = dimensione beta memory
+///
+/// - SeeAlso: NetworkRetract per operazione inversa
+/// - Note: Riferimento C: drive.c linee 450-520
+public static func propagateAssert(
+    fact: Environment.FactRec,
+    env: inout Environment
+) {
+    // Implementazione...
+}
+\end{lstlisting}
+
+\section{Error Handling}
+
+\subsection{Swift Error Model}
+
+\begin{lstlisting}[language=Swift]
+enum EvaluationError: Error {
+    case typeError(String)
+    case unboundVariable(String)
+    case divisionByZero
+    case templateNotFound(String)
+    case constraintViolation(String)
+}
+
+func divide(_ a: Value, _ b: Value) throws -> Value {
+    let x = try asDouble(a)
+    let y = try asDouble(b)
+    
+    guard y != 0 else {
+        throw EvaluationError.divisionByZero
+    }
+    
+    return .float(x / y)
+}
+\end{lstlisting}
+
+\subsection{Graceful Degradation}
+
+Per funzioni built-in, preferire:
+
+\begin{lstlisting}[language=Swift]
+// Invece di crash:
+func builtin_sqrt(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard args.count == 1 else {
+        print("[ERROR] sqrt requires exactly 1 argument")
+        return .none  // Graceful failure
+    }
+    
+    guard case .float(let x) = args[0], x >= 0 else {
+        print("[ERROR] sqrt requires non-negative number")
+        return .none
+    }
+    
+    return .float(sqrt(x))
+}
+\end{lstlisting}
+
+\section{Contribuire a SLIPS}
+
+\subsection{Workflow per Contributor}
+
+\begin{enumerate}
+\item \textbf{Fork} repository
+\item \textbf{Clone} localmente
+\item \textbf{Branch} per feature: \texttt{git checkout -b feature/my-feature}
+\item \textbf{Implementa} con test
+\item \textbf{Commit} con messaggi descrittivi
+\item \textbf{Push} e apri Pull Request
+\item \textbf{Code Review}
+\item \textbf{Merge} dopo approvazione
+\end{enumerate}
+
+\subsection{Commit Message Convention}
+
+Seguiamo Conventional Commits:
+
+\begin{verbatim}
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+\end{verbatim}
+
+\textbf{Types}:
+\begin{itemize}
+\item \texttt{feat}: Nuova funzionalità
+\item \texttt{fix}: Bug fix
+\item \texttt{docs}: Documentazione
+\item \texttt{test}: Aggiunta test
+\item \texttt{refactor}: Refactoring
+\item \texttt{perf}: Performance improvement
+\end{itemize}
+
+\textbf{Esempio}:
+\begin{verbatim}
+feat(modules): implementa sistema completo di moduli CLIPS
+
+Fase 3 completata (95%):
+
+- Defmodule parsing con import/export
+- Focus stack LIFO
+- 5 comandi builtin: focus, get/set-current-module, list-defmodules
+- 22 test (100% pass)
+
+Riferimenti CLIPS C:
+- moduldef.h/c → Modules.swift
+- modulbsc.c → functions.swift
+
+Closes #123
+\end{verbatim}
+
+\section{Code Review Checklist}
+
+Prima di PR, verifica:
+
+\begin{itemize}
+\item[$\square$] Build passa senza warning
+\item[$\square$] Tutti i test passano (inclusi i nuovi)
+\item[$\square$] Coverage non diminuisce
+\item[$\square$] Documentazione aggiornata
+\item[$\square$] Riferimenti a file C originali presenti
+\item[$\square$] No force unwrap in codice pubblico
+\item[$\square$] Error handling appropriato
+\item[$\square$] Performance accettabili
+\item[$\square$] Commit messages descrittivi
+\item[$\square$] AGENTS.md rispettato
+\end{itemize}
+
+\section{Antipattern da Evitare}
+
+\subsection{Force Unwrap in Production Code}
+
+\begin{lstlisting}[language=Swift]
+// BAD: crash se nil
+let module = env.findDefmodule(name: moduleName)!
+
+// GOOD: gestione esplicita
+guard let module = env.findDefmodule(name: moduleName) else {
+    print("[ERROR] Module \(moduleName) not found")
+    return .boolean(false)
+}
+\end{lstlisting}
+
+\subsection{Premature Optimization}
+
+\begin{warningbox}[Knuth's Law]
+"Premature optimization is the root of all evil" --- Donald Knuth
+\end{warningbox}
+
+Workflow corretto:
+\begin{enumerate}
+\item Implementa correttamente (equivalenza con CLIPS)
+\item Misura performance (profiler)
+\item Identifica bottleneck reali
+\item Ottimizza dove necessario
+\item Verifica miglioramento
+\end{enumerate}
+
+\subsection{God Objects}
+
+\texttt{Environment} è intenzionalmente God Object per compatibilità C, ma:
+
+\begin{itemize}
+\item Non aggiungere responsabilità non-essenziali
+\item Usa extension per organizzare logicamente
+\item Considera refactor se cresce > 150 campi
+\end{itemize}
+
+\section{Sicurezza e Robustezza}
+
+\subsection{Input Validation}
+
+\begin{lstlisting}[language=Swift]
+func builtin_assert(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    // 1. Valida numero argomenti
+    guard args.count >= 1 else {
+        print("[ERROR] assert requires at least 1 argument")
+        return .int(-1)
+    }
+    
+    // 2. Valida tipo argomenti
+    guard case .symbol(let templateName) = args[0] else {
+        print("[ERROR] assert first argument must be template name")
+        return .int(-1)
+    }
+    
+    // 3. Valida template exists
+    guard env.templates[templateName] != nil else {
+        print("[ERROR] Template \(templateName) not defined")
+        return .int(-1)
+    }
+    
+    // 4. Valida constraints
+    // ...
+    
+    // 5. Esegui operazione
+    let factID = createFact(template: templateName, slots: slots, env: &env)
+    return .int(Int64(factID))
+}
+\end{lstlisting}
+
+\subsection{Defensive Programming}
+
+\begin{lstlisting}[language=Swift]
+func join(leftToken: BetaToken, rightFact: FactRec) -> BetaToken? {
+    // Precondizioni
+    precondition(!leftToken.usedFacts.isEmpty, "Token deve contenere almeno 1 fatto")
+    precondition(rightFact.id > 0, "Fact ID deve essere positivo")
+    
+    // Verifica no duplicati
+    guard !leftToken.usedFacts.contains(rightFact.id) else {
+        return nil  // Fact già usato in questo token
+    }
+    
+    // Verifica consistenza join keys
+    for key in joinKeys {
+        guard let leftValue = leftToken.bindings[key],
+              let rightValue = rightFact.slots[key] else {
+            continue
+        }
+        
+        guard leftValue == rightValue else {
+            return nil  // Inconsistente
+        }
+    }
+    
+    // Crea nuovo token
+    // ... postcondizioni
+    return newToken
+}
+\end{lstlisting}
+
+\section{Documentazione}
+
+\subsection{Inline Documentation}
+
+Ogni file public deve avere:
+
+\begin{lstlisting}[language=Swift]
+// File header
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
+import Foundation
+
+// MARK: - Module Name
+// Traduzione fedele da <file.c>, <file.h> (CLIPS 6.4.2)
+// Riferimenti C:
+// - FunctionName (file.c linee 123-145)
+// - StructName (file.h linee 67-89)
+
+/// Brief description of module
+///
+/// Longer description explaining purpose, usage, and relationship
+/// with CLIPS C implementation.
+///
+/// Example:
+/// ```swift
+/// var env = Environment()
+/// let result = SomeFunction(&env, param)
+/// ```
+///
+/// - SeeAlso: RelatedModule.swift
+/// - Note: Port of file.c from CLIPS 6.4.2
+\end{lstlisting}
+
+\subsection{README e Guide}
+
+Ogni modulo significativo ha README:
+
+```
+Sources/SLIPS/Rete/README.md
+
+# RETE Engine
+
+Implementazione algoritmo RETE per pattern matching efficiente.
+
+## Files
+
+- AlphaNetwork.swift: Alpha nodes (pattern filtering)
+- BetaEngine.swift: Beta network (join operations)
+- DriveEngine.swift: Propagation (assert/retract)
+- Nodes.swift: Explicit node classes
+- NetworkBuilder.swift: Network construction
+
+## References
+
+CLIPS C files:
+- drive.c: Network propagation
+- reteutil.c: RETE utilities
+- pattern.c: Pattern nodes
+- network.c: Network structures
+
+## Usage
+
+See ReteTests.swift for examples.
+```
+
+\section{Conclusioni del Capitolo}
+
+Best practices fondamentali:
+
+\begin{enumerate}
+\item \textbf{Testing}: TDD, alta coverage, proprietà verificate
+\item \textbf{Performance}: Profiling-guided, pattern specifici
+\item \textbf{Safety}: No force unwrap, validation input, error handling
+\item \textbf{Style}: Convenzioni Swift, documentazione inline
+\item \textbf{Workflow}: Git flow, code review, CI/CD
+\end{enumerate}
+
+\begin{successbox}[Quality Standards]
+Aderendo a queste best practices, SLIPS mantiene qualità production-ready con:
+\begin{itemize}
+\item 97.8\% test pass rate
+\item Zero unsafe code pubblico
+\item Build sempre clean
+\item Documentazione completa
+\end{itemize}
+\end{successbox}
+
