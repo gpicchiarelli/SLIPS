@@ -547,9 +547,9 @@ w_3 &= \text{persona}(\text{nome}: \text{"Carol"}, \text{hobby}: \text{"golf"})
 \item $\alpha_2.\text{memory} = \{w_1, w_2, w_3\}$
 \item Join $J$ combina:
    \begin{itemize}
-   \item $w_1$ con $w_2$: $\theta_1 = \{?n1 \mapsto \text{"Alice"}, ?n2 \mapsto \text{"Bob"}, ?h \mapsto \text{"tennis"}\}$ ✓
-   \item $w_1$ con $w_3$: hobby diversi ✗
-   \item $w_2$ con $w_1$: $\theta_2 = \{?n1 \mapsto \text{"Bob"}, ?n2 \mapsto \text{"Alice"}, ?h \mapsto \text{"tennis"}\}$ ✓
+   \item $w_1$ con $w_2$: $\theta_1 = \{?n1 \mapsto \text{"Alice"}, ?n2 \mapsto \text{"Bob"}, ?h \mapsto \text{"tennis"}\}$ $\checkmark$
+   \item $w_1$ con $w_3$: hobby diversi $\times$
+   \item $w_2$ con $w_1$: $\theta_2 = \{?n1 \mapsto \text{"Bob"}, ?n2 \mapsto \text{"Alice"}, ?h \mapsto \text{"tennis"}\}$ $\checkmark$
    \item Altri: falliscono per test $?n2 \neq ?n1$ o hobby diversi
    \end{itemize}
 \item $\beta.\text{memory} = \{\langle w_1, w_2 \rangle, \langle w_2, w_1 \rangle\}$
@@ -563,10 +563,10 @@ w_3 &= \text{persona}(\text{nome}: \text{"Carol"}, \text{hobby}: \text{"golf"})
 \item $\alpha_2.\text{memory} \gets \alpha_2.\text{memory} \cup \{w_4\}$
 \item Join propaga solo combinazioni con $w_4$:
    \begin{itemize}
-   \item $w_4$ con $w_1$: ✓
-   \item $w_4$ con $w_2$: ✓
-   \item $w_1$ con $w_4$: ✓
-   \item $w_2$ con $w_4$: ✓
+   \item $w_4$ con $w_1$: $\checkmark$
+   \item $w_4$ con $w_2$: $\checkmark$
+   \item $w_1$ con $w_4$: $\checkmark$
+   \item $w_2$ con $w_4$: $\checkmark$
    \end{itemize}
 \item $\beta.\text{memory}$ cresce da 2 a 6 token
 \item Agenda: +4 nuove istanziazioni
