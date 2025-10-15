@@ -433,7 +433,7 @@ Un token $\tau$ ha associato un environment di binding $\theta_\tau$:
 \begin{esempio}[Binding Consistency]
 Pattern:
 \begin{lstlisting}[language=CLIPS]
-(persona (nome ?n) (età ?e))
+(persona (nome ?n) (eta ?e))
 (esame (studente ?n) (voto ?v))
 \end{lstlisting}
 
@@ -582,13 +582,13 @@ Pattern identici condividono lo stesso alpha node:
 
 \begin{lstlisting}[language=CLIPS]
 (defrule r1
-  (persona (età ?e))
+  (persona (eta ?e))
   ...
   =>
   ...)
 
 (defrule r2
-  (persona (età ?e))
+  (persona (eta ?e))
   ...
   =>
   ...)
