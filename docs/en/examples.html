@@ -214,6 +214,81 @@ CLIPS.eval(expr: "(unwatch facts)")
 CLIPS.eval(expr: "(unwatch rules)")</code></pre>
             </section>
 
+            <section id="template-functions">
+                <h2>Template Functions 🆕</h2>
+                <h3>Modify and Duplicate</h3>
+                <pre><code>// Define template
+CLIPS.eval(expr: """
+(deftemplate person
+    (slot name)
+    (slot age)
+    (slot city))
+""")
+
+// Create fact
+CLIPS.eval(expr: "(assert (person (name \"John\") (age 30) (city \"Rome\")))")
+// ==> f-1
+
+// Modify existing fact
+CLIPS.eval(expr: "(modify 1 (age 31) (city \"Milan\"))")
+// ==> f-2 (new fact with modifications)
+
+// Duplicate with modifications
+CLIPS.eval(expr: "(duplicate 1 (name \"Jane\"))")
+// ==> f-3 (Jane, 31, Milan)</code></pre>
+
+                <h3>Introspection</h3>
+                <pre><code>// List all slots of a template
+CLIPS.eval(expr: "(deftemplate-slot-names person)")
+// Output: (create$ name age city)
+
+// Check if a slot is multifield
+CLIPS.eval(expr: "(deftemplate-slot-multip person name)")
+// Output: FALSE
+
+// Check slot existence
+CLIPS.eval(expr: "(deftemplate-slot-existp person salary)")
+// Output: FALSE</code></pre>
+            </section>
+
+            <section id="modules-examples">
+                <h2>Modules and Focus 🆕</h2>
+                <pre><code>// Define modules
+CLIPS.eval(expr: """
+(defmodule BILLING
+    (export ?ALL))
+
+(defmodule SHIPPING
+    (export ?ALL))
+
+(defmodule MAIN
+    (import BILLING ?ALL)
+    (import SHIPPING ?ALL))
+""")
+
+// Define rules in different modules
+CLIPS.eval(expr: """
+(defmodule BILLING)
+(defrule calculate-total
+    (declare (salience 10))
+    (order (amount ?a))
+    =>
+    (printout t "Total: $" ?a crlf))
+
+(defmodule SHIPPING)
+(defrule prepare-shipment
+    (order (id ?id))
+    =>
+    (printout t "Preparing shipment for order " ?id crlf))
+""")
+
+// Set focus to control execution order
+CLIPS.eval(expr: "(focus BILLING SHIPPING)")
+
+// Run will execute BILLING first, then SHIPPING
+CLIPS.run(limit: nil)</code></pre>
+            </section>
+
             <section id="advanced">
                 <h2>Advanced Patterns</h2>
                 <h3>Complex Predicate Tests</h3>

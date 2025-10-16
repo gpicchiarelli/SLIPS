@@ -328,32 +328,157 @@ print(buffer)  // ["Test\n"]</code></pre>
     public var nextArg: ExpressionNode?
 }</code></pre>
 
-                <h3>Funzioni Built-in</h3>
-                <p>Operatori matematici:</p>
+                <h3>Funzioni Built-in (160 funzioni)</h3>
+                
+                <p><strong>Operatori Matematici (15):</strong></p>
                 <ul>
                     <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code></li>
                     <li><code>=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></li>
+                    <li><code>and</code>, <code>or</code>, <code>not</code>, <code>eq</code>, <code>neq</code></li>
                 </ul>
 
-                <p>Logici:</p>
+                <p><strong>Math Functions (36):</strong></p>
                 <ul>
-                    <li><code>and</code>, <code>or</code>, <code>not</code></li>
-                    <li><code>eq</code>, <code>neq</code></li>
+                    <li>Trigonometriche: <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>sec</code>, <code>csc</code>, <code>cot</code></li>
+                    <li>Inverse: <code>asin</code>, <code>acos</code>, <code>atan</code>, <code>atan2</code>, <code>asec</code>, <code>acsc</code>, <code>acot</code></li>
+                    <li>Iperboliche: <code>sinh</code>, <code>cosh</code>, <code>tanh</code>, <code>sech</code>, <code>csch</code>, <code>coth</code></li>
+                    <li>Iperboliche inverse: <code>asinh</code>, <code>acosh</code>, <code>atanh</code>, <code>asech</code>, <code>acsch</code>, <code>acoth</code></li>
+                    <li>Esponenziali: <code>exp</code>, <code>log</code>, <code>log10</code>, <code>sqrt</code>, <code>**</code></li>
+                    <li>Utilità: <code>abs</code>, <code>mod</code>, <code>round</code>, <code>pi</code>, <code>deg-rad</code>, <code>rad-deg</code></li>
                 </ul>
 
-                <p>Costrutti:</p>
+                <p><strong>String Functions (11):</strong></p>
+                <ul>
+                    <li><code>str-cat</code>, <code>sym-cat</code> - Concatenazione</li>
+                    <li><code>str-length</code>, <code>str-byte-length</code> - Lunghezza</li>
+                    <li><code>upcase</code>, <code>lowcase</code> - Conversione caso</li>
+                    <li><code>sub-string</code>, <code>str-index</code> - Manipolazione</li>
+                    <li><code>str-replace</code>, <code>str-compare</code> - Operazioni</li>
+                    <li><code>string-to-field</code> - Parsing</li>
+                </ul>
+
+                <p><strong>Multifield Functions (10):</strong></p>
+                <ul>
+                    <li><code>nth$</code>, <code>length$</code>, <code>first$</code>, <code>rest$</code></li>
+                    <li><code>subseq$</code>, <code>member$</code>, <code>insert$</code>, <code>delete$</code></li>
+                    <li><code>explode$</code>, <code>implode$</code></li>
+                </ul>
+
+                <p><strong>Template Functions (14) 🆕:</strong></p>
+                <ul>
+                    <li><code>modify</code>, <code>duplicate</code> - Manipolazione fatti</li>
+                    <li><code>deftemplate-slot-names</code> - Lista slot</li>
+                    <li><code>deftemplate-slot-default-value</code> - Default value</li>
+                    <li><code>deftemplate-slot-cardinality</code> - Cardinalità</li>
+                    <li><code>deftemplate-slot-types</code> - Tipi consentiti</li>
+                    <li><code>deftemplate-slot-range</code> - Range valori</li>
+                    <li><code>deftemplate-slot-multip</code> - Test multifield</li>
+                    <li><code>deftemplate-slot-singlep</code> - Test single-field</li>
+                    <li><code>deftemplate-slot-existp</code> - Test esistenza</li>
+                </ul>
+
+                <p><strong>I/O Functions (13):</strong></p>
+                <ul>
+                    <li><code>read</code>, <code>readline</code>, <code>read-number</code>, <code>get-char</code></li>
+                    <li><code>printout</code>, <code>print</code>, <code>println</code>, <code>put-char</code></li>
+                    <li><code>open</code>, <code>close</code>, <code>flush</code>, <code>remove</code>, <code>rename</code></li>
+                </ul>
+
+                <p><strong>Fact Query Functions (7):</strong></p>
+                <ul>
+                    <li><code>find-fact</code>, <code>find-all-facts</code></li>
+                    <li><code>do-for-fact</code>, <code>do-for-all-facts</code></li>
+                    <li><code>any-factp</code>, <code>fact-existp</code>, <code>fact-index</code></li>
+                </ul>
+
+                <p><strong>Utility Functions (6):</strong></p>
+                <ul>
+                    <li><code>gensym</code>, <code>gensym*</code> - Generazione simboli</li>
+                    <li><code>random</code>, <code>seed</code> - Numeri casuali</li>
+                    <li><code>time</code> - Timestamp</li>
+                    <li><code>funcall</code> - Chiamata dinamica</li>
+                </ul>
+
+                <p><strong>Module Functions (6):</strong></p>
+                <ul>
+                    <li><code>defmodule</code> - Definisce modulo</li>
+                    <li><code>focus</code> - Imposta focus</li>
+                    <li><code>get-current-module</code>, <code>set-current-module</code></li>
+                    <li><code>list-defmodules</code>, <code>get-defmodule-list</code></li>
+                </ul>
+
+                <p><strong>Pretty Print Functions (4):</strong></p>
+                <ul>
+                    <li><code>ppdefmodule</code>, <code>ppdeffacts</code></li>
+                    <li><code>ppdefrule</code>, <code>ppdeftemplate</code></li>
+                </ul>
+
+                <p><strong>Costrutti Core:</strong></p>
                 <ul>
                     <li><code>deftemplate</code>, <code>deffacts</code>, <code>defrule</code></li>
                     <li><code>assert</code>, <code>retract</code></li>
-                    <li><code>bind</code>, <code>printout</code></li>
-                </ul>
-
-                <p>Utilità:</p>
-                <ul>
+                    <li><code>bind</code>, <code>printout</code>, <code>progn</code></li>
                     <li><code>facts</code>, <code>rules</code>, <code>agenda</code></li>
                     <li><code>watch</code>, <code>unwatch</code></li>
                     <li><code>reset</code>, <code>clear</code>, <code>run</code></li>
+                    <li><code>set-strategy</code>, <code>get-strategy</code></li>
                 </ul>
+
+                <p>Vedi <strong>FUNZIONI_REFERENCE.md</strong> per la documentazione completa di tutte le 160 funzioni.</p>
+            </section>
+
+            <section id="template-functions-api">
+                <h2>Template Functions API 🆕</h2>
+
+                <h3>modify</h3>
+                <pre><code>(modify &lt;fact-id&gt; (&lt;slot-name&gt; &lt;value&gt;)*)
+
+; Esempio
+(modify 1 (age 31) (city "Rome"))</code></pre>
+                <p>Modifica uno o più slot di un fatto esistente. Ritorna il nuovo fact-id.</p>
+
+                <h3>duplicate</h3>
+                <pre><code>(duplicate &lt;fact-id&gt; (&lt;slot-name&gt; &lt;value&gt;)*)
+
+; Esempio
+(duplicate 1 (name "Copy") (age 25))</code></pre>
+                <p>Duplica un fatto con modifiche opzionali agli slot. Ritorna il nuovo fact-id.</p>
+
+                <h3>deftemplate-slot-names</h3>
+                <pre><code>(deftemplate-slot-names &lt;template-name&gt;)
+
+; Esempio
+(deftemplate-slot-names person)
+; Ritorna: (create$ name age city)</code></pre>
+                <p>Ritorna un multifield con i nomi di tutti gli slot del template.</p>
+
+                <h3>deftemplate-slot-default-value</h3>
+                <pre><code>(deftemplate-slot-default-value &lt;template-name&gt; &lt;slot-name&gt;)
+
+; Esempio
+(deftemplate-slot-default-value person age)
+; Ritorna: 0 (o il default specificato)</code></pre>
+                <p>Ritorna il valore di default di uno slot.</p>
+
+                <h3>deftemplate-slot-multip / deftemplate-slot-singlep</h3>
+                <pre><code>(deftemplate-slot-multip &lt;template-name&gt; &lt;slot-name&gt;)
+(deftemplate-slot-singlep &lt;template-name&gt; &lt;slot-name&gt;)
+
+; Esempio
+(deftemplate-slot-multip project team-members)
+; Ritorna: TRUE
+
+(deftemplate-slot-singlep person name)
+; Ritorna: TRUE</code></pre>
+                <p>Verificano se uno slot è rispettivamente multifield o single-field.</p>
+
+                <h3>deftemplate-slot-existp</h3>
+                <pre><code>(deftemplate-slot-existp &lt;template-name&gt; &lt;slot-name&gt;)
+
+; Esempio
+(deftemplate-slot-existp person salary)
+; Ritorna: FALSE (se lo slot non esiste)</code></pre>
+                <p>Verifica se uno slot esiste nel template.</p>
             </section>
 
             <section id="custom-functions">

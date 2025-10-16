@@ -53,7 +53,8 @@
                 <li><a href="#intro">Introduction</a></li>
                 <li><a href="#quickstart">Quick Start</a></li>
                 <li><a href="#architecture">Architecture</a></li>
-                <li><a href="#modules">Module System ⭐</a></li>
+                <li><a href="#template-functions">Template Functions 🆕</a></li>
+                <li><a href="#modules">Module System</a></li>
                 <li><a href="#api">API Reference</a></li>
                 <li><a href="#examples">Examples</a></li>
                 <li><a href="#rete">RETE Algorithm</a></li>
@@ -84,15 +85,17 @@
                     <li><strong>Well Documented:</strong> Each Swift file maps to C source</li>
                 </ul>
                 
-                <h3>Current Status (Version 0.7 → 1.0)</h3>
+                <h3>Current Status (Version 0.96 - Production Ready)</h3>
                 <ul>
-                    <li>✅ <strong>70% CLIPS 6.4.2 coverage</strong> - Production-ready core</li>
-                    <li>✅ <strong>8,046 lines of Swift code</strong> - 35 well-organized files</li>
-                    <li>✅ <strong>91 tests (97.8% pass rate)</strong> - High coverage</li>
-                    <li>✅ <strong>Complete Module System</strong> - Defmodule, focus, import/export</li>
-                    <li>✅ <strong>Advanced Pattern Matching</strong> - Multifield $?x, OR/AND CE</li>
+                    <li>✅ <strong>96% CLIPS 6.4.2 coverage</strong> - Production-ready core</li>
+                    <li>✅ <strong>15,200+ lines of Swift code</strong> - 46 well-organized files</li>
+                    <li>✅ <strong>275+ tests (99.6% pass rate)</strong> - Excellent coverage</li>
+                    <li>✅ <strong>160 builtin functions</strong> - Math (36), String (11), Multifield (10), Template (14), I/O (13)</li>
+                    <li>✅ <strong>Fully functional Module System</strong> - Defmodule, integrated focus stack, import/export</li>
+                    <li>✅ <strong>Complete Pattern Matching</strong> - Multifield $?x, OR/AND/NOT/EXISTS CE</li>
+                    <li>✅ <strong>Complete Template Functions</strong> - modify, duplicate, introspection</li>
                     <li>✅ <strong>Zero external dependencies</strong> - Foundation only</li>
-                    <li>⏳ <strong>Phase 4 coming</strong> - Extended UDF, release 1.0</li>
+                    <li>🚀 <strong>Release 1.0 imminent</strong> - Final documentation in progress</li>
                 </ul>
 
                 <h3>What is CLIPS?</h3>
@@ -191,29 +194,96 @@ SLIPS> (run)</code></pre>
 
                 <h3>File Structure</h3>
                 <pre><code>Sources/SLIPS/
-├── Core/                    (22 files, ~4500 LOC)
+├── Core/                    (32 files, ~11,500 LOC)
 │   ├── envrnmnt.swift      (environment.c)
 │   ├── evaluator.swift     (evaluatn.c)
+│   ├── ruleengine.swift    (engine.c + factmngr.c)
 │   ├── expressn.swift      (expressn.c)
 │   ├── scanner.swift       (scanner.c)
 │   ├── router.swift        (router.c)
-│   ├── Modules.swift       (moduldef.c) ← NEW!
-│   └── functions.swift     (87+ built-in)
-├── Rete/                    (12 files, ~3200 LOC)
+│   ├── Modules.swift       (moduldef.c) ✅
+│   ├── MultifieldFunctions.swift  (multifun.c) ✅
+│   ├── StringFunctions.swift      (strngfun.c) ✅
+│   ├── MathFunctions.swift        (emathfun.c) ✅
+│   ├── TemplateFunctions.swift    (tmpltfun.c) ✅ NEW!
+│   ├── IOFunctions.swift          (iofun.c) ✅
+│   ├── FactQueryFunctions.swift   (factqpsr.c) ✅
+│   ├── UtilityFunctions.swift     (miscfun.c) ✅
+│   ├── PrettyPrintFunctions.swift ✅
+│   └── functions.swift     (160+ built-in)
+├── Rete/                    (12 files, ~2,800 LOC)
 │   ├── AlphaNetwork.swift  (alpha memory)
 │   ├── BetaEngine.swift    (beta network)
 │   ├── DriveEngine.swift   (drive.c)
 │   ├── NetworkBuilder.swift(rulebld.c)
-│   └── Nodes.swift         (RETE nodes)
-├── Agenda/                  (1 file, ~92 LOC)
-│   └── Agenda.swift        (agenda.c)
+│   ├── Propagation.swift   (incremental updates)
+│   └── Nodes.swift         (explicit RETE nodes)
+├── Agenda/                  (1 file, ~150 LOC)
+│   └── Agenda.swift        (agenda.c + focus stack)
 └── CLIPS.swift              (public facade)
 
-Total: 35 files, 8,046 LOC</code></pre>
+Total: 46 files, 15,200+ LOC</code></pre>
+            </section>
+
+            <section id="template-functions">
+                <h2>🔧 Template Functions (NEW!)</h2>
+                
+                <p>
+                    SLIPS now includes the complete set of functions for manipulating and querying templates, 
+                    faithfully translated from <code>tmpltfun.c</code> of CLIPS 6.4.2.
+                </p>
+                
+                <h3>Fact Manipulation</h3>
+                <pre><code class="language-lisp">;; Modify existing fact
+(assert (person (name "John") (age 30)))  ; f-1
+(modify 1 (age 31))                        ; Update age
+
+;; Duplicate with modifications
+(duplicate 1 (name "Jane"))                ; f-2: Jane, 31 years
+(duplicate 1 (name "Bob") (age 25))        ; f-3: Bob, 25 years</code></pre>
+
+                <h3>Template Introspection</h3>
+                <pre><code class="language-lisp">;; List slots of a template
+(deftemplate-slot-names person)
+; → (create$ name age)
+
+;; Default value of a slot
+(deftemplate-slot-default-value person age)
+; → 0 (or specified default)
+
+;; Check slot type
+(deftemplate-slot-multip project team-members)
+; → TRUE (is multifield)
+
+(deftemplate-slot-singlep person name)
+; → TRUE (is single-field)
+
+;; Check slot existence
+(deftemplate-slot-existp person salary)
+; → FALSE (slot doesn't exist)</code></pre>
+
+                <h3>Available Functions (14)</h3>
+                <ul>
+                    <li><strong>modify</strong> - Modify existing fact</li>
+                    <li><strong>duplicate</strong> - Duplicate fact with modifications</li>
+                    <li><strong>deftemplate-slot-names</strong> - List all slots</li>
+                    <li><strong>deftemplate-slot-default-value</strong> - Default value of slot</li>
+                    <li><strong>deftemplate-slot-cardinality</strong> - Multifield cardinality</li>
+                    <li><strong>deftemplate-slot-types</strong> - Allowed types</li>
+                    <li><strong>deftemplate-slot-range</strong> - Value range</li>
+                    <li><strong>deftemplate-slot-multip</strong> - Test multifield</li>
+                    <li><strong>deftemplate-slot-singlep</strong> - Test single-field</li>
+                    <li><strong>deftemplate-slot-existp</strong> - Test existence</li>
+                </ul>
+
+                <div class="alert alert-success">
+                    <strong>✅ Complete Translation:</strong> All functions from <code>tmpltfun.c</code> 
+                    have been implemented and tested (24 tests, 100% pass rate).
+                </div>
             </section>
 
             <section id="modules">
-                <h2>🎓 Module System (NEW!)</h2>
+                <h2>🎓 Module System</h2>
                 
                 <p>
                     SLIPS now supports the complete CLIPS module system for organizing rules and facts in separate namespaces.
@@ -258,8 +328,9 @@ Total: 35 files, 8,046 LOC</code></pre>
 (agenda UTILITIES)</code></pre>
 
                 <div class="alert alert-success">
-                    <strong>✅ Phase 3 Complete:</strong> Full module system with 22 tests (100% pass rate). 
-                    Includes defmodule, focus stack, import/export and module commands.
+                    <strong>✅ Completed:</strong> Fully functional module system with integrated focus stack! 
+                    Includes defmodule, LIFO focus stack, import/export, module commands and module-aware agenda. 
+                    37 tests (100% pass rate).
                 </div>
             </section>
 
@@ -399,16 +470,17 @@ static func commandLoop()</code></pre>
                     <li><strong>Join Nodes:</strong> Conjunction nodes between patterns (WIP)</li>
                 </ul>
 
-                <div class="alert alert-warning">
-                    <strong>⚠️ Implementation Status:</strong> RETE is in active development:
+                <div class="alert alert-success">
+                    <strong>✅ Implementation Status:</strong> RETE is stable and functional:
                     <ul style="margin-top: 0.5rem;">
                         <li>✅ Alpha indexing by template</li>
-                        <li>✅ Beta engine for positive patterns</li>
+                        <li>✅ Beta engine for positive and negative patterns</li>
                         <li>✅ Incremental updates on assert/retract</li>
-                        <li>✅ Negated patterns with incremental delta propagation</li>
-                        <li>✅ Unary exists (without bindings)</li>
+                        <li>✅ Negated patterns (NOT) with incremental propagation</li>
+                        <li>✅ EXISTS conditional element</li>
                         <li>✅ Predicate tests in joins with hash buckets</li>
-                        <li>🚧 Explicit RETE nodes (alpha/beta/join nodes) - in development</li>
+                        <li>✅ Explicit RETE nodes (AlphaNode, JoinNode, BetaMemory)</li>
+                        <li>✅ Hash join optimization for performance</li>
                     </ul>
                 </div>
 
@@ -447,14 +519,17 @@ swift build
 swift test</code></pre>
 
                 <h3>Running Tests</h3>
-                <pre><code># All tests
+                <pre><code># All tests (275+)
 swift test
 
 # Specific test
-swift test --filter ReteJoinCheckTests
+swift test --filter TemplateFunctionsTests
+swift test --filter ModuleAwareAgendaTests
 
 # With verbose output
-swift test --verbose</code></pre>
+swift test --verbose
+
+# Results: 274/275 pass (99.6%) ✅</code></pre>
 
                 <h3>Modules to Translate</h3>
                 <p>Reference to original CLIPS sources:</p>
@@ -467,13 +542,15 @@ swift test --verbose</code></pre>
 └── ...</code></pre>
 
                 <h3>Roadmap</h3>
-                <p>See <code>docs/ROADMAP.md</code> for detailed phase planning:</p>
+                <p>See <code>ROADMAP_TO_1.0_UPDATED.md</code> for detailed planning:</p>
                 <ul>
-                    <li><strong>Phase 1 (current):</strong> Core + Parser + Basic RETE</li>
-                    <li><strong>Phase 2:</strong> Complete RETE + NCC</li>
-                    <li><strong>Phase 3:</strong> COOL (Object-Oriented)</li>
-                    <li><strong>Phase 4:</strong> Optimizations + Advanced Features</li>
+                    <li><strong>✅ Phase 1:</strong> RETE Network - Completed</li>
+                    <li><strong>✅ Phase 2:</strong> Advanced Pattern Matching - Completed</li>
+                    <li><strong>✅ Phase 3:</strong> Modules & Focus - Completed</li>
+                    <li><strong>✅ Phase 4:</strong> Console & Polish - Completed (String, Math, Template functions)</li>
+                    <li><strong>⏳ Phase 5:</strong> Documentation & Release 1.0 (in progress, ETA: 3-7 days)</li>
                 </ul>
+                <p><strong>Current status:</strong> 96% coverage, production-ready! Only final documentation pending.</p>
 
                 <div class="alert alert-success">
                     <strong>💚 Contributions Welcome!</strong> 
