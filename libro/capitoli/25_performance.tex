@@ -1,0 +1,306 @@
+% Capitolo 25: Performance e Ottimizzazione
+
+\chapter{Performance e Ottimizzazione}
+\label{cap:performance}
+
+\section{Introduzione}
+
+Questo capitolo presenta tecniche per ottimizzare le prestazioni di sistemi SLIPS in produzione.
+
+\section{Profiling}
+
+\subsection{Time Profiling}
+
+\begin{lstlisting}[language=Swift]
+class ReteProfiler {
+    struct NodeStats {
+        var executionCount: Int = 0
+        var totalTime: TimeInterval = 0
+        var avgTime: TimeInterval { totalTime / Double(executionCount) }
+    }
+    
+    private var nodeStats: [Int: NodeStats] = [:]
+    
+    func profile<T>(node: ReteNode, _ block: () -> T) -> T {
+        let start = Date()
+        defer {
+            let elapsed = Date().timeIntervalSince(start)
+            var stats = nodeStats[node.id, default: NodeStats()]
+            stats.executionCount += 1
+            stats.totalTime += elapsed
+            nodeStats[node.id] = stats
+        }
+        return block()
+    }
+    
+    func report(top n: Int = 10) {
+        let sorted = nodeStats.sorted { $0.value.totalTime > $1.value.totalTime }
+        print("Top \(n) nodes by execution time:")
+        for (nodeID, stats) in sorted.prefix(n) {
+            print("  Node \(nodeID): \(stats.totalTime)s (\(stats.executionCount) calls, avg: \(stats.avgTime)s)")
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Memory Profiling}
+
+\begin{lstlisting}[language=Swift]
+class MemoryProfiler {
+    func snapshot(environment: Environment) -> MemorySnapshot {
+        return MemorySnapshot(
+            factCount: environment.factList.count,
+            ruleCount: environment.rules.count,
+            tokenCount: countTokens(environment),
+            activationCount: environment.agenda.count
+        )
+    }
+    
+    private func countTokens(_ env: Environment) -> Int {
+        var total = 0
+        // Traverse beta network counting tokens
+        return total
+    }
+}
+
+struct MemorySnapshot {
+    let factCount: Int
+    let ruleCount: Int
+    let tokenCount: Int
+    let activationCount: Int
+    
+    var estimatedMemory: Int {
+        factCount * 256 +        // Avg fact size
+        tokenCount * 128 +       // Avg token size
+        activationCount * 64     // Avg activation size
+    }
+}
+\end{lstlisting>
+
+\section{Pattern Optimization}
+
+\subsection{Pattern Reordering}
+
+\begin{lstlisting}[language=Swift]
+class PatternOptimizer {
+    func reorderPatterns(_ rule: Defrule, stats: Statistics) -> Defrule {
+        let patterns = rule.patterns.sorted { p1, p2 in
+            estimateSelectivity(p1, stats) < estimateSelectivity(p2, stats)
+        }
+        
+        return Defrule(
+            name: rule.name,
+            module: rule.module,
+            patterns: patterns,
+            actions: rule.actions,
+            salience: rule.salience,
+            autoFocus: rule.autoFocus
+        )
+    }
+    
+    private func estimateSelectivity(_ pattern: Pattern, _ stats: Statistics) -> Double {
+        let templateStats = stats.templates[pattern.template] ?? TemplateStats()
+        var selectivity = 1.0
+        
+        for constraint in pattern.constraints {
+            selectivity *= estimateConstraintSelectivity(constraint, templateStats)
+        }
+        
+        return selectivity
+    }
+}
+\end{lstlisting}
+
+\section{Memory Optimization}
+
+\subsection{Token Pooling}
+
+\begin{lstlisting}[language=Swift]
+class OptimizedTokenPool {
+    private var pools: [Int: [Token]] = [:]  // By fact count
+    private let maxPoolSize = 100
+    
+    func acquire(factCount: Int) -> Token? {
+        return pools[factCount]?.popLast()
+    }
+    
+    func release(_ token: Token) {
+        let factCount = token.facts.count
+        var pool = pools[factCount, default: []]
+        
+        guard pool.count < maxPoolSize else { return }
+        pool.append(token)
+        pools[factCount] = pool
+    }
+    
+    func clear() {
+        pools.removeAll()
+    }
+}
+\end{lstlisting>
+
+\subsection{Compact Representations}
+
+\begin{lstlisting}[language=Swift]
+// Instead of full facts in token
+struct CompactToken {
+    let factIDs: [Int32]  // 4 bytes per ID
+    let bindingIndices: [UInt8: UInt8]  // Compact binding map
+    
+    var memoryFootprint: Int {
+        factIDs.count * 4 + bindingIndices.count * 2
+    }
+}
+
+// vs standard Token
+struct StandardToken {
+    let facts: [Fact]  // 8 bytes per reference + object overhead
+    let bindings: [String: Value]  // Dictionary overhead
+    
+    var memoryFootprint: Int {
+        facts.count * 8 + bindings.count * (24 + 32)  // Approx
+    }
+}
+
+// Savings: 70-80% for typical tokens
+\end{lstlisting}
+
+\section{Execution Optimization}
+
+\subsection{Batch Processing}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    func assertBatch(_ facts: [(String, [String: Value])]) {
+        // Disable intermediate propagation
+        alphaNetwork.suspendPropagation()
+        
+        for (template, slots) in facts {
+            assert(template: template, slots: slots)
+        }
+        
+        // Resume and propagate all at once
+        alphaNetwork.resumePropagation()
+    }
+}
+\end{lstlisting>
+
+\subsection{Lazy Evaluation}
+
+\begin{lstlisting}[language=Swift]
+class LazyJoinNode: JoinNode {
+    private var pendingLeft: [Token] = []
+    private var pendingRight: [Fact] = []
+    
+    override func leftActivate(token: Token) {
+        if pendingRight.isEmpty {
+            pendingLeft.append(token)
+        } else {
+            processPending()
+            super.leftActivate(token)
+        }
+    }
+    
+    private func processPending() {
+        for token in pendingLeft {
+            super.leftActivate(token)
+        }
+        pendingLeft.removeAll()
+    }
+}
+\end{lstlisting}
+
+\section{Benchmarking}
+
+\subsection{Benchmark Suite}
+
+\begin{lstlisting}[language=Swift]
+class SLIPSBenchmark {
+    func runBenchmarks() {
+        measure("Assert 1000 facts") {
+            let env = Environment()
+            env.load("benchmark.clp")
+            for i in 0..<1000 {
+                env.assert(template: "data", slots: ["id": .integer(i)])
+            }
+        }
+        
+        measure("Run with 100 rules") {
+            let env = Environment()
+            env.load("complex-rules.clp")
+            env.run()
+        }
+        
+        measure("Pattern matching complex") {
+            let env = Environment()
+            env.load("complex-patterns.clp")
+            env.assert(template: "trigger", slots: [:])
+            env.run()
+        }
+    }
+    
+    private func measure(_ name: String, iterations: Int = 10, _ block: () -> Void) {
+        var times: [TimeInterval] = []
+        
+        for _ in 0..<iterations {
+            let start = Date()
+            block()
+            times.append(Date().timeIntervalSince(start))
+        }
+        
+        let avg = times.reduce(0, +) / Double(iterations)
+        let min = times.min()!
+        let max = times.max()!
+        
+        print("\(name):")
+        print("  Avg: \(avg * 1000)ms")
+        print("  Min: \(min * 1000)ms")
+        print("  Max: \(max * 1000)ms")
+    }
+}
+\end{lstlisting}
+
+\section{Best Practices}
+
+\subsection{Do's}
+
+\begin{infobox}[Raccomandazioni]
+\begin{itemize}
+\item Pattern specifici con constraint stringenti
+\item Salience solo quando necessaria
+\item Batch assert quando possibile
+\item Monitor memoria con profiler
+\item Testare con dati realistici
+\end{itemize}
+\end{infobox}
+
+\subsection{Don'ts}
+
+\begin{warningbox}[Da Evitare]
+\begin{itemize}
+\item Pattern troppo generici
+\item Troppe regole con alta salience
+\item Assert/retract in loop stretti
+\item Ignorare memory leak
+\item Ottimizzazione prematura
+\end{itemize}
+\end{warningbox}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item \textbf{Profilare} prima di ottimizzare
+\item \textbf{Pattern reordering} impatta significativamente
+\item \textbf{Memory management} critico per sistemi grandi
+\item \textbf{Batch operations} riducono overhead
+\item \textbf{Benchmark regolari} per regression
+\end{enumerate}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Instruments User Guide (Apple)
+\item Swift Performance Tips
+\end{itemize}

@@ -1,0 +1,527 @@
+% Capitolo 1: Introduzione
+
+\chapter{Introduzione}
+\label{cap:introduzione}
+
+\section{Motivazione e Contesto Storico}
+
+I sistemi esperti rappresentano una delle branche più rilevanti dell'intelligenza artificiale simbolica, nata negli anni '60 e sviluppatasi intensamente negli anni '70 e '80. A differenza degli approcci sub-simbolici moderni basati su reti neurali, i sistemi esperti si fondano sulla rappresentazione esplicita della conoscenza attraverso regole logiche e fatti.
+
+\subsection{L'Era d'Oro dei Sistemi Esperti}
+
+Negli anni '80, i sistemi esperti promettevano di rivoluzionare numerosi settori:
+
+\begin{itemize}
+\item \textbf{Medicina}: MYCIN (Stanford, 1976) per la diagnosi di infezioni batteriche
+\item \textbf{Chimica}: DENDRAL per l'identificazione di strutture molecolari
+\item \textbf{Configurazione}: XCON/R1 (Digital Equipment Corporation) per sistemi informatici
+\item \textbf{Finanza}: sistemi di trading e valutazione del rischio
+\item \textbf{Industria}: controllo processi e manutenzione predittiva
+\end{itemize}
+
+Il successo di questi sistemi dipendeva criticamente dall'efficienza del \textit{pattern matching}, ovvero la capacità di confrontare velocemente migliaia di regole con migliaia di fatti per determinare quali regole fossero applicabili.
+
+\subsection{Il Problema della Scalabilità}
+
+Consideriamo un sistema con:
+\begin{itemize}
+\item $n$ regole, ciascuna con $k$ condizioni
+\item $m$ fatti nel working memory
+\end{itemize}
+
+Un approccio naïve richiederebbe $O(n \cdot m^k)$ confronti ad ogni ciclo. Per un sistema realistico con $n=1000$, $m=10000$, $k=3$, si avrebbero $10^{15}$ operazioni --- chiaramente impraticabile.
+
+\begin{infobox}[Il Problema del Match]
+Data una base di conoscenza con $n$ regole e $m$ fatti, trovare efficientemente tutte le istanziazioni valide delle regole è un problema computazionalmente complesso che cresce esponenzialmente con il numero di condizioni per regola.
+\end{infobox}
+
+\subsection{La Soluzione: L'Algoritmo RETE}
+
+Nel 1979, Charles L. Forgy, allora dottorando alla Carnegie Mellon University, sviluppò l'algoritmo RETE (dal latino \textit{rete}, rete) che riduceva drasticamente la complessità del pattern matching sfruttando due intuizioni fondamentali:
+
+\begin{enumerate}
+\item \textbf{Continuità temporale}: tra un ciclo e il successivo, la maggior parte dei fatti rimane invariata
+\item \textbf{Similarità strutturale}: molte regole condividono pattern comuni
+\end{enumerate}
+
+L'algoritmo RETE costruisce una rete di nodi che memorizza risultati intermedi di match, evitando di rifare da zero i confronti ad ogni ciclo. Questa tecnica, nota come \textit{incremental pattern matching}, riduce la complessità a $O(n \cdot m)$ nel caso medio.
+
+\section{CLIPS: Un'Implementazione di Riferimento}
+
+\subsection{Origini e Sviluppo}
+
+CLIPS (C Language Integrated Production System) fu sviluppato a partire dal 1984 presso il Johnson Space Center della NASA. L'obiettivo era creare un sistema esperto:
+
+\begin{itemize}
+\item \textbf{Portabile}: scritto in C ANSI, eseguibile su qualsiasi piattaforma
+\item \textbf{Efficiente}: basato sull'algoritmo RETE ottimizzato
+\item \textbf{Estendibile}: architettura modulare e API per funzioni utente
+\item \textbf{Completo}: supporto per programmazione procedurale, a oggetti e a regole
+\item \textbf{Gratuito}: dominio pubblico, liberamente utilizzabile
+\end{itemize}
+
+\subsection{Adozione e Impatto}
+
+CLIPS è diventato lo standard de facto per sistemi esperti grazie a:
+
+\begin{itemize}
+\item Ampia diffusione accademica (insegnamento AI)
+\item Uso in missioni spaziali NASA
+\item Adozione industriale in settori critici
+\item Comunità attiva e documentazione estesa
+\item Oltre 30 anni di sviluppo e manutenzione
+\end{itemize}
+
+Alla versione 6.4.2 (2017), CLIPS comprende circa 150.000 linee di codice C, 300+ funzioni built-in, e supporta paradigmi multipli.
+
+\section{SLIPS: Motivazioni del Progetto}
+
+\subsection{Perché una Traduzione in Swift}
+
+Nonostante l'eccellenza di CLIPS, esistono motivazioni valide per una traduzione moderna:
+
+\begin{enumerate}
+\item \textbf{Memory Safety}
+\begin{itemize}
+\item C richiede gestione manuale della memoria (malloc/free)
+\item Rischi di buffer overflow, use-after-free, memory leak
+\item Swift offre ARC (Automatic Reference Counting) e type safety
+\end{itemize}
+
+\item \textbf{Interoperabilità con Ecosistema Apple}
+\begin{itemize}
+\item Integrazione nativa con iOS/macOS/watchOS
+\item Accesso diretto a framework moderni (SwiftUI, Combine, etc.)
+\item Performance ottimizzate per architetture Apple Silicon
+\end{itemize}
+
+\item \textbf{Espressività del Linguaggio}
+\begin{itemize}
+\item Enum con associated values per union types
+\item Pattern matching nativo
+\item Generics e protocolli per astrazione
+\item Closures e higher-order functions
+\end{itemize}
+
+\item \textbf{Strumenti di Sviluppo}
+\begin{itemize}
+\item Xcode con debugging avanzato
+\item Swift Package Manager per dipendenze
+\item Testing framework integrato
+\item Profiler Instruments per performance
+\end{itemize}
+\end{enumerate}
+
+\subsection{Obiettivi di SLIPS}
+
+Il progetto SLIPS si pone obiettivi ambiziosi:
+
+\begin{definizione}[Equivalenza Semantica]
+SLIPS deve produrre, per ogni programma CLIPS valido, lo stesso output e comportamento osservabile del motore C originale, preservando:
+\begin{itemize}
+\item Ordine di firing delle regole
+\item Valori calcolati e fatti asseriti
+\item Gestione dell'agenda e strategie
+\item Semantica dei costrutti (deftemplate, defrule, etc.)
+\end{itemize}
+\end{definizione}
+
+\begin{definizione}[Fedeltà Strutturale]
+La traduzione deve mantenere una corrispondenza 1:1 tra file C e file Swift, preservando nomi di funzioni, strutture dati, e flusso algoritmico, adattando solo dove necessario per idiomi Swift.
+\end{definizione}
+
+\subsection{Non-Obiettivi}
+
+È importante chiarire cosa SLIPS \textit{non} è:
+
+\begin{itemize}
+\item \textbf{Non è un wrapper}: non usa FFI o binding per chiamare CLIPS C
+\item \textbf{Non è una riscrittura}: non semplifica o modernizza gli algoritmi
+\item \textbf{Non è un'interpretazione}: non cambia la semantica di CLIPS
+\item \textbf{Non è ottimizzato prematuramente}: preserva strutture anche se non idiomatiche
+\end{itemize}
+
+L'obiettivo è una \textit{traduzione conservativa} che permetta di:
+\begin{enumerate}
+\item Studiare il codice CLIPS con strumenti moderni
+\item Verificare formalmente la correttezza della traduzione
+\item Migrare applicazioni CLIPS esistenti
+\item Estendere CLIPS con funzionalità Swift-native
+\end{enumerate}
+
+\section{Contributi di Questo Volume}
+
+Questo libro offre diversi contributi originali:
+
+\subsection{Contributi Teorici}
+
+\begin{itemize}
+\item \textbf{Formalizzazione matematica completa} dell'algoritmo RETE con dimostrazioni di correttezza e complessità
+\item \textbf{Analisi comparativa} tra diverse varianti di RETE (TREAT, RETE-II, etc.)
+\item \textbf{Caratterizzazione formale} della semantica operazionale di CLIPS
+\item \textbf{Teoremi di equivalenza} tra implementazione C e Swift
+\end{itemize}
+
+\subsection{Contributi Implementativi}
+
+\begin{itemize}
+\item \textbf{Mappatura sistematica} C $\to$ Swift per ogni pattern comune
+\item \textbf{Catalogo di pattern} di traduzione per:
+  \begin{itemize}
+  \item Union types $\to$ Enum con associated values
+  \item Malloc/free $\to$ ARC e value semantics
+  \item Puntatori $\to$ Reference types e Optional
+  \item Macro $\to$ Computed properties e generics
+  \end{itemize}
+\item \textbf{Test suite} con equivalenza verificata
+\item \textbf{Documentazione} del design space esplorato
+\end{itemize}
+
+\subsection{Contributi Pedagogici}
+
+\begin{itemize}
+\item \textbf{Spiegazione didattica} dell'algoritmo RETE con esempi completi
+\item \textbf{Guida passo-passo} alla costruzione di un motore a regole
+\item \textbf{Best practices} per sistemi esperti in Swift
+\item \textbf{Casi di studio} reali con analisi dettagliata
+\end{itemize}
+
+\section{Metodologia}
+
+\subsection{Approccio alla Traduzione}
+
+La traduzione di SLIPS segue una metodologia rigorosa:
+
+\begin{enumerate}
+\item \textbf{Studio del Codice C}: Analisi approfondita del file sorgente CLIPS
+\item \textbf{Identificazione Invarianti}: Determinazione delle proprietà da preservare
+\item \textbf{Mappatura Tipi}: Traduzione strutture dati C in Swift idiomatico
+\item \textbf{Traduzione Logica}: Conversione algoritmi con dimostrazione di equivalenza
+\item \textbf{Testing}: Verifica comportamentale su test suite estesa
+\item \textbf{Documentazione}: Annotazione con riferimenti al codice C originale
+\end{enumerate}
+
+\subsection{Criteri di Accettazione}
+
+Ogni modulo tradotto deve soddisfare:
+
+\begin{itemize}
+\item \textbf{Compilazione}: Build clean senza warning
+\item \textbf{Test funzionali}: Tutti i test verdi
+\item \textbf{Test equivalenza}: Output identico a CLIPS C su suite di riferimento
+\item \textbf{Documentazione}: Commenti con riferimenti a file C originale
+\item \textbf{Code review}: Verifica da parte di almeno un altro contributore
+\end{itemize}
+
+\section{Struttura di Questo Volume}
+
+\subsection{Parte I: Fondamenti Teorici}
+
+Nei capitoli 2--4 introduciamo i fondamenti matematici e logici necessari:
+
+\begin{itemize}
+\item Logica proposizionale e del primo ordine
+\item Sistemi di riscrittura e calcolo
+\item Rappresentazione della conoscenza
+\item Inferenza forward e backward
+\end{itemize}
+
+\subsection{Parte II: L'Algoritmo RETE}
+
+I capitoli 5--10 costituiscono il cuore teorico del volume:
+
+\begin{itemize}
+\item Formulazione matematica dell'algoritmo
+\item Rete alpha per filtering
+\item Rete beta per join
+\item Analisi di complessità e dimostrazioni
+\item Ottimizzazioni e varianti
+\end{itemize}
+
+\subsection{Parte III: Architettura CLIPS}
+
+I capitoli 11--15 analizzano il design di CLIPS C:
+
+\begin{itemize}
+\item Strutture dati fondamentali
+\item Gestione della memoria
+\item Sistema di agenda
+\item Moduli e visibilità
+\item Estensibilità e UDF
+\end{itemize}
+
+\subsection{Parte IV: Implementazione SLIPS}
+
+I capitoli 16--22 descrivono l'implementazione Swift:
+
+\begin{itemize}
+\item Architettura generale
+\item Core engine (Environment, Evaluator)
+\item RETE network in Swift
+\item Agenda e conflict resolution
+\item Sistema di moduli
+\item Pattern matching avanzato
+\item Test e validazione
+\end{itemize}
+
+\subsection{Parte V: Guida allo Sviluppo}
+
+I capitoli 23--27 forniscono guide pratiche:
+
+\begin{itemize}
+\item Estendere SLIPS con nuove funzioni
+\item Best practices per regole efficienti
+\item Ottimizzazione e profiling
+\item Debugging e troubleshooting
+\item Direzioni future e roadmap
+\end{itemize}
+
+\section{Come Leggere Questo Libro}
+
+\subsection{Percorsi di Lettura Consigliati}
+
+\subsubsection{Per lo Studente}
+
+Se stai studiando sistemi esperti per la prima volta:
+\begin{enumerate}
+\item Leggi Parte I (Fondamenti) per acquisire background
+\item Studia Parte II (RETE) per comprendere l'algoritmo
+\item Esplora esempi in Parte IV per vedere applicazioni pratiche
+\item Consulta Appendice C per esercizi
+\end{enumerate}
+
+\subsubsection{Per il Ricercatore}
+
+Se ti interessa l'aspetto teorico:
+\begin{enumerate}
+\item Focus su Parte II (RETE) per formalizzazione matematica
+\item Studio Capitolo 9 per analisi di complessità
+\item Capitolo 10 per ottimizzazioni e varianti
+\item Bibliografia per approfondimenti
+\end{enumerate}
+
+\subsubsection{Per lo Sviluppatore Swift}
+
+Se vuoi usare o estendere SLIPS:
+\begin{enumerate}
+\item Panoramica Parte I e II per comprendere il dominio
+\item Parte IV (Implementazione SLIPS) in dettaglio
+\item Parte V (Sviluppo) per guide pratiche
+\item Appendici A-B per riferimento API
+\end{enumerate}
+
+\subsubsection{Per l'Ingegnere di Traduzione}
+
+Se stai traducendo altro codice C in Swift:
+\begin{enumerate}
+\item Capitolo 16 (Architettura SLIPS) per metodologia
+\item Capitoli 17--22 per pattern di traduzione
+\item Capitolo 24 (Best Practices) per linee guida
+\item Studio dei file \texttt{.swift} commentati
+\end{enumerate}
+
+\subsection{Prerequisiti}
+
+Il lettore ideale possiede:
+
+\textbf{Prerequisiti Essenziali}:
+\begin{itemize}
+\item Programmazione: conoscenza di almeno un linguaggio (C, Swift, Java, Python)
+\item Strutture dati: liste, alberi, grafi, hash table
+\item Algoritmi: complessità computazionale, notazione Big-O
+\end{itemize}
+
+\textbf{Prerequisiti Utili}:
+\begin{itemize}
+\item Logica matematica: proposizionale e del primo ordine
+\item Sistemi: compilatori, interpreti, macchine astratte
+\item Swift: sintassi base, type system, memory model
+\end{itemize}
+
+\textbf{Non Richiesti} (spiegati nel testo):
+\begin{itemize}
+\item Esperienza con CLIPS
+\item Conoscenza di AI simbolica
+\item Background in sistemi esperti
+\end{itemize}
+
+\section{Notazione e Convenzioni}
+
+\subsection{Notazione Matematica}
+
+Nel corso del volume utilizziamo:
+
+\begin{itemize}
+\item $\mathbb{N}, \mathbb{Z}, \mathbb{R}$: insiemi numerici standard
+\item $\langle x, y \rangle$: coppia ordinata
+\item $f: A \to B$: funzione da $A$ a $B$
+\item $x \in S$: appartenenza all'insieme
+\item $S \subseteq T$: sottoinsieme
+\item $|S|$: cardinalità dell'insieme
+\item $\forall x \in S$: quantificatore universale
+\item $\exists x \in S$: quantificatore esistenziale
+\item $P \Rightarrow Q$: implicazione logica
+\item $P \Leftrightarrow Q$: equivalenza logica
+\end{itemize}
+
+\subsection{Notazione per Complessità}
+
+\begin{itemize}
+\item $O(f(n))$: upper bound asintotico (caso peggiore)
+\item $\Omega(f(n))$: lower bound asintotico
+\item $\Theta(f(n))$: tight bound (upper e lower coincidono)
+\item $O(f(n))$ ammortizzato: costo medio su sequenza di operazioni
+\end{itemize}
+
+\subsection{Convenzioni Tipografiche}
+
+\begin{itemize}
+\item \texttt{monospace}: codice, nomi di file, comandi
+\item \textbf{grassetto}: concetti chiave, definizioni
+\item \textit{corsivo}: enfasi, termini tecnici al primo uso
+\item \textsf{sans-serif}: nomi di tool e applicazioni
+\end{itemize}
+
+\section{Risorse Online}
+
+\subsection{Repository SLIPS}
+
+Il codice sorgente completo è disponibile su:
+
+\begin{center}
+\url{https://github.com/gpicchiarelli/SLIPS}
+\end{center}
+
+Include:
+\begin{itemize}
+\item Codice Swift (35 file, 8000+ LOC)
+\item Test suite (91 test)
+\item Sorgenti CLIPS C di riferimento
+\item Documentazione HTML
+\item Issue tracker per bug e feature request
+\end{itemize}
+
+\subsection{Sito CLIPS Originale}
+
+Documentazione e risorse CLIPS ufficiali:
+
+\begin{center}
+\url{https://www.clipsrules.net/}
+\end{center}
+
+Include:
+\begin{itemize}
+\item CLIPS Reference Manual (800+ pagine)
+\item User's Guide
+\item Tutorial e esempi
+\item Mailing list e forum
+\end{itemize}
+
+\subsection{Documentazione Swift}
+
+Risorse per il linguaggio Swift:
+
+\begin{center}
+\url{https://docs.swift.org/}
+\end{center}
+
+\section{Note Sulla Versione}
+
+Questo libro documenta:
+
+\begin{itemize}
+\item \textbf{CLIPS}: versione 6.4.2 (ultima stabile)
+\item \textbf{SLIPS}: versione 1.0 (prima release)
+\item \textbf{Swift}: versione 6.2
+\item \textbf{Platform}: macOS 15+ (Sequoia)
+\end{itemize}
+
+Le versioni future di SLIPS potrebbero divergere nei dettagli implementativi, ma i concetti teorici e architetturali rimangono validi.
+
+\section{Organizzazione del Materiale}
+
+Ogni capitolo è strutturato come segue:
+
+\begin{enumerate}
+\item \textbf{Introduzione}: overview e motivazione
+\item \textbf{Teoria}: formalizzazione matematica
+\item \textbf{Algoritmi}: pseudocodice e spiegazione
+\item \textbf{Implementazione}: codice C e Swift commentato
+\item \textbf{Analisi}: complessità, correttezza, ottimizzazioni
+\item \textbf{Esempi}: casi d'uso pratici
+\item \textbf{Esercizi}: problemi per il lettore (dove appropriato)
+\end{enumerate}
+
+\section{Ringraziamenti Estesi}
+
+Si desidera ringraziare:
+
+\textbf{Pionieri Teorici}:
+\begin{itemize}
+\item Charles L. Forgy per l'algoritmo RETE
+\item Allen Newell e Herbert Simon per i production systems
+\item Edward Feigenbaum per i sistemi esperti
+\end{itemize}
+
+\textbf{Team CLIPS}:
+\begin{itemize}
+\item Gary Riley (lead developer)
+\item Brian Dantes
+\item Il team NASA Johnson Space Center
+\end{itemize}
+
+\textbf{Comunità Swift}:
+\begin{itemize}
+\item Chris Lattner e il core team
+\item La community open source
+\end{itemize}
+
+\textbf{Contributori SLIPS}:
+\begin{itemize}
+\item Tutti i developer che hanno contribuito codice
+\item I reviewer che hanno verificato la traduzione
+\item Gli utenti che hanno segnalato bug
+\end{itemize}
+
+\section{Feedback e Contributi}
+
+Questo libro è un documento vivente. Feedback, correzioni e suggerimenti sono benvenuti:
+
+\begin{itemize}
+\item \textbf{Errata}: segnalare errori tecnici o refusi
+\item \textbf{Miglioramenti}: suggerire chiarimenti o aggiunte
+\item \textbf{Esempi}: proporre nuovi casi di studio
+\item \textbf{Esercizi}: contribuire problemi e soluzioni
+\end{itemize}
+
+Contatti:
+\begin{itemize}
+\item GitHub Issues: \url{https://github.com/gpicchiarelli/SLIPS/issues}
+\item Pull Request per correzioni
+\item Discussioni: GitHub Discussions
+\end{itemize}
+
+\section{Roadmap del Volume}
+
+Nei prossimi capitoli esploreremo:
+
+\textbf{Capitolo 2} introduce i sistemi a produzione dal punto di vista formale, definendo working memory, production memory, e ciclo recognize-act.
+
+\textbf{Capitolo 3} copre la logica formale necessaria per comprendere la semantica delle regole: logica proposizionale, del primo ordine, e unificazione.
+
+\textbf{Capitolo 4} tratta la rappresentazione della conoscenza: frame, slot, template, e come codificare domini applicativi.
+
+\textbf{Capitoli 5--10} costituiscono il cuore del volume, con la teoria completa di RETE: dall'intuizione alla formalizzazione matematica, dalle strutture dati agli algoritmi, dall'analisi di complessità alle ottimizzazioni avanzate.
+
+\textbf{Capitoli 11--15} analizzano CLIPS C in dettaglio, preparando il terreno per la traduzione.
+
+\textbf{Capitoli 16--22} presentano SLIPS: architettura, implementazione, testing, e validazione.
+
+\textbf{Capitoli 23--27} forniscono guide pratiche per sviluppatori che vogliono usare, estendere, o contribuire a SLIPS.
+
+Le \textbf{Appendici} offrono riferimenti rapidi, catalogo completo delle funzioni, esempi estesi, e benchmark di performance.
+
+\vspace{1cm}
+
+Iniziamo ora il nostro viaggio nel mondo affascinante dei sistemi a produzione.
+

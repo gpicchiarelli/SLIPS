@@ -1,0 +1,335 @@
+% Capitolo 23: Estendere SLIPS
+
+\chapter{Estendere SLIPS con Nuove Funzionalità}
+\label{cap:estendere_slips}
+
+\section{Introduzione}
+
+SLIPS è progettato per essere estensibile. Questo capitolo mostra come aggiungere funzioni, tipi e funzionalità custom.
+
+\section{User-Defined Functions}
+
+\subsection{Registrazione Funzioni}
+
+\begin{lstlisting}[language=Swift]
+public typealias UserFunction = ([Value], Environment) throws -> Value
+
+public class FunctionRegistry {
+    private var functions: [String: UserFunction] = [:]
+    
+    public func register(
+        name: String,
+        function: @escaping UserFunction
+    ) {
+        functions[name] = function
+    }
+    
+    public func call(
+        name: String,
+        args: [Value],
+        env: Environment
+    ) throws -> Value {
+        guard let fn = functions[name] else {
+            throw RuntimeError.undefinedFunction(name)
+        }
+        return try fn(args, env)
+    }
+}
+
+// Uso
+let env = Environment()
+env.functions.register(name: "square") { args, _ in
+    guard args.count == 1,
+          case .integer(let n) = args[0] else {
+        throw RuntimeError.invalidArguments
+    }
+    return .integer(n * n)
+}
+\end{lstlisting}
+
+\subsection{Funzioni Swift Native}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    public func registerSwiftFunction<T: Numeric>(
+        _ name: String,
+        _ fn: @escaping (T, T) -> T
+    ) {
+        functions.register(name: name) { args, _ in
+            guard args.count == 2 else {
+                throw RuntimeError.wrongArity(expected: 2, got: args.count)
+            }
+            
+            let a = try Self.extractNumber(args[0]) as T
+            let b = try Self.extractNumber(args[1]) as T
+            
+            return .integer(Int(fn(a, b)))
+        }
+    }
+}
+
+// Esempio
+env.registerSwiftFunction("add", +)
+env.registerSwiftFunction("multiply", *)
+\end{lstlisting>
+
+\section{Custom Value Types}
+
+\subsection{External Values}
+
+\begin{lstlisting}[language=Swift]
+public struct ExternalValue: Hashable {
+    public let type: String
+    public let data: AnyHashable
+    
+    public init<T: Hashable>(type: String, data: T) {
+        self.type = type
+        self.data = AnyHashable(data)
+    }
+}
+
+// Esempio: Date
+extension Environment {
+    func registerDateType() {
+        functions.register(name: "create-date") { args, _ in
+            guard args.count == 3,
+                  case .integer(let y) = args[0],
+                  case .integer(let m) = args[1],
+                  case .integer(let d) = args[2] else {
+                throw RuntimeError.invalidArguments
+            }
+            
+            let date = DateComponents(year: y, month: m, day: d)
+            let calendar = Calendar.current
+            let realDate = calendar.date(from: date)!
+            
+            return .external(ExternalValue(type: "date", data: realDate))
+        }
+        
+        functions.register(name: "date-year") { args, _ in
+            guard args.count == 1,
+                  case .external(let ext) = args[0],
+                  ext.type == "date",
+                  let date = ext.data.base as? Date else {
+                throw RuntimeError.invalidArguments
+            }
+            
+            let year = Calendar.current.component(.year, from: date)
+            return .integer(year)
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Router Extensions}
+
+\subsection{Custom Router}
+
+\begin{lstlisting}[language=Swift]
+public protocol Router {
+    var name: String { get }
+    func query(logicalName: String) -> Bool
+    func print(_ string: String)
+    func getChar() -> Character?
+    func ungetChar(_ char: Character)
+}
+
+public class FileRouter: Router {
+    public let name = "file"
+    private let fileHandle: FileHandle
+    
+    public init(path: String) throws {
+        guard let handle = FileHandle(forWritingAtPath: path) else {
+            throw RouterError.cannotOpenFile(path)
+        }
+        self.fileHandle = handle
+    }
+    
+    public func query(logicalName: String) -> Bool {
+        return logicalName == "file"
+    }
+    
+    public func print(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            fileHandle.write(data)
+        }
+    }
+    
+    public func getChar() -> Character? {
+        return nil  // Not supported for file output
+    }
+    
+    public func ungetChar(_ char: Character) {
+        // Not supported
+    }
+}
+
+// Uso
+let fileRouter = try FileRouter(path: "/tmp/output.txt")
+env.routers.add(fileRouter)
+
+// In CLIPS
+// (printout file "Hello world" crlf)
+\end{lstlisting}
+
+\section{Pattern Extensions}
+
+\subsection{Custom Predicates}
+
+\begin{lstlisting}[language=Swift]
+public class PredicateRegistry {
+    private var predicates: [String: (Value) -> Bool] = [:]
+    
+    public func register(name: String, predicate: @escaping (Value) -> Bool) {
+        predicates[name] = predicate
+    }
+    
+    public func evaluate(name: String, value: Value) -> Bool {
+        return predicates[name]?(value) ?? false
+    }
+}
+
+// Esempio
+env.predicates.register(name: "is-email") { value in
+    guard case .string(let s) = value else { return false }
+    return s.contains("@") && s.contains(".")
+}
+
+// Uso in pattern:
+// (utente (email ?e&:(is-email ?e)))
+\end{lstlisting>
+
+\section{Agenda Hooks}
+
+\subsection{Rule Firing Callbacks}
+
+\begin{lstlisting}[language=Swift]
+public typealias RuleFiringCallback = (Defrule, Token) -> Void
+
+extension Environment {
+    public func onRuleFiring(_ callback: @escaping RuleFiringCallback) {
+        self.ruleFiringCallbacks.append(callback)
+    }
+    
+    private func fireRule(_ activation: Activation) {
+        // Notify observers
+        for callback in ruleFiringCallbacks {
+            callback(activation.rule, activation.token)
+        }
+        
+        // Execute rule
+        // ...
+    }
+}
+
+// Uso
+env.onRuleFiring { rule, token in
+    print("Firing: \(rule.name) with bindings: \(token.bindings)")
+}
+\end{lstlisting>
+
+\section{Module Plugins}
+
+\subsection{Plugin Architecture}
+
+\begin{lstlisting}[language=Swift]
+public protocol SLIPSPlugin {
+    var name: String { get }
+    func initialize(environment: Environment)
+    func cleanup(environment: Environment)
+}
+
+public class HTTPPlugin: SLIPSPlugin {
+    public let name = "HTTP"
+    
+    public func initialize(environment: Environment) {
+        environment.functions.register(name: "http-get") { args, _ in
+            guard args.count == 1,
+                  case .string(let url) = args[0] else {
+                throw RuntimeError.invalidArguments
+            }
+            
+            let data = try await URLSession.shared.data(from: URL(string: url)!)
+            let string = String(data: data.0, encoding: .utf8)!
+            
+            return .string(string)
+        }
+    }
+    
+    public func cleanup(environment: Environment) {
+        // Cleanup resources
+    }
+}
+
+// Uso
+let plugin = HTTPPlugin()
+env.loadPlugin(plugin)
+\end{lstlisting>
+
+\section{Testing Extensions}
+
+\subsection{Test Utilities}
+
+\begin{lstlisting}[language=Swift]
+public class SLIPSTestCase {
+    let env: Environment
+    
+    public init() {
+        env = Environment()
+    }
+    
+    public func load(_ rules: String) throws {
+        try env.loadString(rules)
+    }
+    
+    public func assertFact(_ template: String, _ slots: [String: Value]) {
+        env.assert(template: template, slots: slots)
+    }
+    
+    public func run() {
+        env.run()
+    }
+    
+    public func assertFactExists(_ template: String) -> Bool {
+        return env.factList.contains { $0.template.name == template }
+    }
+    
+    public func assertRuleFired(_ ruleName: String) -> Bool {
+        return env.firedRules.contains(ruleName)
+    }
+}
+
+// Uso
+let test = SLIPSTestCase()
+try test.load("""
+    (defrule test
+      (trigger)
+      =>
+      (assert (result)))
+    """)
+
+test.assertFact("trigger", [:])
+test.run()
+
+XCTAssertTrue(test.assertFactExists("result"))
+XCTAssertTrue(test.assertRuleFired("test"))
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item SLIPS \textbf{estensibile} tramite UDF
+\item \textbf{External values} per tipi custom
+\item \textbf{Router} per I/O flessibile
+\item \textbf{Callbacks} per observability
+\item \textbf{Plugin architecture} per modularità
+\end{enumerate}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Advanced Programming Guide
+\item Swift Package Manager
+\end{itemize}

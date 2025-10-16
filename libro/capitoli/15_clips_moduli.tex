@@ -1,0 +1,353 @@
+% Capitolo 15: Sistema di Moduli CLIPS
+
+\chapter{Sistema di Moduli e Namespace}
+\label{cap:clips_moduli}
+
+\section{Introduzione}
+
+Il sistema di moduli in CLIPS fornisce namespace separati per organizzare grandi basi di conoscenza, simile ai package in linguaggi moderni.
+
+\section{Struttura dei Moduli}
+
+\subsection{Defmodule}
+
+\begin{lstlisting}[language=C]
+struct defmodule {
+    struct constructHeader header;
+    struct portItem *importList;
+    struct portItem *exportList;
+    unsigned int visitedFlag : 1;
+    struct defmoduleItemHeader **itemsArray;
+    struct activation *agenda;
+};
+
+struct portItem {
+    struct defmodule *theModule;
+    struct constructHeader *constructType;
+    char *constructName;
+    struct portItem *next;
+};
+\end{lstlisting}
+
+\subsection{Dichiarazione}
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule DIAGNOSTICS
+  "Sistema diagnostico principale"
+  (import SENSORS deftemplate reading)
+  (export deftemplate diagnosis))
+\end{lstlisting}
+
+\section{Import/Export}
+
+\subsection{Export}
+
+Rende costrutti visibili ad altri moduli:
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule A
+  (export deftemplate ?ALL)     ; Tutti i deftemplate
+  (export defrule specific-rule)) ; Regola specifica
+\end{lstlisting}
+
+\textbf{Wildcards}:
+\begin{itemize}
+\item \texttt{?ALL}: Tutti i costrutti di quel tipo
+\item \texttt{?NONE}: Nessun costrutto (default)
+\end{itemize}
+
+\subsection{Import}
+
+Importa costrutti da altri moduli:
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule B
+  (import A deftemplate sensor-data)  ; Specifico
+  (import A deftemplate ?ALL))        ; Tutti
+\end{lstlisting}
+
+\textbf{Implementazione}:
+
+\begin{lstlisting}[language=C]
+bool IsConstructExported(
+    struct defmodule *fromModule,
+    const char *constructType,
+    const char *constructName
+) {
+    for (struct portItem *port = fromModule->exportList;
+         port != NULL;
+         port = port->next) {
+        if (strcmp(port->constructType->name, constructType) != 0)
+            continue;
+        
+        if (strcmp(port->constructName, "?ALL") == 0)
+            return true;
+        
+        if (strcmp(port->constructName, constructName) == 0)
+            return true;
+    }
+    return false;
+}
+\end{lstlisting}
+
+\section{Visibility e Scope}
+
+\subsection{Regole di Scope}
+
+\begin{enumerate}
+\item Regole vedono solo fatti dei template nel loro modulo o importati
+\item Ogni regola appartiene a un solo modulo
+\item Il modulo corrente determina quali regole possono fired
+\end{enumerate}
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule MAIN
+  (export deftemplate sensor))
+
+(deftemplate sensor
+  (slot value))
+
+;; Questa regola e in MAIN
+(defrule process-sensor
+  (sensor (value ?v))
+  =>
+  ...)
+
+(defmodule PROCESSOR
+  (import MAIN deftemplate sensor))
+
+;; Questa regola e in PROCESSOR
+(defrule PROCESSOR::analyze
+  (sensor (value ?v))  ; OK: sensor e importato
+  =>
+  ...)
+\end{lstlisting}
+
+\subsection{Qualified Names}
+
+Accesso esplicito a costrutti in altri moduli:
+
+\begin{lstlisting}[language=CLIPS]
+(MAIN::sensor (value 10))        ; Fatto qualificato
+(MAIN::process-data)             ; Chiamata funzione
+\end{lstlisting}
+
+\section{Focus e Esecuzione}
+
+\subsection{Focus Stack}
+
+Determina quale modulo è attivo:
+
+\begin{lstlisting}[language=CLIPS]
+(focus DIAGNOSTICS)    ; Rendi DIAGNOSTICS corrente
+(focus SENSORS PROCESSOR MAIN)  ; Push multipli
+\end{lstlisting}
+
+\textbf{Comportamento}:
+\begin{itemize}
+\item Solo regole del modulo in focus possono fired
+\item Quando agenda modulo vuota, pop automatico
+\item MAIN è sempre in fondo allo stack
+\end{itemize}
+
+\begin{lstlisting}[language=C]
+struct defmodule *PopFocus(Environment *env) {
+    if (env->CurrentFocus == NULL) {
+        return env->FindDefmodule(env, "MAIN");
+    }
+    
+    struct focus *oldFocus = env->CurrentFocus;
+    struct defmodule *module = oldFocus->theModule;
+    env->CurrentFocus = oldFocus->next;
+    
+    rtn_struct(env, focus, oldFocus);
+    return env->CurrentFocus ? 
+           env->CurrentFocus->theModule : 
+           env->FindDefmodule(env, "MAIN");
+}
+\end{lstlisting}
+
+\subsection{Auto-Focus}
+
+Regole possono auto-focus su firing:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule trigger-diagnostics
+  (declare (auto-focus TRUE))
+  (alarm)
+  =>
+  (printout t "Running diagnostics..." crlf))
+\end{lstlisting}
+
+Quando matcha, automaticamente fa `(focus modulo-della-regola)`.
+
+\section{Modularità e Design}
+
+\subsection{Pattern di Uso}
+
+\textbf{Layering}:
+\begin{lstlisting}[language=CLIPS]
+(defmodule INPUT
+  (export deftemplate raw-data))
+
+(defmodule PROCESSING
+  (import INPUT deftemplate raw-data)
+  (export deftemplate processed-data))
+
+(defmodule OUTPUT
+  (import PROCESSING deftemplate processed-data))
+\end{lstlisting}
+
+\textbf{Separation of Concerns}:
+\begin{itemize}
+\item Modulo per acquisizione dati
+\item Modulo per elaborazione
+\item Modulo per output/azioni
+\end{itemize}
+
+\subsection{Best Practices}
+
+\begin{infobox}[Linee Guida]
+\begin{enumerate}
+\item Un modulo = una responsabilità
+\item Export solo l'interfaccia pubblica
+\item Documentare dipendenze tra moduli
+\item Usare focus esplicitamente quando necessario
+\item Evitare cicli nelle dipendenze
+\end{enumerate}
+\end{infobox}
+
+\section{Implementazione SLIPS}
+
+\subsection{Module Structure}
+
+\begin{lstlisting}[language=Swift]
+class Defmodule {
+    let name: String
+    var importList: [PortItem] = []
+    var exportList: [PortItem] = []
+    var templates: [String: Deftemplate] = [:]
+    var rules: [String: Defrule] = []
+    var agenda: Agenda
+    
+    func canAccess(template: String, from: Defmodule) -> Bool {
+        // Check se template è locale o importato
+        if templates[template] != nil {
+            return true
+        }
+        
+        for import in importList {
+            if import.constructName == template || 
+               import.constructName == "?ALL" {
+                if import.module.isExported(template: template) {
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+}
+
+struct PortItem {
+    let module: Defmodule
+    let constructType: ConstructType
+    let constructName: String
+}
+\end{lstlisting}
+
+\subsection{Focus Stack}
+
+\begin{lstlisting}[language=Swift]
+class FocusStack {
+    private var stack: [Defmodule] = []
+    private let mainModule: Defmodule
+    
+    init(mainModule: Defmodule) {
+        self.mainModule = mainModule
+    }
+    
+    var current: Defmodule {
+        return stack.last ?? mainModule
+    }
+    
+    func push(_ module: Defmodule) {
+        stack.append(module)
+    }
+    
+    @discardableResult
+    func pop() -> Defmodule? {
+        return stack.popLast()
+    }
+    
+    func clear() {
+        stack.removeAll()
+    }
+}
+\end{lstlisting}
+
+\section{Testing e Debug}
+
+\subsection{Comandi Diagnostici}
+
+\begin{lstlisting}[language=CLIPS]
+(list-defmodules)           ; Lista tutti i moduli
+(ppdefmodule MODULE-NAME)   ; Pretty-print modulo
+(get-current-module)        ; Modulo corrente
+(set-current-module NAME)   ; Cambia modulo corrente
+(list-focus-stack)          ; Mostra stack
+\end{lstlisting}
+
+\subsection{Dependency Analysis}
+
+\begin{lstlisting}[language=Swift]
+func analyzeDependencies(environment: Environment) -> DependencyGraph {
+    var graph = DependencyGraph()
+    
+    for module in environment.modules {
+        for import in module.importList {
+            graph.addEdge(from: module, to: import.module)
+        }
+    }
+    
+    // Check cicli
+    if graph.hasCycle() {
+        print("Warning: Circular dependencies detected!")
+    }
+    
+    return graph
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item Moduli forniscono \textbf{namespace} e organizzazione
+\item \textbf{Import/Export} controllano visibilità
+\item \textbf{Focus stack} determina esecuzione
+\item \textbf{Auto-focus} permette context switching
+\item Design modulare migliora manutenibilità
+\end{enumerate}
+
+\subsection{Fine Parte III}
+
+Con questo capitolo si conclude la Parte III sull'architettura di CLIPS. Abbiamo esplorato:
+\begin{itemize}
+\item Overview e architettura generale
+\item Strutture dati interne
+\item Gestione della memoria
+\item Sistema di agenda
+\item Sistema di moduli
+\end{itemize}
+
+La Parte IV analizzerà l'implementazione specifica di SLIPS in Swift.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Reference Manual - Capitolo "Defmodule Construct"
+\item CLIPS Source - \texttt{moduldef.c}, \texttt{modulpsr.c}
+\item Giarratano \& Riley - Capitolo "Modular Design"
+\end{itemize}

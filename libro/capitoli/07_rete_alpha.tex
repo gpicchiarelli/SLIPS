@@ -1,0 +1,458 @@
+% Capitolo 7: Rete Alpha - Discriminazione e Filtraggio
+
+\chapter{Rete Alpha: Discriminazione dei Pattern}
+\label{cap:rete_alpha}
+
+\section{Introduzione}
+
+La rete alpha è la prima componente dell'algoritmo RETE, responsabile della \textit{discriminazione} dei fatti: determinare quali fatti soddisfano i test intra-elemento dei pattern.
+
+\subsection{Obiettivi della Rete Alpha}
+
+\begin{infobox}[Funzioni Principali]
+\begin{enumerate}
+\item \textbf{Filtraggio}: Eliminare fatti che non soddisfano i constraint
+\item \textbf{Condivisione}: Riutilizzare test comuni tra regole
+\item \textbf{Incrementalità}: Aggiornare solo quando cambiano i fatti
+\item \textbf{Indicizzazione}: Accesso rapido ai fatti rilevanti
+\end{enumerate}
+\end{infobox}
+
+\section{Struttura della Rete Alpha}
+
+\subsection{Tipo di Nodi}
+
+\begin{definizione}[Nodi Alpha]
+La rete alpha è un DAG (Directed Acyclic Graph) con nodi di tipo:
+\begin{itemize}
+\item \textbf{Root node}: Nodo iniziale, riceve tutti i fatti
+\item \textbf{Type nodes}: Discriminano per tipo di fatto
+\item \textbf{Test nodes}: Applicano constraint specifici
+\item \textbf{Alpha memory}: Memorizzano fatti che passano i test
+\end{itemize}
+\end{definizione}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=2cm and 1.5cm,
+  root/.style={circle, draw, thick, minimum size=1cm},
+  type/.style={rectangle, draw, minimum width=2cm, minimum height=0.8cm},
+  test/.style={rectangle, draw, rounded corners, minimum width=2cm, minimum height=0.8cm},
+  memory/.style={ellipse, draw, thick, minimum width=1.5cm}
+]
+  \node[root] (root) {Root};
+  \node[type, below left of=root] (persona) {type=persona};
+  \node[type, below right of=root] (ordine) {type=ordine};
+  \node[test, below of=persona] (eta18) {età>18};
+  \node[test, below of=ordine] (pending) {stato=pending};
+  \node[memory, below of=eta18] (mem1) {AM1};
+  \node[memory, below of=pending] (mem2) {AM2};
+  
+  \draw[->] (root) -- (persona);
+  \draw[->] (root) -- (ordine);
+  \draw[->] (persona) -- (eta18);
+  \draw[->] (ordine) -- (pending);
+  \draw[->] (eta18) -- (mem1);
+  \draw[->] (pending) -- (mem2);
+\end{tikzpicture}
+\caption{Esempio di rete alpha}
+\label{fig:rete_alpha_esempio}
+\end{figure}
+
+\subsection{Alpha Memory}
+
+\begin{definizione}[Alpha Memory]
+Un nodo alpha memory mantiene l'insieme di tutti i fatti che hanno superato tutti i test nel cammino dalla root:
+\begin{equation}
+AM = \{f \in WM \mid f \text{ passa tutti i test}\}
+\end{equation}
+\end{definizione}
+
+\textbf{Proprietà}:
+\begin{itemize}
+\item Aggiornate incrementalmente
+\item Condivise tra regole con pattern identici
+\item Fonte di input per rete beta
+\end{itemize}
+
+\section{Costruzione della Rete Alpha}
+
+\subsection{Algoritmo di Compilazione}
+
+\begin{algorithm}
+\caption{Compila Pattern in Rete Alpha}
+\begin{algorithmic}[1]
+\Require Pattern $p = (tipo~(slot_1~v_1)~\ldots~(slot_n~v_n))$
+\Ensure Alpha memory node per $p$
+\Function{CompileAlphaPattern}{$p$}
+  \State $node \gets root$
+  \State $node \gets $ \Call{GetOrCreateTypeNode}{tipo}
+  \For{each constraint $c$ in $p$}
+    \If{$c$ è test intra-elemento}
+      \State $node \gets $ \Call{GetOrCreateTestNode}{$node, c$}
+    \EndIf
+  \EndFor
+  \State $am \gets $ \Call{GetOrCreateAlphaMemory}{$node$}
+  \State \Return $am$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Condivisione dei Nodi}
+
+Regole con pattern simili condividono nodi:
+
+\begin{lstlisting}[language=CLIPS]
+;; Regola 1
+(defrule r1
+  (persona (eta ?e&:(> ?e 18)))
+  =>
+  ...)
+
+;; Regola 2  
+(defrule r2
+  (persona (eta ?e&:(> ?e 18)) (citta "Roma"))
+  =>
+  ...)
+\end{lstlisting}
+
+Entrambe condividono:
+\begin{itemize}
+\item Type node per \texttt{persona}
+\item Test node per \texttt{età > 18}
+\end{itemize}
+
+Ma R2 ha un test aggiuntivo per \texttt{città}.
+
+\section{Tipi di Test}
+
+\subsection{Test di Tipo}
+
+Il test più comune: verificare il tipo del fatto.
+
+\textbf{Implementazione}:
+\begin{itemize}
+\item Hash table: tipo $\rightarrow$ nodo
+\item Lookup $O(1)$
+\item Condivisione automatica
+\end{itemize}
+
+\subsection{Test su Costanti}
+
+Test di uguaglianza con valore costante:
+
+\begin{lstlisting}[language=CLIPS]
+(persona (citta "Roma"))
+\end{lstlisting}
+
+\textbf{Ottimizzazione}: Indicizzare per valore.
+
+\subsection{Test con Predicati}
+
+Test arbitrari usando funzioni:
+
+\begin{lstlisting}[language=CLIPS]
+(persona (eta ?e&:(> ?e 18)&:(< ?e 65)))
+\end{lstlisting}
+
+\textbf{Implementazione}:
+\begin{itemize}
+\item Eseguire funzione su valore estratto
+\item Caching di risultati quando possibile
+\item Attenzione a side-effects!
+\end{itemize}
+
+\subsection{Test su Multifield}
+
+Match parziale di sequenze:
+
+\begin{lstlisting}[language=CLIPS]
+(lista $?inizio 10 $?fine)
+\end{lstlisting}
+
+\textbf{Complessità}: Può richiedere backtracking.
+
+\section{Propagazione dei Fatti}
+
+\subsection{Assertion}
+
+Quando un fatto viene asserito:
+
+\begin{algorithm}
+\caption{Propagazione Assert in Alpha}
+\begin{algorithmic}[1]
+\Require Fatto $f$
+\Function{AlphaAssert}{$f$}
+  \State $tipo \gets f.\text{type}$
+  \State $typeNode \gets $ \Call{GetTypeNode}{$tipo$}
+  \If{$typeNode = $ null}
+    \State \Return \Comment{Nessuna regola per questo tipo}
+  \EndIf
+  \State \Call{PropagateAssert}{$typeNode, f$}
+\EndFunction
+\\
+\Function{PropagateAssert}{$node, f$}
+  \If{$node$ è test node}
+    \If{not \Call{EvaluateTest}{$node.test, f$}}
+      \State \Return \Comment{Test fallito}
+    \EndIf
+  \EndIf
+  \If{$node$ è alpha memory}
+    \State $node.facts \gets node.facts \cup \{f\}$
+    \State \Call{NotifyBetaNetwork}{$node, f$}
+  \EndIf
+  \For{each child in $node.children$}
+    \State \Call{PropagateAssert}{$child, f$}
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Complessità}: $O(d)$ dove $d$ è la profondità del cammino.
+
+\subsection{Retraction}
+
+Quando un fatto viene retratto:
+
+\begin{algorithm}
+\caption{Propagazione Retract in Alpha}
+\begin{algorithmic}[1]
+\Require Fatto $f$
+\Function{AlphaRetract}{$f$}
+  \State $memories \gets $ \Call{FindAlphaMemories}{$f$}
+  \For{each $am$ in $memories$}
+    \State $am.facts \gets am.facts \setminus \{f\}$
+    \State \Call{NotifyBetaNetwork}{$am, f, \text{retract}$}
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Ottimizzazione}: Mantenere back-pointers dai fatti alle alpha memory.
+
+\section{Ottimizzazioni}
+
+\subsection{Hashing}
+
+\textbf{Per tipo}:
+\begin{itemize}
+\item Hash table: tipo $\rightarrow$ type node
+\item Evita scansione lineare
+\end{itemize}
+
+\textbf{Per valore}:
+\begin{itemize}
+\item Hash table: (slot, valore) $\rightarrow$ fatti
+\item Per test di uguaglianza costante
+\end{itemize}
+
+\subsection{Indexing Multilivello}
+
+Per pattern con più constraint:
+
+\begin{lstlisting}[language=CLIPS]
+(persona (eta 30) (citta "Roma"))
+\end{lstlisting}
+
+Indice composto: (età, città) $\rightarrow$ fatti.
+
+\subsection{Lazy Evaluation}
+
+Non valutare test finché necessario:
+
+\begin{itemize}
+\item Test costosi posticipati
+\item Short-circuit evaluation
+\item Caching di risultati
+\end{itemize}
+
+\section{Gestione della Memoria}
+
+\subsection{Footprint della Rete Alpha}
+
+\textbf{Nodi}:
+\begin{equation}
+O(n \cdot k)
+\end{equation}
+dove $n$ = numero regole, $k$ = condizioni medie.
+
+\textbf{Alpha memories}:
+\begin{equation}
+O(m) \text{ per memory}
+\end{equation}
+dove $m$ = fatti in WM.
+
+\textbf{Totale}:
+\begin{equation}
+O(n \cdot k + a \cdot m)
+\end{equation}
+dove $a$ = numero alpha memories.
+
+\subsection{Garbage Collection}
+
+\begin{itemize}
+\item Rimuovere nodi non più referenziati
+\item Compattare alpha memories
+\item Deallocare quando regole rimosse
+\end{itemize}
+
+\section{Alpha Network in CLIPS}
+
+\subsection{Strutture Dati C}
+
+Dal codice CLIPS (\texttt{network.c, factmngr.c}):
+
+\begin{lstlisting}[language=C]
+struct patternNode {
+    struct patternNode *nextLevel;
+    struct patternNode *lastLevel;
+    int networkTest;
+    void *rightNode;
+};
+
+struct alphaMemory {
+    struct partialMatch *beta;
+    struct alphaMemory *next;
+};
+\end{lstlisting}
+
+\subsection{Traduzione in Swift (SLIPS)}
+
+\begin{lstlisting}[language=Swift]
+class AlphaNode {
+    var children: [AlphaNode] = []
+    var test: AlphaTest?
+    var memory: AlphaMemory?
+}
+
+class AlphaMemory {
+    var facts: Set<Fact> = []
+    var betaSubscribers: [BetaNode] = []
+    
+    func add(_ fact: Fact) {
+        facts.insert(fact)
+        notifyBeta(fact, operation: .assert)
+    }
+    
+    func remove(_ fact: Fact) {
+        facts.remove(fact)
+        notifyBeta(fact, operation: .retract)
+    }
+}
+\end{lstlisting}
+
+\section{Analisi delle Prestazioni}
+
+\subsection{Caso Medio}
+
+\textbf{Assert}:
+\begin{itemize}
+\item Lookup tipo: $O(1)$
+\item Traversal cammino: $O(d)$ dove $d \approx 3-5$
+\item Test: $O(1)$ per test
+\item Inserimento in memory: $O(1)$
+\end{itemize}
+
+\textbf{Totale}: $O(d) \approx O(1)$ con $d$ piccolo.
+
+\subsection{Caso Pessimo}
+
+\textbf{Quando}:
+\begin{itemize}
+\item Tipo molto comune (molti fatti)
+\item Pattern molto generici (pochi test)
+\item Multifield con backtracking
+\end{itemize}
+
+\textbf{Complessità}: Può degradare a $O(m)$.
+
+\section{Varianti e Estensioni}
+
+\subsection{TREAT}
+
+Alternativa a RETE che non memorizza fatti in alpha memories:
+
+\textbf{Pro}:
+\begin{itemize}
+\item Meno memoria
+\item Adatto a WM volatile
+\end{itemize}
+
+\textbf{Contro}:
+\begin{itemize}
+\item Più tempo per ciclo (re-matching)
+\end{itemize}
+
+\subsection{Lazy RETE}
+
+Calcola alpha memories on-demand:
+
+\begin{itemize}
+\item Costruisce rete dinamicamente
+\item Risparmia memoria per regole rare
+\item Trade-off: primo match lento
+\end{itemize}
+
+\section{Testing e Debugging}
+
+\subsection{Visualizzazione}
+
+Strumenti per ispezionare rete alpha:
+
+\begin{itemize}
+\item Dump struttura grafo
+\item Statistiche per nodo (hit rate, num fatti)
+\item Cammini attivi vs inattivi
+\end{itemize}
+
+\subsection{Profiling}
+
+Metriche utili:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Metrica} & \textbf{Significato} \\
+\midrule
+Nodi visitati/assert & Efficienza traversal \\
+Test falliti & Selettività pattern \\
+Alpha memory size & Utilizzo memoria \\
+Sharing factor & Riuso nodi \\
+\bottomrule
+\end{tabular}
+\caption{Metriche profiling rete alpha}
+\end{table}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item La rete alpha implementa \textbf{discriminazione efficiente} dei fatti
+\item La \textbf{condivisione} dei nodi riduce duplicazione
+\item L'\textbf{incrementalità} è chiave per le prestazioni
+\item Le \textbf{alpha memories} interfacciano con la rete beta
+\item Trade-off memoria-tempo generalmente favorevole
+\end{enumerate}
+
+\subsection{Collegamento con Rete Beta}
+
+Le alpha memories forniscono input alla rete beta per:
+\begin{itemize}
+\item Join tra pattern
+\item Gestione della negazione
+\item Combinazione di condizioni
+\end{itemize}
+
+Vedi Capitolo~\ref{cap:rete_beta} per dettagli.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Forgy, C. (1982). "Rete: A Fast Algorithm..." - Sezione 2-3
+\item CLIPS Architecture Manual - Capitolo "Pattern Network"
+\item Doorenbos, R. (1995). "Production Matching..." - RETE/UL alpha network
+\item Miranker, D. (1990). "TREAT: A New Efficient Match Algorithm"
+\end{itemize}

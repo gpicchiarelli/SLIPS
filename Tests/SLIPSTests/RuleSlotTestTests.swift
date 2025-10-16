@@ -1,0 +1,21 @@
+import XCTest
+@testable import SLIPS
+
+@MainActor
+final class RuleSlotTestTests: XCTestCase {
+    func testSlotInternalTestUsesBoundVar() {
+        _ = CLIPS.createEnvironment()
+        _ = CLIPS.eval(expr: "(deftemplate rec (slot a) (slot b))")
+        _ = CLIPS.eval(expr: "(defrule r (rec a ?x b (test (> ?x 10))) => (printout t \"OK\" crlf))")
+        var out = ""
+        guard var env = CLIPS.currentEnvironment else { XCTFail(); return }
+        _ = RouterRegistry.AddRouter(&env, "cap7", 100, query: { _, name in name == "t" }, write: { _, _, s in out += s })
+        _ = CLIPS.eval(expr: "(watch rules)")
+        _ = CLIPS.eval(expr: "(assert rec a 5 b 0)")
+        XCTAssertEqual(CLIPS.run(limit: nil), 0, out)
+        _ = CLIPS.eval(expr: "(assert rec a 11 b 0)")
+        XCTAssertEqual(CLIPS.run(limit: nil), 1, out)
+        // Per alcuni path di join complessi, l'output può arrivare su stdout.
+        // Qui verifichiamo almeno che sia stata generata un'attivazione e fire.
+    }
+}

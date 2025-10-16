@@ -1,0 +1,169 @@
+% Appendice C: Esempi Completi
+
+\chapter{Esempi Completi e Casi di Studio}
+\label{app:esempi}
+
+\section{Esempio 1: Sistema di Raccomandazioni}
+
+\begin{lstlisting}[language=CLIPS]
+;; Template
+(deftemplate utente
+  (slot id (type INTEGER))
+  (slot nome (type STRING))
+  (multislot interessi))
+
+(deftemplate prodotto
+  (slot id (type INTEGER))
+  (slot nome (type STRING))
+  (slot categoria)
+  (slot prezzo (type FLOAT)))
+
+(deftemplate raccomandazione
+  (slot utente-id)
+  (slot prodotto-id)
+  (slot score (type FLOAT)))
+
+;; Regole
+(defrule raccomanda-per-interesse
+  (utente (id ?uid) (interessi $? ?cat $?))
+  (prodotto (id ?pid) (categoria ?cat) (prezzo ?p&:(< ?p 100)))
+  =>
+  (assert (raccomandazione 
+    (utente-id ?uid)
+    (prodotto-id ?pid)
+    (score 0.8))))
+
+;; Uso
+(assert (utente (id 1) (nome "Mario") (interessi sport tecnologia)))
+(assert (prodotto (id 101) (nome "Laptop") (categoria tecnologia) (prezzo 899.00)))
+(run)
+\end{lstlisting}
+
+\section{Esempio 2: Sistema di Workflow}
+
+\begin{lstlisting}[language=CLIPS]
+(deftemplate richiesta
+  (slot id (type INTEGER))
+  (slot tipo)
+  (slot importo (type FLOAT))
+  (slot stato (allowed-values pending approved rejected)))
+
+(defrule approva-automatica
+  (declare (salience 10))
+  ?r <- (richiesta (id ?id) (importo ?i&:(< ?i 1000)) (stato pending))
+  =>
+  (modify ?r (stato approved))
+  (printout t "Richiesta " ?id " approvata automaticamente" crlf))
+
+(defrule richiedi-manager
+  ?r <- (richiesta (importo ?i&:(>= ?i 1000)) (stato pending))
+  =>
+  (modify ?r (stato requires-approval))
+  (assert (notifica (destinatario manager) (richiesta-id ?r))))
+\end{lstlisting}
+
+\section{Esempio 3: Sistema Diagnostico}
+
+\begin{lstlisting}[language=CLIPS]
+(deftemplate paziente
+  (slot id)
+  (slot nome)
+  (slot età (type INTEGER)))
+
+(deftemplate sintomo
+  (slot paziente-id)
+  (slot tipo)
+  (slot gravità (allowed-values lieve moderata grave)))
+
+(deftemplate diagnosi
+  (slot paziente-id)
+  (slot malattia)
+  (slot confidenza (type FLOAT)))
+
+(defrule influenza
+  (paziente (id ?pid))
+  (sintomo (paziente-id ?pid) (tipo febbre) (gravità moderata|grave))
+  (sintomo (paziente-id ?pid) (tipo tosse))
+  (not (diagnosi (paziente-id ?pid)))
+  =>
+  (assert (diagnosi (paziente-id ?pid) (malattia influenza) (confidenza 0.7))))
+
+(defrule covid-sospetto
+  (declare (salience 20))  ; Priorità alta
+  (paziente (id ?pid))
+  (sintomo (paziente-id ?pid) (tipo febbre) (gravità grave))
+  (sintomo (paziente-id ?pid) (tipo tosse))
+  (sintomo (paziente-id ?pid) (tipo difficoltà-respiratoria))
+  =>
+  (assert (diagnosi (paziente-id ?pid) (malattia covid-19) (confidenza 0.85)))
+  (assert (azione-urgente (paziente-id ?pid) (tipo test-pcr))))
+\end{lstlisting}
+
+\section{Esempio 4: Regole con Moduli}
+
+\begin{lstlisting}[language=CLIPS]
+(defmodule ACQUISITION
+  "Acquisizione dati sensori"
+  (export deftemplate sensor-reading))
+
+(deftemplate sensor-reading
+  (slot sensor-id)
+  (slot timestamp)
+  (slot value (type FLOAT)))
+
+(defmodule PROCESSING
+  "Elaborazione dati"
+  (import ACQUISITION deftemplate sensor-reading)
+  (export deftemplate alert))
+
+(deftemplate alert
+  (slot sensor-id)
+  (slot level (allowed-values warning critical))
+  (slot message))
+
+(defrule PROCESSING::rileva-anomalia
+  (sensor-reading (sensor-id ?id) (value ?v&:(> ?v 100)))
+  =>
+  (assert (alert (sensor-id ?id) (level critical) 
+                 (message "Valore critico rilevato")))
+  (focus NOTIFICATION))
+
+(defmodule NOTIFICATION
+  "Gestione notifiche"
+  (import PROCESSING deftemplate alert))
+
+(defrule NOTIFICATION::invia-alert
+  (alert (sensor-id ?id) (level critical) (message ?msg))
+  =>
+  (printout t "ALERT: Sensore " ?id " - " ?msg crlf))
+\end{lstlisting}
+
+\section{Esempio 5: Pattern Matching Avanzato}
+
+\begin{lstlisting}[language=CLIPS]
+;; Multifield variables
+(defrule analizza-sequenza
+  (sequenza $?inizio ?target $?fine)
+  (test (> (length$ $?inizio) 2))
+  (test (> (length$ $?fine) 1))
+  =>
+  (printout t "Trovato " ?target " in posizione " 
+            (+ (length$ $?inizio) 1) crlf))
+
+;; Pattern composti con AND/OR
+(defrule contratto-speciale
+  (or (cliente (tipo premium))
+      (and (cliente (tipo standard))
+           (ordini-totali ?n&:(> ?n 10))))
+  =>
+  (assert (sconto-disponibile)))
+
+;; Constraint complessi
+(defrule valida-range
+  (misura (valore ?v&:(>= ?v 0)&:(<= ?v 100)&:(numberp ?v)))
+  =>
+  (assert (misura-valida)))
+\end{lstlisting}
+
+\textit{Per esempi completi e casi di studio più approfonditi, consultare il repository GitHub del progetto SLIPS.}
+

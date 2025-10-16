@@ -1,0 +1,406 @@
+% Capitolo 18: Implementazione RETE in SLIPS
+
+\chapter{SLIPS RETE: Network Implementation}
+\label{cap:slips_rete}
+
+\section{Introduzione}
+
+Questo capitolo mostra l'implementazione Swift della rete RETE, cuore del pattern matching di SLIPS.
+
+\section{Node Hierarchy}
+
+\begin{lstlisting}[language=Swift]
+protocol ReteNode: AnyObject {
+    var id: Int { get }
+    var children: [ReteNode] { get set }
+    func activate(token: Token)
+}
+
+// Alpha Network
+class AlphaNode: ReteNode {
+    let id: Int
+    var children: [ReteNode] = []
+    var test: AlphaTest?
+    
+    func activate(token: Token) {
+        guard evaluateTest(token) else { return }
+        for child in children {
+            child.activate(token: token)
+        }
+    }
+}
+
+class AlphaMemory: ReteNode {
+    let id: Int
+    var children: [ReteNode] = []
+    var facts: Set<Fact> = []
+    
+    func add(_ fact: Fact) {
+        facts.insert(fact)
+        notifyBeta(fact)
+    }
+}
+
+// Beta Network
+class JoinNode: ReteNode {
+    let id: Int
+    var children: [ReteNode] = []
+    weak var leftParent: BetaMemory?
+    weak var rightParent: AlphaMemory?
+    var joinTests: [JoinTest] = []
+    
+    func leftActivate(token: Token) {
+        guard let right = rightParent else { return }
+        for fact in right.facts {
+            if testPass(token, fact) {
+                let newToken = token.extend(with: fact)
+                propagate(newToken)
+            }
+        }
+    }
+    
+    func rightActivate(fact: Fact) {
+        guard let left = leftParent else { return }
+        for token in left.tokens {
+            if testPass(token, fact) {
+                let newToken = token.extend(with: fact)
+                propagate(newToken)
+            }
+        }
+    }
+}
+
+class BetaMemory: ReteNode {
+    var tokens: Set<Token> = []
+    
+    func add(_ token: Token) {
+        tokens.insert(token)
+        for child in children {
+            child.activate(token: token)
+        }
+    }
+}
+
+class ProductionNode: ReteNode {
+    let rule: Defrule
+    var activations: Set<Activation> = []
+    
+    func activate(token: Token) {
+        let activation = Activation(rule: rule, token: token)
+        activations.insert(activation)
+        agenda.add(activation)
+    }
+}
+\end{lstlisting}
+
+\section{Network Builder}
+
+\begin{lstlisting}[language=Swift]
+class NetworkBuilder {
+    private var alphaNodes: [String: AlphaNode] = [:]
+    private var nextNodeID = 0
+    
+    func buildNetwork(for rule: Defrule) -> ProductionNode {
+        var currentBeta: ReteNode = dummyTopNode
+        
+        for pattern in rule.patterns {
+            // Build alpha part
+            let alphaMemory = buildAlphaNetwork(for: pattern)
+            
+            // Build join
+            let joinNode = createJoinNode(
+                left: currentBeta as! BetaMemory,
+                right: alphaMemory,
+                tests: extractJoinTests(pattern)
+            )
+            
+            // Beta memory after join
+            let betaMemory = BetaMemory(id: nextNodeID)
+            nextNodeID += 1
+            joinNode.children.append(betaMemory)
+            
+            currentBeta = betaMemory
+        }
+        
+        // Production node
+        let prodNode = ProductionNode(id: nextNodeID, rule: rule)
+        nextNodeID += 1
+        currentBeta.children.append(prodNode)
+        
+        return prodNode
+    }
+    
+    private func buildAlphaNetwork(for pattern: Pattern) -> AlphaMemory {
+        let key = pattern.template
+        
+        // Get or create type node
+        if let existing = alphaNodes[key] {
+            return findOrCreateAlphaMemory(under: existing, pattern: pattern)
+        }
+        
+        let typeNode = AlphaNode(id: nextNodeID)
+        nextNodeID += 1
+        alphaNodes[key] = typeNode
+        
+        return buildAlphaChain(typeNode, pattern: pattern)
+    }
+    
+    private func buildAlphaChain(_ node: AlphaNode, pattern: Pattern) -> AlphaMemory {
+        var current = node
+        
+        // Add test nodes for each constraint
+        for constraint in pattern.constraints where constraint.isIntraElement {
+            let testNode = AlphaNode(id: nextNodeID)
+            nextNodeID += 1
+            testNode.test = AlphaTest(constraint: constraint)
+            current.children.append(testNode)
+            current = testNode
+        }
+        
+        // Alpha memory at end
+        let memory = AlphaMemory(id: nextNodeID)
+        nextNodeID += 1
+        current.children.append(memory)
+        
+        return memory
+    }
+}
+\end{lstlisting}
+
+\section{Hash Join Optimization}
+
+\begin{lstlisting}[language=Swift]
+class HashJoinNode: JoinNode {
+    private var leftIndex: [Value: Set<Token>] = [:]
+    private var rightIndex: [Value: Set<Fact>] = [:]
+    private let joinVariable: String
+    
+    override func leftActivate(token: Token) {
+        guard let value = token.binding[joinVariable] else { return }
+        
+        // Add to index
+        leftIndex[value, default: []].insert(token)
+        
+        // Lookup in right index
+        if let rightMatches = rightIndex[value] {
+            for fact in rightMatches {
+                let newToken = token.extend(with: fact)
+                propagate(newToken)
+            }
+        }
+    }
+    
+    override func rightActivate(fact: Fact) {
+        guard let value = fact.slots[joinVariable] else { return }
+        
+        // Add to index
+        rightIndex[value, default: []].insert(fact)
+        
+        // Lookup in left index
+        if let leftMatches = leftIndex[value] {
+            for token in leftMatches {
+                let newToken = token.extend(with: fact)
+                propagate(newToken)
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Negative Nodes}
+
+\begin{lstlisting}[language=Swift]
+class NegativeNode: ReteNode {
+    private var counters: [Token: Int] = [:]
+    
+    func leftActivate(token: Token) {
+        counters[token] = 0
+        
+        // Check right memory
+        guard let right = rightParent else { return }
+        for fact in right.facts {
+            if testPass(token, fact) {
+                counters[token]! += 1
+            }
+        }
+        
+        // Propagate if count = 0
+        if counters[token] == 0 {
+            propagate(token)
+        }
+    }
+    
+    func rightActivate(fact: Fact) {
+        guard let left = leftParent else { return }
+        for token in left.tokens {
+            if testPass(token, fact) {
+                counters[token]! += 1
+                if counters[token] == 1 {
+                    // Era 0, ora non più - ritira
+                    removeFromChildren(token)
+                }
+            }
+        }
+    }
+    
+    func rightRetract(fact: Fact) {
+        guard let left = leftParent else { return }
+        for token in left.tokens {
+            if testPass(token, fact) {
+                counters[token]! -= 1
+                if counters[token] == 0 {
+                    // Ora soddisfatto - propaga
+                    propagate(token)
+                }
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Token Management}
+
+\begin{lstlisting}[language=Swift]
+struct Token: Hashable {
+    let facts: [Fact]
+    let bindings: [String: Value]
+    
+    func extend(with fact: Fact) -> Token {
+        var newFacts = facts
+        newFacts.append(fact)
+        
+        var newBindings = bindings
+        // Extract new bindings from fact
+        // (logic depends on pattern variables)
+        
+        return Token(facts: newFacts, bindings: newBindings)
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(facts.map(\.id))
+    }
+    
+    static func == (lhs: Token, rhs: Token) -> Bool {
+        return lhs.facts.map(\.id) == rhs.facts.map(\.id)
+    }
+}
+
+// Token Pool for performance
+class TokenPool {
+    private var pool: [Token] = []
+    private let maxSize = 1000
+    
+    func acquire(facts: [Fact], bindings: [String: Value]) -> Token {
+        if let token = pool.popLast() {
+            // Reuse (would need mutable token)
+            return Token(facts: facts, bindings: bindings)
+        }
+        return Token(facts: facts, bindings: bindings)
+    }
+    
+    func release(_ token: Token) {
+        guard pool.count < maxSize else { return }
+        pool.append(token)
+    }
+}
+\end{lstlisting}
+
+\section{Propagation Engine}
+
+\begin{lstlisting}[language=Swift]
+class PropagationEngine {
+    func assertFact(_ fact: Fact, in network: AlphaNetwork) {
+        let typeNode = network.getTypeNode(for: fact.template.name)
+        propagateAssert(fact, through: typeNode)
+    }
+    
+    private func propagateAssert(_ fact: Fact, through node: AlphaNode) {
+        // Evaluate test
+        if let test = node.test {
+            guard test.evaluate(fact) else { return }
+        }
+        
+        // Propagate to children
+        for child in node.children {
+            if let alphaMemory = child as? AlphaMemory {
+                alphaMemory.add(fact)
+            } else if let alphaNode = child as? AlphaNode {
+                propagateAssert(fact, through: alphaNode)
+            }
+        }
+    }
+    
+    func retractFact(_ fact: Fact, from network: AlphaNetwork) {
+        // Find alpha memories containing fact
+        for memory in fact.alphaMemories {
+            memory.remove(fact)
+        }
+        
+        // Find and remove tokens containing fact
+        for token in fact.tokens {
+            removeToken(token)
+        }
+    }
+    
+    private func removeToken(_ token: Token) {
+        // Traverse beta network removing token
+        // and dependent tokens/activations
+    }
+}
+\end{lstlisting}
+
+\section{Performance Optimization}
+
+\subsection{Node Sharing}
+
+\begin{lstlisting}[language=Swift]
+class SharedNodeRegistry {
+    private var alphaNodes: [AlphaNodeKey: AlphaNode] = [:]
+    private var joinNodes: [JoinNodeKey: JoinNode] = [:]
+    
+    func getOrCreateAlphaNode(
+        type: String,
+        test: AlphaTest?
+    ) -> AlphaNode {
+        let key = AlphaNodeKey(type: type, test: test)
+        
+        if let existing = alphaNodes[key] {
+            return existing
+        }
+        
+        let node = AlphaNode(id: nextNodeID)
+        nextNodeID += 1
+        node.test = test
+        alphaNodes[key] = node
+        return node
+    }
+}
+
+struct AlphaNodeKey: Hashable {
+    let type: String
+    let test: AlphaTest?
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item RETE implementato con \textbf{protocol-oriented design}
+\item \textbf{Weak references} per evitare cicli
+\item \textbf{Hash join} per ottimizzazione
+\item \textbf{Node sharing} riduce duplicazione
+\item Token pool per performance
+\end{enumerate}
+
+\subsection{Prossimi Capitoli}
+
+Capitolo~\ref{cap:slips_agenda} mostra l'implementazione dell'agenda in Swift.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Source - \texttt{drive.c}, \texttt{reteutil.c}
+\item Swift Performance - Protocol-Oriented Programming
+\end{itemize}

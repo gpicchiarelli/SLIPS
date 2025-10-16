@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLIPS - Practical Examples</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">⚡</span>
+                <a href="../" style="text-decoration: none; color: inherit;">
+                    <span class="brand-name">SLIPS</span>
+                </a>
+            </div>
+            <div class="nav-links">
+                <div class="lang-switch">
+                    <button class="active">EN</button>
+                    <button onclick="window.location.href='../it/examples.html'">IT</button>
+                </div>
+                <a href="index.html">Docs</a>
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank" class="github-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="doc-container">
+        <div class="doc-header">
+            <h1 class="doc-title gradient-text">Practical Examples</h1>
+            <p class="doc-subtitle">Learn SLIPS through concrete examples</p>
+        </div>
+
+        <div class="doc-content">
+            <section id="hello-world">
+                <h2>Hello World</h2>
+                <p>The classic first program in SLIPS:</p>
+                <pre><code>import SLIPS
+
+let env = CLIPS.createEnvironment()
+
+CLIPS.eval(expr: """
+(defrule hello
+    =>
+    (printout t "Hello, SLIPS!" crlf))
+""")
+
+CLIPS.run(limit: nil)</code></pre>
+            </section>
+
+            <section id="facts">
+                <h2>Fact Management</h2>
+                <h3>Template Definition</h3>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate person
+    (slot name (type STRING))
+    (slot age (type INTEGER))
+    (slot city (type STRING)))
+""")</code></pre>
+
+                <h3>Assert and Retract</h3>
+                <pre><code>// Assert
+let id1 = CLIPS.eval(expr: "(assert (person (name \"John\") (age 30) (city \"NYC\")))")
+let id2 = CLIPS.eval(expr: "(assert (person (name \"Jane\") (age 25) (city \"LA\")))")
+
+// List facts
+CLIPS.eval(expr: "(facts)")
+
+// Retract
+CLIPS.eval(expr: "(retract \(id1))")</code></pre>
+            </section>
+
+            <section id="rules">
+                <h2>Production Rules</h2>
+                <h3>Simple Pattern Matching</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule adult
+    (person (name ?n) (age ?a&:(>= ?a 18)))
+    =>
+    (printout t ?n " is an adult" crlf))
+""")</code></pre>
+
+                <h3>Shared Variable Patterns</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule same-city
+    (person (name ?n1) (city ?c))
+    (person (name ?n2&~?n1) (city ?c))
+    =>
+    (printout t ?n1 " and " ?n2 " live in " ?c crlf))
+""")</code></pre>
+
+                <h3>Negation (NOT)</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule no-orders
+    (customer (id ?id) (name ?n))
+    (not (order (customer-id ?id)))
+    =>
+    (printout t "Customer " ?n " has no orders" crlf))
+""")</code></pre>
+            </section>
+
+            <section id="expert-system">
+                <h2>Complete Expert System</h2>
+                <p>Simplified medical diagnosis system:</p>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate symptom
+    (slot name)
+    (slot severity (type INTEGER)))
+
+(deftemplate diagnosis
+    (slot disease)
+    (slot probability (type FLOAT)))
+
+(defrule flu
+    (symptom (name fever) (severity ?s1&:(> ?s1 7)))
+    (symptom (name cough))
+    (symptom (name headache))
+    =>
+    (assert (diagnosis (disease flu) (probability 0.85)))
+    (printout t "Probable flu (85%)" crlf))
+
+(defrule cold
+    (symptom (name cough))
+    (symptom (name stuffy-nose))
+    (not (symptom (name fever) (severity ?s&:(> ?s 7))))
+    =>
+    (assert (diagnosis (disease cold) (probability 0.75)))
+    (printout t "Probable cold (75%)" crlf))
+""")
+
+// Enter symptoms
+CLIPS.eval(expr: "(assert (symptom (name fever) (severity 8)))")
+CLIPS.eval(expr: "(assert (symptom (name cough) (severity 6)))")
+CLIPS.eval(expr: "(assert (symptom (name headache) (severity 5)))")
+
+// Execute
+CLIPS.run(limit: nil)</code></pre>
+            </section>
+
+            <section id="control-flow">
+                <h2>Control Flow</h2>
+                <h3>Salience (Priority)</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule urgent
+    (salience 100)
+    (alarm ?type)
+    =>
+    (printout t "URGENT: " ?type crlf))
+
+(defrule normal
+    (salience 0)
+    (message ?msg)
+    =>
+    (printout t "Message: " ?msg crlf))
+""")</code></pre>
+
+                <h3>Agenda Strategies</h3>
+                <pre><code>// Depth (default)
+CLIPS.eval(expr: "(set-strategy depth)")
+
+// Breadth
+CLIPS.eval(expr: "(set-strategy breadth)")
+
+// LEX (Recency)
+CLIPS.eval(expr: "(set-strategy lex)")</code></pre>
+            </section>
+
+            <section id="functions">
+                <h2>Functions and Calculations</h2>
+                <pre><code>CLIPS.eval(expr: """
+(defrule calculate-discount
+    (order (id ?id) (amount ?amt))
+    (customer (id ?cid) (type premium))
+    =>
+    (bind ?discount (* ?amt 0.20))
+    (bind ?final (- ?amt ?discount))
+    (printout t "Order " ?id ": $" ?final " (discount $" ?discount ")" crlf))
+""")</code></pre>
+
+                <h3>Multifield</h3>
+                <pre><code>CLIPS.eval(expr: """
+(deftemplate order
+    (multislot products))
+
+(defrule analyze-order
+    (order (products $?items))
+    =>
+    (printout t "Product count: " (length$ $?items) crlf))
+""")</code></pre>
+            </section>
+
+            <section id="watch">
+                <h2>Debug and Watch</h2>
+                <pre><code>// Enable watch facts
+CLIPS.eval(expr: "(watch facts)")
+
+// Enable watch rules
+CLIPS.eval(expr: "(watch rules)")
+
+// Output:
+// ==> (person (name "John") (age 30))
+// ==> Activation adult
+// FIRE adult
+
+// Disable
+CLIPS.eval(expr: "(unwatch facts)")
+CLIPS.eval(expr: "(unwatch rules)")</code></pre>
+            </section>
+
+            <section id="advanced">
+                <h2>Advanced Patterns</h2>
+                <h3>Complex Predicate Tests</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule suspicious-price
+    (product (name ?n) (price ?p))
+    (test (or (< ?p 0) (> ?p 10000)))
+    =>
+    (printout t "ALERT: " ?n " has anomalous price: $" ?p crlf))
+""")</code></pre>
+
+                <h3>Wildcard Patterns</h3>
+                <pre><code>CLIPS.eval(expr: """
+(defrule any-age
+    (person (name ?n) (age ?))
+    =>
+    (printout t "Found person: " ?n crlf))
+""")</code></pre>
+            </section>
+
+            <section id="integration">
+                <h2>Swift Integration</h2>
+                <h3>Custom Functions</h3>
+                <pre><code>import SLIPS
+
+// Register custom function
+var env = CLIPS.createEnvironment()
+env.functionTable["my-func"] = FunctionDefinitionSwift(name: "my-func") { env, args in
+    guard let val = args.first, case .int(let i) = val else {
+        return .none
+    }
+    return .int(i * 2)
+}
+
+CLIPS.eval(expr: """
+(defrule test
+    =>
+    (printout t "Result: " (my-func 21) crlf))
+""")
+
+CLIPS.run(limit: nil)  // Output: Result: 42</code></pre>
+
+                <h3>Custom Routers</h3>
+                <pre><code>var logs: [String] = []
+
+Router.AddCallback(&env, name: "custom", priority: 10) { _, _, text in
+    logs.append(text)
+    return true
+}
+
+CLIPS.eval(expr: "(printout custom \"Log message\" crlf)")
+print(logs)  // ["Log message\n"]</code></pre>
+            </section>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>SLIPS - Semantic translation of CLIPS 6.4.2 to Swift 6.2</p>
+            <p class="footer-links">
+                <a href="index.html">Documentation</a> · 
+                <a href="api.html">API</a> · 
+                <a href="https://github.com/gpicchiarelli/SLIPS" target="_blank">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+</body>
+</html>
+

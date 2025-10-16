@@ -1,0 +1,422 @@
+% Capitolo 9: Analisi di Complessità dell'Algoritmo RETE
+
+\chapter{Complessità Computazionale di RETE}
+\label{cap:rete_complessita}
+
+\section{Introduzione}
+
+L'analisi formale della complessità dell'algoritmo RETE è fondamentale per comprenderne i limiti teorici e le prestazioni attese in scenari reali.
+
+\section{Parametri del Modello}
+
+\subsection{Notazione}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}cl@{}}
+\toprule
+\textbf{Simbolo} & \textbf{Significato} \\
+\midrule
+$n$ & Numero di regole (productions) \\
+$m$ & Numero di fatti in working memory \\
+$k$ & Numero medio di condizioni per regola \\
+$a$ & Numero di alpha memories \\
+$d$ & Profondità media rete alpha \\
+$s$ & Selettività media dei pattern \\
+$c$ & Dimensione media conflict set \\
+\bottomrule
+\end{tabular}
+\caption{Parametri di complessità}
+\end{table}
+
+\subsection{Assunzioni}
+
+\begin{itemize}
+\item Distribuzione uniforme dei tipi di fatti
+\item Pattern indipendenti (no correlazioni forti)
+\item Join tests eseguibili in tempo $O(1)$
+\item Hash table con lookup $O(1)$ atteso
+\end{itemize}
+
+\section{Complessità Spaziale}
+
+\subsection{Rete Alpha}
+
+\textbf{Nodi}:
+\begin{equation}
+O(n \cdot k \cdot d)
+\end{equation}
+
+dove $d$ è la profondità media dei cammini (tipicamente $d \leq 5$).
+
+\textbf{Alpha memories}:
+\begin{equation}
+O(a \cdot \bar{m}_\alpha)
+\end{equation}
+
+dove $\bar{m}_\alpha$ è il numero medio di fatti per alpha memory.
+
+Nel worst case $\bar{m}_\alpha = m$, ma tipicamente $\bar{m}_\alpha \ll m$ grazie alla selettività.
+
+\subsection{Rete Beta}
+
+\textbf{Nodi}:
+\begin{equation}
+O(n \cdot k)
+\end{equation}
+
+\textbf{Beta memories}:
+
+Nel worst case (pattern molto generici):
+\begin{equation}
+O(m^k)
+\end{equation}
+
+\textbf{Esempio pessimo}:
+\begin{lstlisting}[language=CLIPS]
+(defrule cross-product
+  (a ?x) (b ?y) (c ?z)  ; Nessun join test!
+  =>
+  ...)
+\end{lstlisting}
+
+Con 100 fatti di tipo a, b, c:
+\begin{equation}
+100 \times 100 \times 100 = 10^6 \text{ token}
+\end{equation}
+
+\textbf{Caso medio}:
+
+Con selettività $s$ e join tests che riducono combinazioni di un fattore $r$:
+\begin{equation}
+O\left(\left(\frac{m \cdot s}{r}\right)^k\right)
+\end{equation}
+
+In pratica, con $s \approx 0.1$ e $r \approx 10$:
+\begin{equation}
+O((m \cdot 0.01)^k) \approx O(m) \text{ per } k \text{ piccolo}
+\end{equation}
+
+\subsection{Totale}
+
+\begin{equation}
+\text{Space}_{\text{RETE}} = O(n \cdot k) + O(a \cdot \bar{m}_\alpha) + O(\bar{t})
+\end{equation}
+
+dove $\bar{t}$ è il numero medio di token nelle beta memories.
+
+\section{Complessità Temporale}
+
+\subsection{Compilazione (Una Tantum)}
+
+Costruire la rete RETE:
+\begin{equation}
+O(n \cdot k \cdot d)
+\end{equation}
+
+Operazione eseguita una sola volta all'inizio.
+
+\subsection{Recognize Phase}
+
+\subsubsection{Assert}
+
+\textbf{Alpha network traversal}:
+\begin{equation}
+O(d) \approx O(1)
+\end{equation}
+
+\textbf{Right activations}: Per ogni alpha memory toccata, attiva join nodes.
+
+Numero di join attivati:
+\begin{equation}
+O(a_f)
+\end{equation}
+
+dove $a_f$ = alpha memories che contengono il fatto.
+
+\textbf{Join execution}:
+
+Per ogni join:
+\begin{itemize}
+\item Con hash join: $O(h)$ dove $h$ = size dell'altra memory
+\item Senza hash: $O(|left| \cdot |right|)$
+\end{itemize}
+
+\textbf{Totale per assert}:
+\begin{equation}
+O\left(\sum_{j \in J_f} \text{cost}(j)\right)
+\end{equation}
+
+dove $J_f$ = join attivati dal fatto $f$.
+
+**Caso medio**: $O(a_f \cdot \bar{h})$ con $\bar{h}$ = dimensione media memory.
+
+**Con buona selettività**: $O(c)$ dove $c$ = nuove attivazioni generate.
+
+\subsubsection{Retract}
+
+Simile ad assert, ma rimuove token e attivazioni.
+
+\textbf{Con reference tracking}: $O(t_f)$ dove $t_f$ = token che contengono $f$.
+
+\textbf{Senza tracking}: Potenzialmente $O(\bar{t})$ (scan tutte le memories).
+
+\subsection{Act Phase}
+
+Esecuzione RHS della regola scelta:
+\begin{equation}
+O(\text{azioni})
+\end{equation}
+
+Tipicamente $O(1)$ per regola semplice, ma può essere arbitrario.
+
+\subsection{Ciclo Recognize-Act}
+
+Un ciclo completo:
+\begin{equation}
+T_{\text{cycle}} = T_{\text{recognize}} + T_{\text{act}}
+\end{equation}
+
+Con $\Delta_m$ fatti modificati per ciclo:
+\begin{equation}
+T_{\text{recognize}} = O(\Delta_m \cdot c)
+\end{equation}
+
+\textbf{Chiave}: Se $\Delta_m \ll m$ (principio di temporalità), allora:
+\begin{equation}
+T_{\text{recognize}} \ll T_{\text{naive}}
+\end{equation}
+
+\section{Confronto con Algoritmo Naïve}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Metrica} & \textbf{Naïve} & \textbf{RETE} \\
+\midrule
+Spazio & $O(n)$ & $O(n \cdot k + \bar{t})$ \\
+Tempo/ciclo & $O(n \cdot m^k)$ & $O(\Delta_m \cdot c)$ \\
+Setup & $O(1)$ & $O(n \cdot k)$ \\
+Incrementale & No & Sì \\
+\bottomrule
+\end{tabular}
+\caption{Confronto complessità Naïve vs RETE}
+\end{table}
+
+\subsection{Breakeven Point}
+
+RETE conviene quando:
+\begin{equation}
+\text{num cicli} \cdot (T_{\text{naive}} - T_{\text{RETE}}) > \text{Space}_{\text{RETE}} \cdot \text{cost}_{\text{mem}}
+\end{equation}
+
+In pratica, quasi sempre dopo pochi cicli.
+
+\section{Worst Case vs Caso Medio}
+
+\subsection{Scenari Worst Case}
+
+\begin{enumerate}
+\item \textbf{Pattern generici}:
+\begin{lstlisting}[language=CLIPS]
+(defrule any-fact
+  (?) ; Matcha tutto!
+  =>
+  ...)
+\end{lstlisting}
+
+\item \textbf{Cross-product join}:
+\begin{lstlisting}[language=CLIPS]
+(defrule cartesian
+  (a) (b) (c) ; Nessun join test
+  =>
+  ...)
+\end{lstlisting}
+
+\item \textbf{WM completamente rinnovata ogni ciclo}:
+\begin{itemize}
+\item $\Delta_m = m$
+\item Nessun riuso di match
+\end{itemize}
+
+\end{enumerate}
+
+\textbf{Complessità worst case}:
+\begin{equation}
+O(n \cdot m^k) \text{ per ciclo}
+\end{equation}
+
+Uguale al naïve!
+
+\subsection{Caso Medio Realistico}
+
+\textbf{Assunzioni tipiche}:
+\begin{itemize}
+\item Selettività pattern: $s \approx 0.1$
+\item Fatti modificati: $\Delta_m \approx 0.01 \cdot m$
+\item Join reduction: $r \approx 10$
+\item Profondità regole: $k \leq 5$
+\end{itemize}
+
+\textbf{Complessità risultante}:
+\begin{equation}
+O(m) \text{ per ciclo}
+\end{equation}
+
+\textbf{Miglioramento}:
+\begin{equation}
+\text{speedup} \approx \frac{m^{k-1}}{\Delta_m \cdot c} \approx 10^3 \text{--} 10^6
+\end{equation}
+
+\section{Analisi Empirica}
+
+\subsection{Studi Sperimentali}
+
+\textbf{Forgy (1982)}:
+\begin{itemize}
+\item Test su sistemi reali (OPS5)
+\item Speedup 100-1000x vs naïve
+\item Overhead memoria accettabile (2-5x)
+\end{itemize}
+
+\textbf{Miranker (1990)}:
+\begin{itemize}
+\item Confronto RETE vs TREAT
+\item RETE migliore per WM stabile
+\item TREAT migliore per WM volatile
+\end{itemize}
+
+\textbf{Doorenbos (1995)}:
+\begin{itemize}
+\item RETE/UL (con unlinking)
+\item Riduce overhead fino a 50\%
+\item Memoria più efficiente
+\end{itemize}
+
+\subsection{Benchmark CLIPS}
+
+Dati tipici da CLIPS su sistemi medium (1000 regole, 10000 fatti):
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Operazione} & \textbf{Tempo} & \textbf{Note} \\
+\midrule
+Assert & 50 $\mu$s & Con aggiornamenti \\
+Retract & 30 $\mu$s & Cleanup token \\
+Fire & 100 $\mu$s & RHS semplice \\
+Ciclo completo & 5 ms & 20 regole fired \\
+\bottomrule
+\end{tabular}
+\caption{Benchmark CLIPS (ordini di grandezza)}
+\end{table}
+
+\section{Lower Bounds}
+
+\subsection{Limiti Teorici}
+
+\begin{teorema}[Lower Bound Pattern Matching]
+Qualsiasi algoritmo per pattern matching incrementale richiede:
+\begin{equation}
+\Omega(\Delta_m + c)
+\end{equation}
+nel caso medio, dove $c$ = cambiamenti nel conflict set.
+\end{teorema}
+
+\textbf{Dimostrazione (sketch)}:
+\begin{itemize}
+\item Dobbiamo almeno "vedere" i $\Delta_m$ fatti modificati
+\item Dobbiamo generare le $c$ nuove attivazioni
+\item Quindi $\Omega(\Delta_m + c)$ è inevitabile
+\end{itemize}
+
+\textbf{Corollario}: RETE è \textit{quasi ottimo} nel caso medio!
+
+\subsection{Trade-off Fondamentale}
+
+\begin{teorema}[Space-Time Trade-off]
+Per algoritmi di pattern matching:
+\begin{equation}
+\text{Space} \times \text{Time} \geq \Omega(m \cdot c)
+\end{equation}
+\end{teorema}
+
+**Intuizione**:
+\begin{itemize}
+\item Poco spazio $\Rightarrow$ ricalcolo frequente
+\item Molto spazio $\Rightarrow$ fast update
+\item RETE sceglie il secondo estremo
+\end{itemize}
+
+\section{Varianti e Ottimizzazioni}
+
+\subsection{TREAT (Miranker)}
+
+\textbf{Complessità}:
+\begin{itemize}
+\item Spazio: $O(n \cdot k)$ (no beta memories!)
+\item Tempo: $O(m \cdot c)$ per ciclo
+\end{itemize}
+
+\textbf{Trade-off}: Meno spazio, più tempo. Meglio per WM volatile.
+
+\subsection{RETE/UL (Doorenbos)}
+
+Con unlinking ottimizzato:
+\begin{itemize}
+\item Spazio: $O(t_{\text{active}})$ dove $t_{\text{active}} \ll t_{\text{total}}$
+\item Tempo: Simile a RETE standard
+\end{itemize}
+
+\textbf{Beneficio}: Risparmio memoria significativo.
+
+\subsection{Collection-Oriented Match (LEAPS)}
+
+\textbf{Complessità}:
+\begin{itemize}
+\item Lazy evaluation di join
+\item Spazio: $O(n \cdot k)$
+\item Tempo: $O(m \cdot \log m)$ con indici
+\end{itemize}
+
+\textbf{Adatto per}: Query-driven execution.
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item RETE ha \textbf{worst case} $O(m^k)$ spazio e $O(n \cdot m^k)$ tempo
+\item Nel \textbf{caso medio}, complessità ridotta a $O(m)$ per ciclo
+\item Il \textbf{principio di temporalità} è cruciale per efficienza
+\item Trade-off spazio-tempo favorevole in pratica
+\item RETE è \textbf{quasi ottimo} nel caso medio (lower bound)
+\end{enumerate}
+
+\subsection{Implicazioni Pratiche}
+
+\begin{infobox}[Linee Guida]
+\begin{itemize}
+\item Pattern specifici riducono complessità esponenzialmente
+\item Join tests sono essenziali per evitare cross-product
+\item Monitorare crescita beta memories
+\item Preferire selettività precoce nei pattern
+\item Considerare TREAT se WM molto volatile
+\end{itemize}
+\end{infobox}
+
+\subsection{Prossimi Passi}
+
+Il Capitolo~\ref{cap:rete_ottimizzazioni} presenterà tecniche concrete per migliorare ulteriormente le prestazioni di RETE in scenari reali.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Forgy, C. (1982). "Rete: A Fast Algorithm..." - Analisi originale
+\item Miranker, D. (1990). "TREAT: A New Efficient Match Algorithm"
+\item Doorenbos, R. (1995). "Production Matching..." - Analisi RETE/UL
+\item Perlin, M. (1990). "The RETE Algorithm, Theory and Practice"
+\item Batory, D. (1994). "The LEAPS Algorithm"
+\end{itemize}

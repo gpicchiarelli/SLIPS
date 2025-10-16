@@ -1,0 +1,107 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      
+    - name: Check Swift version
+      run: swift --version
+      
+    - name: Build
+      run: swift build -v --build-tests
+      
+    - name: Run tests with verbose output
+      run: swift test -v
+      
+    - name: Check for compilation warnings
+      run: |
+        swift build 2>&1 | tee build.log
+        WARNINGS=$(grep -c "warning:" build.log || true)
+        echo "Found $WARNINGS warnings"
+        if [ $WARNINGS -gt 0 ]; then
+          echo "⚠️ Build produced $WARNINGS warning(s)"
+          grep "warning:" build.log
+        fi
+      
+    - name: Verify package structure
+      run: |
+        swift package dump-package > package.json
+        cat package.json
+        
+    - name: Check file structure
+      run: |
+        echo "📁 Checking project structure..."
+        ls -la Sources/SLIPS/
+        echo ""
+        echo "📋 Test files:"
+        ls -la Tests/SLIPSTests/
+      
+    - name: Comment on PR
+      if: always()
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const fs = require('fs');
+          let comment = '## 🔍 PR Validation Results\n\n';
+          
+          try {
+            const buildLog = fs.readFileSync('build.log', 'utf8');
+            const warnings = (buildLog.match(/warning:/g) || []).length;
+            
+            if (warnings === 0) {
+              comment += '✅ Build completed with no warnings\n';
+            } else {
+              comment += `⚠️ Build completed with ${warnings} warning(s)\n`;
+            }
+          } catch (e) {
+            comment += '✅ Build check completed\n';
+          }
+          
+          comment += '\n---\n';
+          comment += '*Automated check by GitHub Actions*';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+      continue-on-error: true
+
+  swift-version-check:
+    name: Verify Swift 6.2
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      
+    - name: Verify Swift version
+      run: |
+        echo "Checking Swift version requirement (6.2)..."
+        swift --version
+        SWIFT_VERSION=$(swift --version | head -n 1)
+        echo "Current Swift version: $SWIFT_VERSION"
+        if [[ ! "$SWIFT_VERSION" =~ "Swift version 6" ]]; then
+          echo "❌ Error: Swift 6.x required, found: $SWIFT_VERSION"
+          exit 1
+        fi
+        echo "✅ Swift version check passed"
+

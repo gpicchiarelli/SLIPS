@@ -1,0 +1,680 @@
+% Capitolo 6: Introduzione all'Algoritmo RETE
+
+\chapter{L'Algoritmo RETE: Introduzione}
+\label{cap:rete_intro}
+
+\section{Il Problema del Pattern Matching Efficiente}
+
+\subsection{Analisi del Problema}
+
+Consideriamo un sistema a produzione con:
+\begin{itemize}
+\item $n$ regole nella production memory
+\item $m$ fatti nella working memory
+\item $k$ condizioni medie per regola
+\end{itemize}
+
+\subsubsection{Approccio Naïve}
+
+L'approccio naïve ricalcola da zero ad ogni ciclo:
+
+\begin{algorithm}[H]
+\caption{Match Naïve}
+\begin{algorithmic}[1]
+\Function{MatchNaive}{$PM, WM$}
+    \State $CS \gets \emptyset$
+    \For{each $r \in PM$}
+        \For{each combination $\langle w_1, \ldots, w_k \rangle$ of $k$ facts from $WM$}
+            \If{$\langle w_1, \ldots, w_k \rangle$ matches $r.LHS$}
+                \State $\theta \gets \text{extract\_bindings}(r.LHS, \langle w_1, \ldots, w_k \rangle)$
+                \State $CS \gets CS \cup \{(r, \theta)\}$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $CS$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Complessità}:
+\begin{equation}
+T_{\text{naïve}} = O\left(n \cdot \binom{m}{k}\right) = O(n \cdot m^k)
+\end{equation}
+
+\begin{esempio}[Costo Computazionale]
+Per un sistema realistico:
+\begin{align*}
+n &= 1000 \text{ regole}\\
+m &= 10000 \text{ fatti}\\
+k &= 3 \text{ condizioni/regola}
+\end{align*}
+
+Otteniamo:
+\begin{equation}
+T = 1000 \cdot 10000^3 = 10^{15} \text{ confronti}
+\end{equation}
+
+A 1 GHz (1 confronto/ns), servirebbero:
+\begin{equation}
+\frac{10^{15}}{10^9} = 10^6 \text{ secondi} \approx 11.6 \text{ giorni!}
+\end{equation}
+\end{esempio}
+
+\subsection{L'Intuizione di Forgy}
+
+Charles Forgy osservò due invarianti critici:
+
+\begin{osservazione}[Continuità Temporale]
+Tra un ciclo recognize-act e il successivo:
+\begin{itemize}
+\item La maggior parte dei fatti rimane invariata
+\item Solo pochi fatti vengono asseriti o ritratti
+\item Molti match parziali rimangono validi
+\end{itemize}
+
+Formalmente, se $WM_t$ è la working memory al ciclo $t$:
+\begin{equation}
+\frac{|WM_{t+1} \Delta WM_t|}{|WM_t|} \ll 1
+\end{equation}
+
+dove $\Delta$ denota differenza simmetrica.
+\end{osservazione}
+
+\begin{osservazione}[Similarità Strutturale]
+Molte regole condividono pattern comuni:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule r1
+  (persona (nome ?n) (eta ?e))
+  ...
+  =>
+  ...)
+
+(defrule r2
+  (persona (nome ?n) (eta ?e))
+  ...
+  =>
+  ...)
+\end{lstlisting}
+
+Il pattern \texttt{(persona (nome ?n) (eta ?e))} è condiviso.
+\end{osservazione}
+
+\subsection{Idea Centrale di RETE}
+
+L'algoritmo RETE sfrutta queste osservazioni costruendo una \textit{rete di nodi} che:
+
+\begin{enumerate}
+\item \textbf{Condivide} risultati di match parziali tra regole
+\item \textbf{Memorizza} risultati intermedi per riuso
+\item \textbf{Propaga} solo cambiamenti incrementali (delta)
+\end{enumerate}
+
+\begin{definizione}[Rete RETE]
+Una rete RETE è un grafo diretto aciclico $G = (V, E)$ dove:
+\begin{itemize}
+\item $V$ è l'insieme dei nodi (alpha, beta, join, production)
+\item $E$ è l'insieme degli archi (collegamenti parent-child)
+\item Ogni nodo mantiene \textit{memoria locale} di match parziali
+\item La propagazione è \textit{incrementale}: solo delta vengono processati
+\end{itemize}
+\end{definizione}
+
+\section{Architettura della Rete}
+
+\subsection{Tipologia di Nodi}
+
+La rete RETE comprende quattro tipi principali di nodi:
+
+\subsubsection{Nodi Alpha (Alpha Network)}
+
+\begin{definizione}[Nodo Alpha]
+Un nodo alpha $\alpha_i$ è associato a un singolo pattern $P_i$ e mantiene:
+\begin{equation}
+\text{memory}(\alpha_i) = \{w \in WM \mid w \text{ matcha } P_i\}
+\end{equation}
+\end{definizione}
+
+Funzione: \textit{filtering} --- seleziona fatti che soddisfano un pattern.
+
+\subsubsection{Nodi Beta (Beta Network)}
+
+\begin{definizione}[Nodo Beta Memory]
+Un nodo beta memory $\beta_i$ mantiene \textit{token}:
+\begin{equation}
+\text{memory}(\beta_i) = \{(w_1, \ldots, w_j) \mid \text{combinazione valida fino al pattern } j\}
+\end{equation}
+\end{definizione}
+
+Funzione: \textit{memorizzazione} di match parziali multi-pattern.
+
+\subsubsection{Nodi Join}
+
+\begin{definizione}[Nodo Join]
+Un nodo join $J_{i,j}$ combina:
+\begin{itemize}
+\item Input sinistro: token da beta memory $\beta_{i-1}$
+\item Input destro: fatti da alpha node $\alpha_j$
+\item Output: token estesi se join ha successo
+\end{itemize}
+\end{definizione}
+
+Funzione: \textit{combinazione} di match parziali con nuovi fatti.
+
+\subsubsection{Nodi Production}
+
+\begin{definizione}[Nodo Production]
+Un nodo production $\pi_r$ per la regola $r$:
+\begin{itemize}
+\item Riceve token completi (matchano tutto LHS)
+\item Crea istanziazioni $(r, \theta)$ da aggiungere all'agenda
+\item Non ha figli (nodo foglia)
+\end{itemize}
+\end{definizione}
+
+\subsection{Struttura della Rete}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  scale=0.8,
+  node distance=1.5cm,
+  every node/.style={font=\small},
+  alpha/.style={rectangle, draw=blue!50, fill=blue!10, thick, minimum width=2cm, minimum height=0.8cm},
+  beta/.style={rectangle, draw=green!50, fill=green!10, thick, minimum width=2cm, minimum height=0.8cm},
+  joinnode/.style={diamond, draw=orange!50, fill=orange!10, thick, minimum width=1.5cm, minimum height=1.5cm},
+  prod/.style={ellipse, draw=red!50, fill=red!10, thick, minimum width=2cm, minimum height=0.8cm}
+]
+
+% Alpha network
+\node[alpha] (a1) {$\alpha_1$: P1};
+\node[alpha, right=of a1] (a2) {$\alpha_2$: P2};
+\node[alpha, right=of a2] (a3) {$\alpha_3$: P3};
+
+% Beta network - level 1
+\node[joinnode, below=of a1] (j1) {$J_1$};
+\node[beta, below=of j1] (b1) {$\beta_1$};
+
+% Beta network - level 2
+\node[joinnode, below=of b1] (j2) {$J_2$};
+\node[beta, below=of j2] (b2) {$\beta_2$};
+
+% Production node
+\node[prod, below=of b2] (p1) {$\pi_r$: Rule R};
+
+% Connections
+\draw[->, thick] (a1) -- (j1);
+\draw[->, thick] (a2) -- (j1);
+\draw[->, thick] (j1) -- (b1);
+\draw[->, thick] (b1) -- (j2);
+\draw[->, thick] (a3) -- (j2);
+\draw[->, thick] (j2) -- (b2);
+\draw[->, thick] (b2) -- (p1);
+
+% Labels
+\node[left=0.5cm of a1, align=right] {\footnotesize Alpha\\Network};
+\node[left=0.5cm of j1, align=right] {\footnotesize Beta\\Network};
+\node[left=0.5cm of p1] {\footnotesize Production};
+
+% WM connection
+\node[above=0.5cm of a2] (wm) {\textbf{Working Memory}};
+\draw[->, dashed, thick] (wm) -- (a1);
+\draw[->, dashed, thick] (wm) -- (a2);
+\draw[->, dashed, thick] (wm) -- (a3);
+
+\end{tikzpicture}
+\caption{Architettura generale rete RETE per regola con 3 pattern}
+\label{fig:rete_overview}
+\end{figure}
+
+\section{Operazioni Fondamentali}
+
+\subsection{Costruzione della Rete}
+
+La rete viene costruita \textit{una volta} all'inizio, quando le regole vengono caricate:
+
+\begin{algorithm}[H]
+\caption{Costruzione Rete RETE}
+\begin{algorithmic}[1]
+\Function{BuildNetwork}{$PM$}
+    \State $\alpha \gets \emptyset$ \Comment{Alpha nodes}
+    \State $\beta \gets \emptyset$ \Comment{Beta nodes}
+    \For{each rule $r \in PM$}
+        \State $\text{prev} \gets \text{null}$
+        \For{each pattern $P_i$ in $r.LHS$}
+            \State $\alpha_i \gets \text{FindOrCreateAlpha}(P_i, \alpha)$
+            \If{$\text{prev} = \text{null}$}
+                \State $\text{prev} \gets \alpha_i$ \Comment{Primo pattern}
+            \Else
+                \State $J \gets \text{CreateJoin}(\text{prev}, \alpha_i)$
+                \State $\beta_i \gets \text{CreateBetaMemory}()$
+                \State $\text{prev} \gets \beta_i$
+            \EndIf
+        \EndFor
+        \State $\pi_r \gets \text{CreateProduction}(r, \text{prev})$
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Propagazione Assert}
+
+Quando un fatto $w$ viene asserito:
+
+\begin{algorithm}[H]
+\caption{Propagazione Assert}
+\begin{algorithmic}[1]
+\Function{PropagateAssert}{$w, G$}
+    \For{each alpha node $\alpha$ that matches $w$}
+        \State $\alpha.\text{memory} \gets \alpha.\text{memory} \cup \{w\}$
+        \State $\tau \gets \text{CreateToken}(w)$ \Comment{Token iniziale}
+        \For{each child join $J$ of $\alpha$}
+            \State $\text{PropagateTo}(J, \tau, \text{from-right})$
+        \EndFor
+    \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Propagazione Retract}
+
+Quando un fatto $w$ viene ritratto:
+
+\begin{algorithm}[H]
+\caption{Propagazione Retract}
+\begin{algorithmic}[1]
+\Function{PropagateRetract}{$w, G$}
+    \For{each alpha node $\alpha$ containing $w$}
+        \State $\alpha.\text{memory} \gets \alpha.\text{memory} \setminus \{w\}$
+    \EndFor
+    \For{each beta memory $\beta$ in $G$}
+        \State $\text{affected} \gets \{\tau \in \beta.\text{memory} \mid w \in \tau\}$
+        \State $\beta.\text{memory} \gets \beta.\text{memory} \setminus \text{affected}$
+    \EndFor
+    \State $A \gets A \setminus \{(r, \theta) \mid w \in \text{support}(r, \theta)\}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Analisi Preliminare di Complessità}
+
+\subsection{Complessità Spaziale}
+
+\subsubsection{Alpha Memory}
+
+Ogni alpha node memorizza fatti:
+\begin{equation}
+\text{Space}(\alpha_i) = O(|WM_i|)
+\end{equation}
+
+dove $|WM_i|$ è il numero di fatti che matchano $P_i$.
+
+Nel caso peggiore (pattern senza costanti): $|WM_i| = |WM|$
+
+Totale alpha memory:
+\begin{equation}
+\text{Space}_\alpha = O(|\alpha| \cdot |WM|)
+\end{equation}
+
+\subsubsection{Beta Memory}
+
+Ogni beta node al livello $j$ memorizza token di lunghezza $j$:
+\begin{equation}
+\text{Space}(\beta_j) = O(|WM|^j)
+\end{equation}
+
+Nel caso peggiore (tutti i fatti matchano):
+\begin{equation}
+\text{Space}_\beta = O\left(\sum_{j=1}^{k} |WM|^j\right) = O(|WM|^k)
+\end{equation}
+
+\begin{warningbox}[Esplosione Combinatoria]
+La beta memory può crescere esponenzialmente! Questo è il \textit{beta memory blowup problem}.
+
+In pratica, pattern ben progettati con costanti e join constraints limitano drasticamente la crescita.
+\end{warningbox}
+
+\subsection{Complessità Temporale}
+
+\subsubsection{Ciclo Singolo}
+
+Per un singolo ciclo recognize-act:
+
+\textbf{Caso medio} (con $c$ fatti cambiati):
+\begin{equation}
+T_{\text{RETE}} = O(c \cdot n)
+\end{equation}
+
+\textbf{Caso peggiore} (tutti i fatti cambiano):
+\begin{equation}
+T_{\text{worst}} = O(m \cdot n)
+\end{equation}
+
+\subsubsection{Confronto Asintotico}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Approccio} & \textbf{Caso Medio} & \textbf{Caso Peggiore} \\
+\midrule
+Naïve & $O(n \cdot m^k)$ & $O(n \cdot m^k)$ \\
+RETE & $O(c \cdot n)$ & $O(m \cdot n)$ \\
+\midrule
+\textbf{Speedup} & $\mathbf{\frac{m^k}{c}}$ & $\mathbf{m^{k-1}}$ \\
+\bottomrule
+\end{tabular}
+\caption{Confronto complessità Naïve vs RETE}
+\label{tab:complexity_comparison}
+\end{table}
+
+Con $m=10000$, $k=3$, $c=10$:
+\begin{equation}
+\text{Speedup} = \frac{10000^3}{10} = 10^{11} \text{ volte più veloce!}
+\end{equation}
+
+\section{Invarianti Fondamentali}
+
+\subsection{Invariante di Correttezza}
+
+\begin{teorema}[Correttezza RETE]
+\label{thm:rete_correctness}
+Sia $CS_{\text{naïve}}$ il conflict set calcolato con approccio naïve e $CS_{\text{RETE}}$ quello calcolato con RETE. Allora:
+\begin{equation}
+CS_{\text{RETE}} = CS_{\text{naïve}}
+\end{equation}
+
+per ogni stato della working memory.
+\end{teorema}
+
+La dimostrazione verrà fornita nel Capitolo \ref{cap:rete_beta} dopo aver definito formalmente tutti i nodi.
+
+\subsection{Invariante di Consistenza}
+
+\begin{definizione}[Consistenza Alpha]
+Per ogni alpha node $\alpha_i$ e working memory $WM$:
+\begin{equation}
+\alpha_i.\text{memory} = \{w \in WM \mid w \text{ matcha } \alpha_i.\text{pattern}\}
+\end{equation}
+\end{definizione}
+
+\begin{definizione}[Consistenza Beta]
+Per ogni beta node $\beta_j$ al livello $j$:
+\begin{equation}
+\beta_j.\text{memory} = \{\tau \mid \tau \text{ è un match valido dei primi } j \text{ pattern}\}
+\end{equation}
+\end{definizione}
+
+Questi invarianti devono essere mantenuti dopo ogni operazione (assert/retract).
+
+\section{Token e Partial Matches}
+
+\subsection{Definizione di Token}
+
+\begin{definizione}[Token]
+Un token $\tau$ al livello $j$ è una sequenza:
+\begin{equation}
+\tau = \langle w_1, w_2, \ldots, w_j \rangle
+\end{equation}
+
+dove ogni $w_i \in WM$ e la sequenza matcha i primi $j$ pattern della regola.
+\end{definizione}
+
+\subsection{Binding e Consistenza}
+
+Un token $\tau$ ha associato un environment di binding $\theta_\tau$:
+
+\begin{equation}
+\theta_\tau: \text{Var}(P_1, \ldots, P_j) \to \text{Val}(WM)
+\end{equation}
+
+\textbf{Condizione di consistenza}: tutte le occorrenze della stessa variabile devono avere lo stesso valore.
+
+\begin{esempio}[Binding Consistency]
+Pattern:
+\begin{lstlisting}[language=CLIPS]
+(persona (nome ?n) (eta ?e))
+(esame (studente ?n) (voto ?v))
+\end{lstlisting}
+
+Se $\theta(?n) = \text{"Mario"}$ nel primo pattern, deve essere $\theta(?n) = \text{"Mario"}$ anche nel secondo.
+\end{esempio}
+
+\subsection{Join Keys}
+
+\begin{definizione}[Join Keys]
+Le \textit{join keys} per un nodo join sono le variabili condivise tra:
+\begin{itemize}
+\item Token del ramo sinistro (beta memory precedente)
+\item Fatto del ramo destro (alpha node corrente)
+\end{itemize}
+\end{definizione}
+
+Formalmente:
+\begin{equation}
+\text{JoinKeys}(J) = \text{Var}(\text{left}) \cap \text{Var}(\text{right})
+\end{equation}
+
+\section{Propagazione Incrementale}
+
+\subsection{Assert Incrementale}
+
+Quando viene asserito $w_{\text{new}}$:
+
+\begin{enumerate}
+\item Trova alpha nodes che matchano: $A = \{\alpha \mid \alpha.\text{pattern} \text{ matcha } w_{\text{new}}\}$
+\item Per ogni $\alpha \in A$:
+   \begin{enumerate}
+   \item Aggiungi $w_{\text{new}}$ a $\alpha.\text{memory}$
+   \item Crea token iniziale $\tau_0 = \langle w_{\text{new}} \rangle$
+   \item Propaga $\tau_0$ ai join children di $\alpha$
+   \end{enumerate}
+\item I join tentano combinazioni con token esistenti nel ramo opposto
+\item Token validi vengono propagati verso production nodes
+\end{enumerate}
+
+\textbf{Chiave}: solo il \textit{nuovo} fatto viene processato, non tutti i fatti.
+
+\subsection{Retract Incrementale}
+
+Quando viene ritratto $w_{\text{old}}$:
+
+\begin{enumerate}
+\item Rimuovi $w_{\text{old}}$ da tutti gli alpha nodes che lo contenevano
+\item Trova tutti i token che includono $w_{\text{old}}$:
+   \begin{equation}
+   T_{\text{affected}} = \{\tau \in \bigcup_\beta \beta.\text{memory} \mid w_{\text{old}} \in \tau\}
+   \end{equation}
+\item Rimuovi $T_{\text{affected}}$ dalle beta memories
+\item Rimuovi istanziazioni dipendenti dall'agenda:
+   \begin{equation}
+   A' = A \setminus \{(r, \theta) \mid w_{\text{old}} \in \text{support}(r, \theta)\}
+   \end{equation}
+\end{enumerate}
+
+\section{Esempio Completo}
+
+\subsection{Scenario}
+
+Consideriamo un sistema semplice per rilevare coppie di amici:
+
+\textbf{Regola}:
+\begin{lstlisting}[language=CLIPS]
+(defrule trova-coppia-amici
+  (persona (nome ?n1) (hobby ?h))
+  (persona (nome ?n2&~?n1) (hobby ?h))
+  =>
+  (printout t ?n1 " e " ?n2 " condividono hobby: " ?h crlf))
+\end{lstlisting}
+
+\textbf{Working Memory Iniziale}:
+\begin{align*}
+w_1 &= \text{persona}(\text{nome}: \text{"Alice"}, \text{hobby}: \text{"tennis"})\\
+w_2 &= \text{persona}(\text{nome}: \text{"Bob"}, \text{hobby}: \text{"tennis"})\\
+w_3 &= \text{persona}(\text{nome}: \text{"Carol"}, \text{hobby}: \text{"golf"})
+\end{align*}
+
+\subsection{Costruzione Rete}
+
+\begin{enumerate}
+\item \textbf{Alpha node} $\alpha_1$ per pattern \texttt{(persona (nome ?n1) (hobby ?h))}:
+\begin{equation}
+\alpha_1.\text{memory} = \{w_1, w_2, w_3\} \quad \text{(tutti matchano)}
+\end{equation}
+
+\item \textbf{Alpha node} $\alpha_2$ per pattern \texttt{(persona (nome ?n2) (hobby ?h))}:
+\begin{equation}
+\alpha_2.\text{memory} = \{w_1, w_2, w_3\}
+\end{equation}
+
+\item \textbf{Join node} $J$ con:
+\begin{itemize}
+\item Join key: \texttt{?h} (hobby condiviso)
+\item Test: \texttt{?n2 \~{} ?n1} (nomi diversi)
+\end{itemize}
+
+\item \textbf{Beta memory} $\beta$ memorizza coppie valide
+
+\item \textbf{Production node} $\pi$ crea istanziazioni per agenda
+\end{enumerate}
+
+\subsection{Esecuzione Passo-Passo}
+
+\textbf{Inizializzazione}: Asserisci $w_1$, $w_2$, $w_3$
+
+\begin{enumerate}
+\item $\alpha_1.\text{memory} = \{w_1, w_2, w_3\}$
+\item $\alpha_2.\text{memory} = \{w_1, w_2, w_3\}$
+\item Join $J$ combina:
+   \begin{itemize}
+   \item $w_1$ con $w_2$: $\theta_1 = \{?n1 \mapsto \text{"Alice"}, ?n2 \mapsto \text{"Bob"}, ?h \mapsto \text{"tennis"}\}$ $\checkmark$
+   \item $w_1$ con $w_3$: hobby diversi $\times$
+   \item $w_2$ con $w_1$: $\theta_2 = \{?n1 \mapsto \text{"Bob"}, ?n2 \mapsto \text{"Alice"}, ?h \mapsto \text{"tennis"}\}$ $\checkmark$
+   \item Altri: falliscono per test $?n2 \neq ?n1$ o hobby diversi
+   \end{itemize}
+\item $\beta.\text{memory} = \{\langle w_1, w_2 \rangle, \langle w_2, w_1 \rangle\}$
+\item Agenda: 2 istanziazioni
+\end{enumerate}
+
+\textbf{Assert} $w_4 = \text{persona}(\text{nome}: \text{"David"}, \text{hobby}: \text{"tennis"})$:
+
+\begin{enumerate}
+\item $\alpha_1.\text{memory} \gets \alpha_1.\text{memory} \cup \{w_4\}$
+\item $\alpha_2.\text{memory} \gets \alpha_2.\text{memory} \cup \{w_4\}$
+\item Join propaga solo combinazioni con $w_4$:
+   \begin{itemize}
+   \item $w_4$ con $w_1$: $\checkmark$
+   \item $w_4$ con $w_2$: $\checkmark$
+   \item $w_1$ con $w_4$: $\checkmark$
+   \item $w_2$ con $w_4$: $\checkmark$
+   \end{itemize}
+\item $\beta.\text{memory}$ cresce da 2 a 6 token
+\item Agenda: +4 nuove istanziazioni
+\end{enumerate}
+
+\textbf{Nota critica}: Solo le \textit{nuove} combinazioni vengono calcolate, non tutte da capo!
+
+\section{Ottimizzazioni Fondamentali}
+
+\subsection{Alpha Node Sharing}
+
+Pattern identici condividono lo stesso alpha node:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule r1
+  (persona (eta ?e))
+  ...
+  =>
+  ...)
+
+(defrule r2
+  (persona (eta ?e))
+  ...
+  =>
+  ...)
+\end{lstlisting}
+
+Entrambe le regole usano lo stesso $\alpha_{\text{persona}}$.
+
+\textbf{Beneficio}: Spazio e tempo di match risparmiati.
+
+\subsection{Join Test Inlining}
+
+Test semplici vengono eseguiti inline durante il join:
+
+\begin{equation}
+\text{JoinTest}(\tau_{\text{left}}, w_{\text{right}}) = \bigwedge_{v \in \text{JoinKeys}} \tau_{\text{left}}[v] = w_{\text{right}}[v]
+\end{equation}
+
+\textbf{Beneficio}: Fallimento rapido senza creazione token.
+
+\subsection{Hash Indexing}
+
+Beta memories usano hash table per lookup efficiente:
+
+\begin{equation}
+H(\tau) = \text{hash}\left(\bigoplus_{v \in \text{JoinKeys}} \tau[v]\right)
+\end{equation}
+
+Join diventa:
+\begin{enumerate}
+\item Calcola $h = H(w_{\text{right}})$
+\item Cerca bucket $\beta.\text{hashTable}[h]$
+\item Testa solo token in quel bucket
+\end{enumerate}
+
+\textbf{Complessità}: $O(1)$ atteso invece di $O(|\beta.\text{memory}|)$
+
+\section{Varianti dell'Algoritmo}
+
+\subsection{TREAT (Miranker, 1987)}
+
+TREAT (Temporal RETE) elimina le beta memories:
+
+\begin{itemize}
+\item \textbf{Pro}: Spazio $O(|WM|)$ invece di $O(|WM|^k)$
+\item \textbf{Contro}: Tempo peggiore, ricalcola join ad ogni ciclo
+\end{itemize}
+
+\textbf{Trade-off}: Spazio vs Tempo
+
+\subsection{RETE-II}
+
+Estensioni moderne includono:
+\begin{itemize}
+\item Parallel matching su multi-core
+\item Incremental delete più efficiente
+\item Garbage collection di nodi inutilizzati
+\item Adaptive heuristics
+\end{itemize}
+
+\section{Conclusioni del Capitolo}
+
+Abbiamo introdotto:
+
+\begin{itemize}
+\item L'architettura generale di RETE
+\item I quattro tipi di nodi (alpha, beta, join, production)
+\item Il meccanismo di propagazione incrementale
+\item Analisi preliminare di complessità
+\item Ottimizzazioni fondamentali
+\end{itemize}
+
+Nei prossimi capitoli approfondiremo:
+
+\begin{itemize}
+\item \textbf{Capitolo 7}: Alpha network in dettaglio
+\item \textbf{Capitolo 8}: Beta network e join algorithm
+\item \textbf{Capitolo 9}: Dimostrazione formale di correttezza e complessità
+\item \textbf{Capitolo 10}: Ottimizzazioni avanzate
+\end{itemize}
+
+\begin{successbox}[Punti Chiave]
+\begin{itemize}
+\item RETE riduce complessità da $O(n \cdot m^k)$ a $O(c \cdot n)$ sfruttando continuità e condivisione
+\item La rete è costruita una volta, poi usata incrementalmente
+\item Invarianti di correttezza garantiscono equivalenza con match naïve
+\item Trade-off spazio/tempo gestiti con ottimizzazioni (hashing, sharing)
+\end{itemize}
+\end{successbox}
+

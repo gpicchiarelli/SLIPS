@@ -5,7 +5,7 @@ import Foundation
 public enum FileUtil {
     @discardableResult
     public static func DribbleOn(_ env: inout Environment, _ fileName: String) -> Bool {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         data.DribbleActive = true
         // In questa fase non apriamo file, ma segnaliamo attivo
         return true
@@ -18,7 +18,7 @@ public enum FileUtil {
 
     @discardableResult
     public static func DribbleOff(_ env: inout Environment) -> Bool {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         let was = data.DribbleActive
         data.DribbleActive = false
         data.DribbleBuffer.removeAll(keepingCapacity: false)
@@ -27,7 +27,7 @@ public enum FileUtil {
 
     public static func AppendDribble(_ env: inout Environment, _ str: String) {
         guard DribbleActive(env) else { return }
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         data.DribbleBuffer.append(str)
     }
 
@@ -43,7 +43,7 @@ public enum FileUtil {
 
     @discardableResult
     public static func OpenBatch(_ env: inout Environment, _ fileName: String, _ placeAtEnd: Bool) -> Bool {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         let entry = FileCom.BatchEntry(batchType: FileCom.FILE_BATCH)
         entry.fileName = fileName
         if data.TopOfBatchList == nil {
@@ -61,7 +61,7 @@ public enum FileUtil {
 
     @discardableResult
     public static func OpenStringBatch(_ env: inout Environment, _ logicalName: String, _ contents: String, _ placeAtEnd: Bool) -> Bool {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         let entry = FileCom.BatchEntry(batchType: FileCom.STRING_BATCH)
         entry.logicalSource = logicalName
         entry.theString = contents
@@ -80,7 +80,7 @@ public enum FileUtil {
 
     @discardableResult
     public static func RemoveBatch(_ env: inout Environment) -> Bool {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         guard let top = data.TopOfBatchList else { return false }
         data.TopOfBatchList = top.next
         if data.TopOfBatchList == nil { data.BottomOfBatchList = nil }
@@ -93,7 +93,7 @@ public enum FileUtil {
     }
 
     public static func CloseAllBatchSources(_ env: inout Environment) {
-        var data = FileCom.ensureData(&env)
+        let data = FileCom.ensureData(&env)
         data.TopOfBatchList = nil
         data.BottomOfBatchList = nil
     }

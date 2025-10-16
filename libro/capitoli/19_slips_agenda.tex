@@ -1,0 +1,337 @@
+% Capitolo 19: Implementazione Agenda in SLIPS
+
+\chapter{SLIPS Agenda Implementation}
+\label{cap:slips_agenda}
+
+\section{Introduzione}
+
+L'agenda di SLIPS gestisce il conflict set con le strategie di CLIPS tradotte in Swift idiomatico.
+
+\section{Activation Structure}
+
+\begin{lstlisting}[language=Swift]
+public struct Activation: Hashable, Identifiable {
+    public let id: UUID = UUID()
+    public let rule: Defrule
+    public let token: Token
+    public let salience: Int
+    public let timetag: UInt64
+    public let randomID: UInt32
+    
+    init(rule: Defrule, token: Token, timetag: UInt64) {
+        self.rule = rule
+        self.token = token
+        self.timetag = timetag
+        self.salience = rule.salience
+        self.randomID = UInt32.random(in: 0..<UInt32.max)
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    public static func == (lhs: Activation, rhs: Activation) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+\end{lstlisting}
+
+\section{Conflict Resolution Strategies}
+
+\begin{lstlisting}[language=Swift]
+public enum ConflictStrategy {
+    case depth
+    case breadth
+    case simplicity
+    case complexity
+    case lex
+    case mea
+    case random
+}
+
+protocol ActivationComparator {
+    func compare(_ a1: Activation, _ a2: Activation) -> ComparisonResult
+}
+
+class DepthComparator: ActivationComparator {
+    func compare(_ a1: Activation, _ a2: Activation) -> ComparisonResult {
+        // 1. Salience (higher first)
+        if a1.salience != a2.salience {
+            return a1.salience > a2.salience ? .orderedAscending : .orderedDescending
+        }
+        
+        // 2. Recency (higher timetag first)
+        if a1.timetag != a2.timetag {
+            return a1.timetag > a2.timetag ? .orderedAscending : .orderedDescending
+        }
+        
+        // 3. Specificity
+        let spec1 = a1.rule.specificity
+        let spec2 = a2.rule.specificity
+        if spec1 != spec2 {
+            return spec1 > spec2 ? .orderedAscending : .orderedDescending
+        }
+        
+        // 4. Rule order
+        return a1.rule.definitionOrder < a2.rule.definitionOrder 
+            ? .orderedAscending 
+            : .orderedDescending
+    }
+}
+
+class BreadthComparator: ActivationComparator {
+    func compare(_ a1: Activation, _ a2: Activation) -> ComparisonResult {
+        // Like depth, but recency reversed
+        if a1.salience != a2.salience {
+            return a1.salience > a2.salience ? .orderedAscending : .orderedDescending
+        }
+        
+        // Older facts first (opposite of depth)
+        if a1.timetag != a2.timetag {
+            return a1.timetag < a2.timetag ? .orderedAscending : .orderedDescending
+        }
+        
+        // Rest is same
+        let spec1 = a1.rule.specificity
+        let spec2 = a2.rule.specificity
+        if spec1 != spec2 {
+            return spec1 > spec2 ? .orderedAscending : .orderedDescending
+        }
+        
+        return a1.rule.definitionOrder < a2.rule.definitionOrder 
+            ? .orderedAscending 
+            : .orderedDescending
+    }
+}
+
+class RandomComparator: ActivationComparator {
+    func compare(_ a1: Activation, _ a2: Activation) -> ComparisonResult {
+        // Salience still matters
+        if a1.salience != a2.salience {
+            return a1.salience > a2.salience ? .orderedAscending : .orderedDescending
+        }
+        
+        // Random for same salience
+        return a1.randomID < a2.randomID ? .orderedAscending : .orderedDescending
+    }
+}
+\end{lstlisting}
+
+\section{Agenda Implementation}
+
+\begin{lstlisting}[language=Swift]
+public class Agenda {
+    private var activations: [Activation] = []
+    private var comparator: ActivationComparator
+    private var strategy: ConflictStrategy
+    
+    init(strategy: ConflictStrategy = .depth) {
+        self.strategy = strategy
+        self.comparator = Self.createComparator(for: strategy)
+    }
+    
+    func add(_ activation: Activation) {
+        // Insert maintaining sorted order
+        let insertionIndex = activations.firstIndex { existing in
+            comparator.compare(activation, existing) == .orderedAscending
+        } ?? activations.endIndex
+        
+        activations.insert(activation, at: insertionIndex)
+    }
+    
+    func remove(_ activation: Activation) {
+        activations.removeAll { $0.id == activation.id }
+    }
+    
+    func next() -> Activation? {
+        return activations.first
+    }
+    
+    func removeAndReturnNext() -> Activation? {
+        guard !activations.isEmpty else { return nil }
+        return activations.removeFirst()
+    }
+    
+    func setStrategy(_ strategy: ConflictStrategy) {
+        self.strategy = strategy
+        self.comparator = Self.createComparator(for: strategy)
+        reorder()
+    }
+    
+    private func reorder() {
+        activations.sort { a1, a2 in
+            comparator.compare(a1, a2) == .orderedAscending
+        }
+    }
+    
+    func clear() {
+        activations.removeAll()
+    }
+    
+    var count: Int {
+        return activations.count
+    }
+    
+    var all: [Activation] {
+        return activations
+    }
+}
+\end{lstlisting}
+
+\section{Module-Aware Agenda}
+
+\begin{lstlisting}[language=Swift]
+public class ModuleAgenda {
+    private var agendas: [Defmodule: Agenda] = [:]
+    private var focusStack: FocusStack
+    
+    init(focusStack: FocusStack) {
+        self.focusStack = focusStack
+    }
+    
+    func add(_ activation: Activation) {
+        let module = activation.rule.module
+        let agenda = agendas[module, default: Agenda()]
+        agenda.add(activation)
+        agendas[module] = agenda
+    }
+    
+    func next() -> Activation? {
+        // Try current focus
+        if let activation = agendas[focusStack.current]?.next() {
+            return activation
+        }
+        
+        // Pop and try next
+        focusStack.pop()
+        
+        if focusStack.isEmpty {
+            return nil  // Quiescence
+        }
+        
+        return next()  // Recursive
+    }
+    
+    func removeAndReturnNext() -> Activation? {
+        guard let activation = next() else { return nil }
+        agendas[focusStack.current]?.remove(activation)
+        return activation
+    }
+}
+\end{lstlisting}
+
+\section{Dynamic Salience}
+
+\begin{lstlisting}[language=Swift]
+extension Defrule {
+    func evaluateSalience(with token: Token, env: Environment) -> Int {
+        guard let dynamicExpr = dynamicSalience else {
+            return salience  // Static
+        }
+        
+        let bindings = token.bindings
+        let result = env.evaluate(dynamicExpr, bindings: bindings)
+        
+        if case .integer(let value) = result {
+            return value
+        }
+        
+        return salience  // Fallback
+    }
+}
+
+// Usage in Activation creation
+func createActivation(rule: Defrule, token: Token, env: Environment) -> Activation {
+    let evaluatedSalience = rule.evaluateSalience(with: token, env: env)
+    
+    return Activation(
+        rule: rule,
+        token: token,
+        timetag: env.currentTimetag,
+        overrideSalience: evaluatedSalience
+    )
+}
+\end{lstlisting}
+
+\section{Salience Evaluation Modes}
+
+\begin{lstlisting}[language=Swift]
+public enum SalienceEvaluation {
+    case whenDefined      // At rule compilation
+    case whenActivated    // When activation created
+    case everyCycle       // Before each rule selection
+}
+
+public class SalienceManager {
+    var mode: SalienceEvaluation = .whenDefined
+    
+    func evaluateSalience(
+        for activation: Activation,
+        env: Environment
+    ) -> Int {
+        switch mode {
+        case .whenDefined:
+            return activation.salience  // Already computed
+            
+        case .whenActivated, .everyCycle:
+            return activation.rule.evaluateSalience(
+                with: activation.token,
+                env: env
+            )
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Refresh and Reorder}
+
+\begin{lstlisting}[language=Swift]
+extension Agenda {
+    func refresh(rule: Defrule, env: Environment) {
+        // Remove existing activations for this rule
+        activations.removeAll { $0.rule.name == rule.name }
+        
+        // Regenerate from production node
+        if let prodNode = rule.productionNode {
+            for token in prodNode.tokens {
+                let activation = Activation(
+                    rule: rule,
+                    token: token,
+                    timetag: env.currentTimetag
+                )
+                add(activation)
+            }
+        }
+    }
+    
+    func refreshAll(env: Environment) {
+        let rules = Set(activations.map(\.rule))
+        for rule in rules {
+            refresh(rule: rule, env: env)
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item Agenda usa \textbf{sorted array} per efficienza
+\item \textbf{Strategy pattern} per conflict resolution
+\item \textbf{Module-aware} agenda con focus stack
+\item \textbf{Dynamic salience} supportata
+\item Refresh e reorder per flessibilità
+\end{enumerate}
+
+\subsection{Prossimi Passi}
+
+Cap.~\ref{cap:slips_pattern_matching} mostra pattern matching avanzato.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Source - \texttt{agenda.c}
+\item Swift Collections - Sorted Arrays
+\end{itemize}

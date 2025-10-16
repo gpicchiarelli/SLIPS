@@ -1,3 +1,7 @@
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License - see LICENSE file for details
+
 import Foundation
 
 // MARK: - Tipi di base
@@ -47,12 +51,77 @@ public final class Environment {
     public var localBindings: [String: Value] = [:]
     public var globalBindings: [String: Value] = [:]
 
-    // Costrutti minimi: template e fatti
-    public struct Template { public let name: String; public let slots: [String] }
+    // Watch flags
+    public var watchFacts: Bool = false
+    public var watchRules: Bool = false
+    public var watchRete: Bool = false
+    public var watchReteProfile: Bool = false
+
+    // Deffacts archivio: nome -> lista di fatti (ognuno è lista di Values come argomenti per assert)
+    public var deffacts: [String: [[Value]]] = [:]
+
+    // Costrutti: template e fatti
+    public enum SlotDefaultType: String, Codable { case none, `static`, dynamic }
+    public enum SlotAllowedType: String, Codable { case integer, float, number, string, symbol, lexeme }
+    public struct SlotConstraints: Codable, Equatable {
+        public var allowed: Set<SlotAllowedType> = []
+        public var range: ClosedRange<Double>? = nil
+    }
+    public struct SlotDef: Codable {
+        public let name: String
+        public let isMultifield: Bool
+        public let defaultType: SlotDefaultType
+        public let defaultStatic: Value?
+        public let defaultDynamicExpr: ExpressionNode?
+        public var constraints: SlotConstraints?
+    }
+    public struct Template: Codable {
+        public let name: String
+        public var slots: [String: SlotDef]
+    }
     public var templates: [String: Template] = [:]
     public struct FactRec { public let id: Int; public let name: String; public let slots: [String: Value] }
     public var facts: [Int: FactRec] = [:]
     public var nextFactId: Int = 1
+    public var rules: [Rule] = []
+    public var agendaQueue: Agenda = Agenda()
+    public var rete: ReteNetwork = ReteNetwork()
+    // Flag sperimentale: confronta join vs matcher corrente senza influenzare attivazioni
+    public var experimentalJoinCheck: Bool = false
+    // File aperti per I/O
+    public var openFiles: [String: FileHandle] = [:]
+    // Utility functions state
+    public var gensymCounter: Int = 0
+    // Flag sperimentale: usa i token Beta per attivazioni (solo regole senza not)
+    public var experimentalJoinActivate: Bool = false
+    // Whitelist di regole per attivazione via rete quando stabili
+    public var joinActivateWhitelist: Set<String> = []
+    // Regole marcate stabili (join-check equivalente al naive)
+    public var joinStableRules: Set<String> = []
+    // Default: usa attivazione via RETE per regole stabili
+    public var joinActivateDefaultOnStable: Bool = false
+    // Se true, mantiene il fallback naïve anche quando RETE è attiva e la regola è stabile
+    public var joinNaiveFallback: Bool = true
+    
+    // FASE 1: Flag per usare nodi RETE espliciti (class-based)
+    // (ref: NetworkBuilder + Propagation engine in fase 1)
+    public var useExplicitReteNodes: Bool = false
+    
+    // FASE 3: Sistema di moduli (ref: struct defmoduleData in moduldef.h linee 209-236)
+    // Lista di tutti i moduli
+    internal var _listOfDefmodules: Defmodule? = nil
+    // Modulo corrente
+    internal var _currentModule: Defmodule? = nil
+    // Ultimo modulo creato
+    internal var _lastDefmodule: Defmodule? = nil
+    // Lista di tipi di item registrati
+    internal var _listOfModuleItems: ModuleItem? = nil
+    // Ultimo module item registrato
+    internal var _lastModuleItem: ModuleItem? = nil
+    // Numero di tipi di item registrati
+    internal var _numberOfModuleItems: UInt = 0
+    // Stack di focus
+    internal var _moduleStack: ModuleStackItem? = nil
 
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
@@ -65,7 +134,7 @@ public final class Environment {
 @MainActor
 public enum CLIPS {
     private static var currentEnv: Environment? = nil
-    static var currentEnvironment: Environment? { currentEnv }
+    public static var currentEnvironment: Environment? { currentEnv }
 
     @discardableResult
     public static func createEnvironment() -> Environment {
@@ -73,6 +142,13 @@ public enum CLIPS {
         // Inizializza moduli minimi per eval
         Functions.registerBuiltins(&env)
         ExpressionEnv.InitExpressionData(&env)
+        // Inizializza sistema di moduli (FASE 3)
+        env.initializeModules()
+        // Strategia agenda di default
+        env.agendaQueue.setStrategy(.depth)
+        // Abilita join-check e attivazione via RETE di default su regole stabili
+        env.experimentalJoinCheck = true
+        env.joinActivateDefaultOnStable = true
         currentEnv = env
         return env
     }
@@ -123,31 +199,76 @@ public enum CLIPS {
         var env = env0
         env.localBindings.removeAll()
         env.globalBindings.removeAll()
-        env.templates.removeAll()
         env.facts.removeAll()
         env.nextFactId = 1
+        // Reassert deffacts
+        if let assertFn = env.functionTable["assert"] {
+            for (_, factsList) in env.deffacts {
+                for factArgs in factsList {
+                    _ = try? assertFn.impl(&env, factArgs)
+                }
+            }
+        }
         currentEnv = env
     }
 
     @discardableResult
     public static func run(limit: Int? = nil) -> Int {
-        // In CLIPS: esegue il motore di inferenza fino al limite di attivazioni.
-        // TODO: Implementare RETE/Agenda. Per ora ritorna 0 attivazioni eseguite.
-        return 0
+        guard let env0 = currentEnv else { return 0 }
+        var env = env0
+        // Se l'agenda è vuota, ricostruisci da stato attuale per catturare CE come 'exists'
+        if env.agendaQueue.isEmpty {
+            RuleEngine.rebuildAgenda(&env)
+        }
+        let fired = RuleEngine.run(&env, limit: limit)
+        // Se il join-check o l'attivazione via rete sono attivi, riallinea le memorie beta
+        if env.experimentalJoinCheck || env.experimentalJoinActivate || !env.joinActivateWhitelist.isEmpty {
+            let facts = Array(env.facts.values)
+            for (rname, cr) in env.rete.rules {
+                _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
+            }
+        }
+        currentEnv = env
+        return fired
     }
 
     public static func assert(fact: String) {
-        guard var env = currentEnv else { return }
+        guard currentEnv != nil else { return }
         let expr = fact.trimmingCharacters(in: .whitespacesAndNewlines)
-        let form = expr.hasPrefix("(") ? expr : "(assert \(expr))"
-        _ = eval(expr: form)
-        currentEnv = env
+        let trimmed = expr
+        let form: String
+        if trimmed.hasPrefix("(assert") {
+            form = trimmed
+        } else if trimmed.hasPrefix("(") && trimmed.hasSuffix(")") {
+            // Converte (b x 1) -> (assert b x 1)
+            let inner = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            form = "(assert \(inner))"
+        } else {
+            form = "(assert \(trimmed))"
+        }
+        let ret = eval(expr: form)
+        // Fallback: se esistono regole con EXISTS, ricostruisci l'agenda per attivarle correttamente
+        if var env = currentEnv, env.rules.contains(where: { $0.patterns.contains(where: { $0.exists }) }) {
+            // Ricostruzione generale per allineare le regole con exists
+            RuleEngine.rebuildAgenda(&env)
+            // Aggiunta diretta per regole solo-EXISTS sul template appena asserito (garantisce agenda non vuota)
+            if case .int(let id64) = ret, let f = env.facts[Int(id64)] {
+                for r in env.rules where r.patterns.count == 1 && r.patterns[0].exists && r.patterns[0].name == f.name {
+                    var act = Activation(priority: r.salience, ruleName: r.name, bindings: [:])
+                    act.factIDs = []
+                    act.moduleName = r.moduleName // FASE 3: Assegna modulo alla attivazione
+                    if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
+                }
+            }
+            currentEnv = env
+        }
+        // env è una reference; eval ha già aggiornato currentEnv
     }
 
     public static func retract(id: Int) {
-        guard var env = currentEnv else { return }
+        guard currentEnv != nil else { return }
         _ = eval(expr: "(retract \(id))")
-        currentEnv = env
+        // env è una reference; eval ha già aggiornato currentEnv
     }
 
     @discardableResult
@@ -155,7 +276,7 @@ public enum CLIPS {
         guard var env = currentEnv else { return .none }
         // Usa fast router come in CLIPS per valutare stringhe
         let router = "***EVAL***"
-        var r = RouterEnvData.ensure(&env)
+        let r = RouterEnvData.ensure(&env)
         r.FastCharGetRouter = router
         r.FastCharGetString = expr
         r.FastCharGetIndex = 0
@@ -182,6 +303,30 @@ public enum CLIPS {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
             if trimmed == "(exit)" || trimmed == "exit" { break }
+            // Comandi sintetici senza parentesi: load/reset/run/assert/eval
+            if !trimmed.hasPrefix("(") {
+                let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+                let cmd = parts.first?.lowercased() ?? ""
+                let arg = parts.count > 1 ? String(parts[1]) : nil
+                switch cmd {
+                case "load":
+                    if let p = arg { try? load(p) }
+                    continue
+                case "reset":
+                    reset(); continue
+                case "run":
+                    if let a = arg, let n = Int(a) { _ = run(limit: n) } else { _ = run(limit: nil) }
+                    continue
+                case "assert":
+                    if let f = arg { assert(fact: f) }
+                    continue
+                case "eval":
+                    if let e = arg { _ = eval(expr: e) }
+                    continue
+                default:
+                    break
+                }
+            }
             let result = eval(expr: trimmed)
             var e = currentEnv!
             PrintUtil.PrintAtom(&e, Router.STDOUT, result)

@@ -111,11 +111,7 @@ public enum ExprTokenParser {
 
     // After '(' and function name consumed
     public static func Function2Parse(_ env: inout Environment, _ logicalName: String, _ name: String) throws -> ExpressionNode {
-        // Verifica funzione esistente nel registro
-        if Functions.find(env, name) == nil {
-            // In CLIPS gestisce moduli e generic/deffunction; qui segnaliamo errore semplice
-            throw ExprTokenParseError.missingFunctionDeclaration(name)
-        }
+        // Non forziamo l'esistenza della funzione: costrutti come (person ...) in deffacts non sono funzioni.
         let top = Expressions.GenConstant(.fcall, name)
         return try CollectArguments(&env, top, logicalName)
     }
@@ -145,7 +141,8 @@ public enum ExprTokenParser {
         // ')' => nessun argomento
         if theToken.tknType == .RIGHT_PARENTHESIS_TOKEN { return nil }
         switch theToken.tknType {
-        case .SYMBOL_TOKEN, .STRING_TOKEN, .INTEGER_TOKEN, .FLOAT_TOKEN:
+        case .SYMBOL_TOKEN, .STRING_TOKEN, .INTEGER_TOKEN, .FLOAT_TOKEN,
+             .SF_VARIABLE_TOKEN, .MF_VARIABLE_TOKEN, .GBL_VARIABLE_TOKEN, .MF_GBL_VARIABLE_TOKEN, .INSTANCE_NAME_TOKEN:
             return tokenToConstant(theToken)
         case .LEFT_PARENTHESIS_TOKEN:
             return try Function1Parse(&env, logicalName)

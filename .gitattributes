@@ -1,0 +1,34 @@
+# .gitattributes per SLIPS
+# Esclude i sorgenti CLIPS di riferimento dalle statistiche GitHub
+
+# Directory con sorgenti CLIPS 6.4.2 (solo riferimento, non parte del progetto)
+clips_core_source_642/** linguist-vendored
+clips_feature_tests_642/** linguist-vendored
+
+# File di documentazione generati
+libro/*.pdf linguist-generated
+libro/*.aux linguist-generated
+libro/*.log linguist-generated
+libro/*.toc linguist-generated
+libro/*.out linguist-generated
+libro/*.bbl linguist-generated
+libro/*.bcf linguist-generated
+libro/*.blg linguist-generated
+libro/*.idx linguist-generated
+libro/*.ilg linguist-generated
+libro/*.ind linguist-generated
+libro/*.lof linguist-generated
+libro/*.lot linguist-generated
+libro/*.lol linguist-generated
+libro/*.run.xml linguist-generated
+
+# Documenti markdown sono documentazione (non codice)
+*.md linguist-documentation
+
+# LaTeX è documentazione
+*.tex linguist-documentation
+*.bib linguist-documentation
+
+# File HTML di docs sono documentazione
+docs/** linguist-documentation
+

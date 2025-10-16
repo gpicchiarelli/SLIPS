@@ -1,0 +1,392 @@
+% Capitolo 27: Sviluppi Futuri
+
+\chapter{Sviluppi Futuri e Roadmap}
+\label{cap:futuro}
+
+\section{Introduzione}
+
+SLIPS è un progetto in evoluzione. Questo capitolo delinea gli sviluppi futuri pianificati e le direzioni di ricerca.
+
+\section{Roadmap Tecnica}
+
+\subsection{Fase 1 (COMPLETATA): Core Foundation}
+
+\begin{successbox}[Achievements]
+\begin{itemize}
+\item[$\checkmark$] Environment e strutture base
+\item[$\checkmark$] Parser e compiler CLIPS
+\item[$\checkmark$] RETE network base
+\item[$\checkmark$] Agenda e conflict resolution
+\item[$\checkmark$] Module system
+\item[$\checkmark$] Basic testing suite
+\end{itemize}
+\end{successbox}
+
+\subsection{Fase 2 (IN CORSO): Advanced Features}
+
+\begin{infobox}[Current Work]
+\begin{itemize}
+\item Multifield avanzati (\$?x completo)
+\item Pattern composti (AND/OR/NOT nidificati)
+\item Dynamic salience completo
+\item Object-oriented extensions (COOL)
+\item Incremental reset
+\end{itemize}
+\end{infobox}
+
+\subsection{Fase 3 (PIANIFICATA): Performance}
+
+\begin{itemize}
+\item Parallel RETE (multi-core)
+\item RETE/UL (unlinking ottimizzato)
+\item JIT compilation per RHS
+\item Memory optimization (compact tokens)
+\item Profiler integrato
+\end{itemize}
+
+\subsection{Fase 4 (RICERCA): Extensions}
+
+\begin{itemize}
+\item Distributed RETE (cluster)
+\item Probabilistic reasoning
+\item Machine learning integration
+\item Fuzzy logic support
+\item Temporal reasoning
+\end{itemize}
+
+\section{Estensioni Linguaggio}
+
+\subsection{Swift DSL}
+
+\textbf{Visione}: DSL Swift type-safe per regole.
+
+\begin{lstlisting}[language=Swift]
+@RuleBuilder
+var rules: [Rule] {
+    Rule("discount") {
+        Pattern("customer") { customer in
+            customer.age >= 65
+        }
+    } action: { bindings in
+        assert("discount", amount: 20)
+    }
+    
+    Rule("vip-treatment") {
+        Pattern("customer") { c in
+            c.purchaseTotal > 10000
+        }
+        Pattern("order") { o in
+            o.customerID == c.id
+        }
+    } action: {
+        assert("priority-shipping")
+    }
+}
+\end{lstlisting}
+
+\subsection{Swift Concurrency Integration}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    public func runAsync(limit: Int = -1) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await self.runRecognizePhase()
+            }
+            group.addTask {
+                await self.runActPhase()
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Interoperabilità}
+
+\subsection{C Interop}
+
+\begin{lstlisting}[language=Swift]
+// Chiamare librerie C esistenti
+@_cdecl("clips_compatible_assert")
+public func clipsCompatibleAssert(
+    _ env: OpaquePointer,
+    _ factString: UnsafePointer<CChar>
+) -> Int {
+    let swift Env = Unmanaged<Environment>.fromOpaque(env).takeUnretainedValue()
+    let string = String(cString: factString)
+    
+    // Parse and assert
+    return swiftEnv.assertString(string) != nil ? 1 : 0
+}
+\end{lstlisting}
+
+\subsection{Python Bindings}
+
+\begin{lstlisting}[language=Python]
+# Potenziale binding Python
+import slips
+
+env = slips.Environment()
+env.load("rules.clp")
+env.assert_fact("person", {"name": "Mario", "age": 30})
+env.run()
+
+facts = env.get_facts()
+for fact in facts:
+    print(f"f-{fact.id}: {fact.template} {fact.slots}")
+\end{lstlisting}
+
+\section{Community e Contributi}
+
+\subsection{Open Source Development}
+
+\begin{itemize}
+\item \textbf{GitHub}: \url{https://github.com/gpicchiarelli/SLIPS}
+\item \textbf{Issues}: Bug reports e feature requests
+\item \textbf{Pull Requests}: Contributi della community
+\item \textbf{Discussions}: Design discussions
+\item \textbf{Documentation}: Continua evoluzione
+\end{itemize}
+
+\subsection{Areas for Contribution}
+
+\begin{infobox}[Contribute]
+\begin{itemize}
+\item \textbf{Testing}: Aggiungere test cases
+\item \textbf{Documentation}: Migliorare documentazione
+\item \textbf{Examples}: Esempi pratici
+\item \textbf{Optimization}: Performance improvements
+\item \textbf{Platforms}: Support per Linux, Windows
+\item \textbf{Tooling}: IDE support, syntax highlighting
+\end{itemize}
+\end{infobox}
+
+\section{Ricerca Futura}
+
+\subsection{Parallel Pattern Matching}
+
+\textbf{Sfide}:
+\begin{itemize}
+\item Sincronizzazione beta memories
+\item Ordering activations cross-thread
+\item Load balancing tra core
+\end{itemize}
+
+\textbf{Approcci}:
+\begin{itemize}
+\item Partitioning del pattern network
+\item Lock-free data structures
+\item Actor model per nodi
+\end{itemize}
+
+\subsection{Machine Learning Integration}
+
+\textbf{Opportunità}:
+\begin{itemize}
+\item Apprendere salience da dati
+\item Ottimizzare pattern ordering
+\item Suggerire nuove regole
+\item Anomaly detection
+\end{itemize}
+
+\textbf{Esempio concettuale}:
+\begin{lstlisting}[language=Swift]
+class MLSalienceOptimizer {
+    let model: MLModel
+    
+    func optimizeSalience(rule: Defrule, context: Context) -> Int {
+        let features = extractFeatures(rule, context)
+        let prediction = try! model.prediction(from: features)
+        return Int(prediction.salience)
+    }
+}
+\end{lstlisting}
+
+\subsection{Distributed Production Systems}
+
+\textbf{Architettura proposta}:
+
+\begin{verbatim}
+Node 1: Alpha Network + Local WM
+Node 2: Alpha Network + Local WM
+...
+Coordinator: Beta Network + Agenda
+\end{verbatim}
+
+\textbf{Sfide}:
+\begin{itemize}
+\item Network latency
+\item Consistency models
+\item Fault tolerance
+\item State synchronization
+\end{itemize}
+
+\section{Standardization}
+
+\subsection{CLIPS Compatibility}
+
+\textbf{Obiettivo}: 100\% compatibilità CLIPS 6.4.
+
+\textbf{Metriche}:
+\begin{itemize}
+\item Test suite CLIPS ufficiale: pass rate
+\item Performance parity: $\pm 20\%$ di CLIPS C
+\item Feature completeness: tutte le built-in
+\end{itemize}
+
+\subsection{Swift Package Ecosystem}
+
+\textbf{Visione}: SLIPS come package Swift standard per expert systems.
+
+\begin{itemize}
+\item SwiftPM integration
+\item Documentation hosting
+\item CI/CD pipeline
+\item Version management
+\item Semantic versioning
+\end{itemize}
+
+\section{Educational Use}
+
+\subsection{Teaching Tool}
+
+SLIPS come strumento didattico:
+
+\begin{itemize}
+\item \textbf{Leggibilità}: Codice Swift più accessibile di C
+\item \textbf{Type Safety}: Errori catturati a compile-time
+\item \textbf{Playground}: Xcode Playgrounds per sperimentazione
+\item \textbf{Debugging}: Strumenti moderni
+\end{itemize}
+
+\subsection{Course Material}
+
+\begin{itemize}
+\item Tutorial interattivi
+\item Video lectures
+\item Esercizi progressivi
+\item Projects per studenti
+\item Integration con curricula universitari
+\end{itemize}
+
+\section{Industrial Applications}
+
+\subsection{Use Cases}
+
+\textbf{Potenziali applicazioni}:
+
+\begin{itemize}
+\item \textbf{iOS/macOS Apps}: Expert systems nativi
+\item \textbf{Server-Side Swift}: Business rules engine
+\item \textbf{IoT}: Edge computing con regole
+\item \textbf{Healthcare}: Decision support systems
+\item \textbf{Finance}: Trading rules, compliance
+\item \textbf{Automation}: Smart home, robotics
+\end{itemize}
+
+\subsection{Enterprise Features}
+
+\textbf{Necessari per adoption aziendale}:
+
+\begin{itemize}
+\item Persistence (save/restore state)
+\item Audit logging
+\item Security (sandboxing)
+\item Monitoring e metrics
+\item High availability
+\item Scalability horizontale
+\end{itemize}
+
+\section{Long-Term Vision}
+
+\subsection{SLIPS 2.0}
+
+\textbf{Possibili evoluzioni}:
+
+\begin{itemize}
+\item \textbf{Query language}: SQL-like per fatti
+\item \textbf{Reactive streams}: Integration con Combine
+\item \textbf{SwiftUI integration}: Visualizzazione rete
+\item \textbf{Cloud integration}: Distributed execution
+\item \textbf{ML-augmented}: Hybrid symbolic/subsymbolic
+\end{itemize}
+
+\subsection{Research Directions}
+
+\begin{itemize}
+\item Quantum-inspired algorithms per pattern matching
+\item Probabilistic production systems
+\item Neuro-symbolic integration
+\item Explainable AI basato su regole
+\item Verification formale con SMT solvers
+\end{itemize}
+
+\section{Call to Action}
+
+\subsection{Come Contribuire}
+
+\begin{enumerate}
+\item \textbf{Fork} il repository
+\item \textbf{Scegli} un'area di interesse
+\item \textbf{Leggi} CONTRIBUTING.md
+\item \textbf{Sviluppa} con TDD
+\item \textbf{Sottometti} PR con test
+\item \textbf{Collabora} con maintainers
+\end{enumerate}
+
+\subsection{Join the Community}
+
+\begin{itemize}
+\item GitHub Discussions
+\item Discord server (futuro)
+\item Stack Overflow tag
+\item Conferenze e meetup
+\item Paper e pubblicazioni
+\end{itemize}
+
+\section{Conclusioni del Libro}
+
+\subsection{Riepilogo Generale}
+
+In questo libro abbiamo coperto:
+
+\begin{itemize}
+\item \textbf{Parte I}: Fondamenti teorici (logica, rappresentazione)
+\item \textbf{Parte II}: Algoritmo RETE (alpha, beta, complessità, ottimizzazioni)
+\item \textbf{Parte III}: Architettura CLIPS (strutture, memoria, agenda, moduli)
+\item \textbf{Parte IV}: Implementazione SLIPS (core, RETE, agenda, pattern)
+\item \textbf{Parte V}: Sviluppo pratico (testing, estensioni, performance, debug)
+\item \textbf{Appendici}: API, built-in, esempi, benchmark
+\end{itemize}
+
+\subsection{Messaggiofinale}
+
+SLIPS rappresenta un ponte tra passato e futuro dell'intelligenza artificiale simbolica:
+
+\begin{itemize}
+\item \textbf{Passato}: L'eredità robusta di CLIPS e dei sistemi esperti
+\item \textbf{Presente}: Le garanzie di sicurezza di Swift moderno
+\item \textbf{Futuro}: Nuove possibilità di integrazione e innovazione
+\end{itemize}
+
+Il progetto è aperto, la community è accogliente, e il futuro è da scrivere insieme.
+
+\vspace{1cm}
+
+\begin{center}
+\textit{Buon coding con SLIPS!}
+
+\bigskip
+
+I Contributori SLIPS \\
+Ottobre 2025
+\end{center}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS 6.4 Documentation
+\item Swift Evolution Proposals
+\item Expert Systems Research Papers
+\item Symbolic AI Renaissance (2020+)
+\end{itemize}

@@ -67,7 +67,7 @@ final class CLIPSEquivalenceTests: XCTestCase {
     }
 
     func testLoadSimpleClp() throws {
-        var env = CLIPS.createEnvironment()
+        let env = CLIPS.createEnvironment()
         let path = FileManager.default.currentDirectoryPath + "/Tests/SLIPSTests/Assets/simple.clp"
         try CLIPS.load(path)
         // Se non crasha e stampa, consideriamo pass

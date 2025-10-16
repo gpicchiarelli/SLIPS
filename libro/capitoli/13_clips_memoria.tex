@@ -1,0 +1,366 @@
+% Capitolo 13: Gestione della Memoria in CLIPS
+
+\chapter{Gestione della Memoria}
+\label{cap:clips_memoria}
+
+\section{Introduzione}
+
+La gestione efficiente della memoria è critica per le prestazioni di CLIPS. Il sistema implementa diverse strategie di ottimizzazione per ridurre overhead e frammentazione.
+
+\section{Memory Pools}
+
+\subsection{Implementazione}
+
+CLIPS usa pool segregati per tipi comuni:
+
+\begin{lstlisting}[language=C]
+struct chunkInfo {
+    unsigned int size;
+    struct chunkInfo *prevChunk;
+    struct chunkInfo *nextFree;
+    long int lastCall;
+};
+
+#define STRICT_ALIGN_SIZE sizeof(double)
+#define ChunkInfoSize sizeof(struct chunkInfo)
+
+void InitializeMemory() {
+    for (int i = 0; i < MAXIMUM_SIZE; i++) {
+        MemoryTable[i] = NULL;
+    }
+}
+\end{lstlisting}
+
+\textbf{Pool per dimensione}:
+\begin{itemize}
+\item 8 bytes
+\item 16 bytes
+\item 32 bytes
+\item 64 bytes
+\item ...fino a soglia
+\end{itemize}
+
+**Sopra soglia**: Usa `malloc` diretto.
+
+\subsection{Request/Return}
+
+\begin{lstlisting}[language=C]
+void *genmalloc(unsigned int size) {
+    struct chunkInfo *memptr;
+    unsigned int actualSize = size + ChunkInfoSize;
+    
+    // Arrotonda a multiplo di alignment
+    actualSize = (actualSize + (STRICT_ALIGN_SIZE - 1)) 
+                 & ~(STRICT_ALIGN_SIZE - 1);
+    
+    if (actualSize >= MAXIMUM_SIZE) {
+        memptr = malloc(actualSize);
+    } else {
+        memptr = MemoryTable[actualSize];
+        if (memptr != NULL) {
+            MemoryTable[actualSize] = memptr->nextFree;
+        } else {
+            memptr = malloc(actualSize);
+        }
+    }
+    
+    memptr->size = actualSize;
+    return (void *) (((char *) memptr) + ChunkInfoSize);
+}
+
+void genfree(void *ptr, unsigned int size) {
+    struct chunkInfo *memptr = (struct chunkInfo *)
+        (((char *) ptr) - ChunkInfoSize);
+    
+    if (memptr->size >= MAXIMUM_SIZE) {
+        free(memptr);
+    } else {
+        memptr->nextFree = MemoryTable[memptr->size];
+        MemoryTable[memptr->size] = memptr;
+    }
+}
+\end{lstlisting}
+
+\textbf{Benefici}:
+\begin{itemize}
+\item Riduzione chiamate `malloc`/`free`: 10-100x
+\item Meno frammentazione
+\item Cache-friendly (oggetti simili vicini)
+\end{itemize}
+
+\section{Reference Counting}
+
+\subsection{Shared Values}
+
+Per simboli e multifield:
+
+\begin{lstlisting}[language=C]
+void IncrementSymbolCount(SYMBOL_HN *theSymbol) {
+    theSymbol->count++;
+}
+
+void DecrementSymbolCount(Environment *env, SYMBOL_HN *theSymbol) {
+    theSymbol->count--;
+    if (theSymbol->count == 0) {
+        RemoveSymbol(env, theSymbol);
+    }
+}
+\end{lstlisting}
+
+**Pattern idiomatico CLIPS**:
+\begin{lstlisting}[language=C]
+SYMBOL_HN *sym = FindSymbol("example");
+IncrementSymbolCount(sym);
+// ... uso ...
+DecrementSymbolCount(env, sym);
+\end{lstlisting}
+
+\subsection{Copy-on-Write}
+
+Per multifield values:
+
+\begin{lstlisting}[language=C]
+struct multifield *CopyMultifield(Environment *env, struct multifield *src) {
+    if (src->busyCount == 0) {
+        return src;  // Può riusare
+    }
+    
+    struct multifield *dst = CreateMultifield(env, src->length);
+    for (int i = 0; i < src->length; i++) {
+        dst->contents[i] = src->contents[i];
+        if (dst->contents[i].header->type == MULTIFIELD_TYPE) {
+            IncrementMultifieldReferenceCount(
+                dst->contents[i].multifieldValue);
+        }
+    }
+    return dst;
+}
+\end{lstlisting}
+
+\section{Garbage Collection}
+
+\subsection{Periodic Cleanup}
+
+CLIPS non ha GC automatico ma cleanup periodica:
+
+\begin{lstlisting}[language=C]
+void PeriodicCleanup(Environment *env) {
+    static long lastCall = 0;
+    long currentTime = GetTickCount();
+    
+    if ((currentTime - lastCall) > CLEANUP_INTERVAL) {
+        CleanupSymbols(env);
+        CleanupFloats(env);
+        CleanupIntegers(env);
+        CompactMemory(env);
+        lastCall = currentTime;
+    }
+}
+\end{lstlisting}
+
+\subsection{Symbol Cleanup}
+
+Rimuove simboli non riferiti:
+
+\begin{lstlisting}[language=C]
+void CleanupSymbols(Environment *env) {
+    for (int i = 0; i < SYMBOL_HASH_SIZE; i++) {
+        SYMBOL_HN **prevPtr = &SymbolTable[i];
+        SYMBOL_HN *sym = SymbolTable[i];
+        
+        while (sym != NULL) {
+            if (sym->count == 0 && sym->depth == 0) {
+                *prevPtr = sym->next;
+                free(sym->contents);
+                free(sym);
+                sym = *prevPtr;
+            } else {
+                prevPtr = &sym->next;
+                sym = sym->next;
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Reset e Clear}
+
+\subsection{Reset}
+
+Ripristina working memory mantenendo regole:
+
+\begin{lstlisting}[language=C]
+void Reset(Environment *env) {
+    // Rimuovi tutti i fatti
+    while (FactList != NULL) {
+        Retract(env, FactList);
+    }
+    
+    // Pulisci agenda
+    ClearAgenda(env);
+    
+    // Re-assert deffacts
+    for (Deffacts *df = GetFirstDeffacts(); 
+         df != NULL; 
+         df = GetNextDeffacts(df)) {
+        AssertDeffacts(env, df);
+    }
+}
+\end{lstlisting}
+
+\subsection{Clear}
+
+Rimuove tutto:
+
+\begin{lstlisting}[language=C]
+void Clear(Environment *env) {
+    // Rimuovi fatti
+    while (FactList != NULL) {
+        Retract(env, FactList);
+    }
+    
+    // Rimuovi regole
+    while (RuleList != NULL) {
+        Undefrule(env, RuleList);
+    }
+    
+    // Rimuovi deftemplate
+    while (DeftemplateList != NULL) {
+        Undeftemplate(env, DeftemplateList);
+    }
+    
+    // Reset network
+    DestroyRETENetwork(env);
+    
+    // Cleanup memoria
+    PeriodicCleanup(env);
+}
+\end{lstlisting}
+
+\section{Traduzione per SLIPS}
+
+\subsection{Swift Memory Management}
+
+**ARC invece di manual**:
+
+\begin{lstlisting}[language=Swift]
+class Symbol {
+    let contents: String
+    // ARC gestisce count automaticamente
+}
+
+// Invece di manual increment/decrement
+let sym = Symbol(contents: "example")
+// ARC incrementa automaticamente
+// ARC decrementa quando esce da scope
+\end{lstlisting}
+
+\subsection{Object Pooling}
+
+Comunque utile per performance:
+
+\begin{lstlisting}[language=Swift]
+class TokenPool {
+    private var pool: [Token] = []
+    private let maxSize = 1000
+    
+    func acquire(facts: [Fact]) -> Token {
+        if let token = pool.popLast() {
+            token.reset(with: facts)
+            return token
+        }
+        return Token(facts: facts)
+    }
+    
+    func release(_ token: Token) {
+        guard pool.count < maxSize else { return }
+        pool.append(token)
+    }
+}
+
+// Uso
+func processMatch() {
+    let token = pool.acquire(facts: [...])
+    defer { pool.release(token) }
+    // ... lavoro ...
+}
+\end{lstlisting}
+
+\subsection{Weak References per Cicli}
+
+\begin{lstlisting}[language=Swift]
+class BetaMemory {
+    var tokens: Set<Token> = []
+    weak var parent: JoinNode?  // Evita cicli
+}
+
+class JoinNode {
+    var leftMemory: BetaMemory?
+    var rightMemory: AlphaMemory?
+}
+\end{lstlisting}
+
+\section{Profiling Memoria}
+
+\subsection{Metriche}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Metrica} & \textbf{Comando} \\
+\midrule
+Memoria totale & \texttt{(mem-used)} \\
+Memoria richieste & \texttt{(mem-requests)} \\
+Hit rate pool & Ratio riuso/allocazioni \\
+Frammentazione & Memoria richiesta vs usata \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Memory Leak Detection}
+
+\begin{lstlisting}[language=C]
+void EnableMemoryTracking(Environment *env) {
+    env->trackAllocation = TRUE;
+}
+
+void ReportMemoryStatus(Environment *env) {
+    printf("Total allocations: %ld\n", TotalAllocations);
+    printf("Total frees: %ld\n", TotalFrees);
+    printf("Net: %ld\n", TotalAllocations - TotalFrees);
+    
+    if (TotalAllocations != TotalFrees) {
+        printf("WARNING: Possible memory leak!\n");
+    }
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item CLIPS usa \textbf{memory pools} per efficienza
+\item \textbf{Reference counting} per shared values
+\item \textbf{Periodic cleanup} invece di GC continua
+\item \textbf{Copy-on-write} per multifield
+\item Trade-off complessità vs performance
+\end{enumerate}
+
+\subsection{SLIPS Adaptations}
+
+\begin{itemize}
+\item Sfruttare ARC di Swift dove possibile
+\item Mantenere pooling per hot paths
+\item Weak references per evitare cicli
+\item Profiling per identificare leak
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Source - \texttt{memalloc.c}
+\item Swift Memory Management Guide
+\item "Modern Memory Management" - Apple
+\end{itemize}

@@ -1,0 +1,371 @@
+% Capitolo 14: Sistema di Agenda in CLIPS
+
+\chapter{Sistema di Agenda e Conflict Resolution}
+\label{cap:clips_agenda}
+
+\section{Introduzione}
+
+L'agenda in CLIPS gestisce il conflict set e determina l'ordine di esecuzione delle regole tramite strategie di conflict resolution.
+
+\section{Struttura dell'Agenda}
+
+\subsection{Activation}
+
+\begin{lstlisting}[language=C]
+struct activation {
+    struct defrule *theRule;
+    struct partialMatch *basis;
+    int salience;
+    unsigned long long timetag;
+    unsigned long randomID;
+    struct activation *prev;
+    struct activation *next;
+};
+\end{lstlisting}
+
+\textbf{Campi chiave}:
+\begin{itemize}
+\item \texttt{theRule}: Regola da eseguire
+\item \texttt{basis}: Partial match che ha attivato la regola
+\item \texttt{salience}: Priorità dichiarata
+\item \texttt{timetag}: Timestamp di creazione
+\item \texttt{randomID}: Per strategia random
+\end{itemize}
+
+\subsection{Agenda per Modulo}
+
+\begin{lstlisting}[language=C]
+struct defmodule {
+    // ... altri campi ...
+    struct activation *agenda;
+};
+\end{lstlisting}
+
+Ogni modulo ha la propria agenda, gestita tramite focus stack.
+
+\section{Conflict Resolution Strategies}
+
+\subsection{Depth Strategy}
+
+\textbf{Ordine}:
+\begin{enumerate}
+\item Salience (maggiore = priorità)
+\item Recency (fatti più recenti = priorità)
+\item Rule specificity (più condizioni = priorità)
+\item Rule order (definizione)
+\end{enumerate}
+
+\begin{lstlisting}[language=C]
+int CompareActivations_Depth(
+    struct activation *a1,
+    struct activation *a2
+) {
+    // 1. Salience
+    if (a1->salience > a2->salience) return -1;
+    if (a1->salience < a2->salience) return 1;
+    
+    // 2. Recency (timetag più alto = più recente)
+    if (a1->timetag > a2->timetag) return -1;
+    if (a1->timetag < a2->timetag) return 1;
+    
+    // 3. Specificity
+    int spec1 = RuleSpecificity(a1->theRule);
+    int spec2 = RuleSpecificity(a2->theRule);
+    if (spec1 > spec2) return -1;
+    if (spec1 < spec2) return 1;
+    
+    // 4. Rule order
+    return (a1->theRule->header.timeTag - 
+            a2->theRule->header.timeTag);
+}
+\end{lstlisting}
+
+\subsection{Breadth Strategy}
+
+Come depth, ma recency invertita (fatti vecchi prima):
+
+\begin{lstlisting}[language=C]
+// In CompareActivations_Breadth:
+// Recency check invertito
+if (a1->timetag < a2->timetag) return -1;  // Opposto!
+if (a1->timetag > a2->timetag) return 1;
+\end{lstlisting}
+
+\subsection{LEX e MEA}
+
+\textbf{LEX} (Least Recently Used):
+\begin{itemize}
+\item Ordina per recency di ogni fatto nel match
+\item Lessicografico sui timetag
+\end{itemize}
+
+\textbf{MEA} (Most Recently Used):
+\begin{itemize}
+\item Opposto di LEX
+\item Fatti recenti prima
+\end{itemize}
+
+\subsection{Complexity Strategy}
+
+Ordina per complessità della regola (numero di condizioni e test):
+
+\begin{lstlisting}[language=C]
+int RuleComplexity(struct defrule *rule) {
+    int complexity = 0;
+    struct joinNode *join = rule->lastJoin;
+    
+    while (join != NULL) {
+        complexity++;
+        if (join->networkTest != NULL) {
+            complexity += CountTests(join->networkTest);
+        }
+        join = join->lastLevel;
+    }
+    
+    return complexity;
+}
+\end{lstlisting}
+
+\subsection{Simplicity Strategy}
+
+Opposto di complexity: regole semplici prima.
+
+\subsection{Random Strategy}
+
+Selezione casuale:
+
+\begin{lstlisting}[language=C]
+struct activation *SelectRandom(struct activation *agenda) {
+    int count = 0;
+    for (struct activation *a = agenda; a != NULL; a = a->next) {
+        count++;
+    }
+    
+    if (count == 0) return NULL;
+    
+    int selected = rand() % count;
+    struct activation *result = agenda;
+    for (int i = 0; i < selected; i++) {
+        result = result->next;
+    }
+    
+    return result;
+}
+\end{lstlisting}
+
+**Uso**: Testing, simulazioni, evitare bias.
+
+\section{Salience}
+
+\subsection{Static Salience}
+
+Dichiarata nella regola:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule emergency
+  (declare (salience 100))  ; Alta priorita
+  (alarm)
+  =>
+  (shutdown-system))
+
+(defrule routine
+  (declare (salience 0))    ; Priorita normale
+  (tick)
+  =>
+  (log-event))
+\end{lstlisting}
+
+\subsection{Dynamic Salience}
+
+Calcolata a runtime:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule dynamic-priority
+  (declare (salience (+ ?priority (* 10 ?urgency))))
+  (task (priority ?priority) (urgency ?urgency))
+  =>
+  (process-task))
+\end{lstlisting}
+
+\textbf{Implementazione}:
+
+\begin{lstlisting}[language=C]
+int EvaluateSalience(
+    Environment *env,
+    struct activation *activation
+) {
+    if (activation->theRule->dynamicSalience == NULL) {
+        return activation->theRule->salience;
+    }
+    
+    UDFValue result;
+    EvaluateExpression(env, 
+                      activation->theRule->dynamicSalience,
+                      &result);
+    
+    return result.integerValue->contents;
+}
+\end{lstlisting}
+
+\subsection{Salience Evaluation}
+
+Quando ricalcolare:
+
+\begin{lstlisting}[language=CLIPS]
+(set-salience-evaluation when-defined)   ; Default: al build
+(set-salience-evaluation when-activated) ; Ad ogni attivazione
+(set-salience-evaluation every-cycle)    ; Ogni ciclo
+\end{lstlisting}
+
+\section{Agenda Management}
+
+\subsection{Inserimento}
+
+Inserisce attivazione mantenendo ordine:
+
+\begin{lstlisting}[language=C]
+void AddActivation(
+    Environment *env,
+    struct activation *newActivation
+) {
+    struct activation **current = &(env->currentModule->agenda);
+    
+    while (*current != NULL) {
+        if (CompareActivations(newActivation, *current) < 0) {
+            break;  // Posizione trovata
+        }
+        current = &((*current)->next);
+    }
+    
+    newActivation->next = *current;
+    if (*current != NULL) {
+        (*current)->prev = newActivation;
+    }
+    *current = newActivation;
+    newActivation->prev = (current == &(env->currentModule->agenda)) 
+                          ? NULL 
+                          : container_of(current, struct activation, next);
+}
+\end{lstlisting}
+
+\subsection{Rimozione}
+
+Quando un fatto che supporta l'attivazione viene retratto:
+
+\begin{lstlisting}[language=C]
+void RemoveActivation(
+    Environment *env,
+    struct activation *activation
+) {
+    if (activation->prev != NULL) {
+        activation->prev->next = activation->next;
+    } else {
+        env->currentModule->agenda = activation->next;
+    }
+    
+    if (activation->next != NULL) {
+        activation->next->prev = activation->prev;
+    }
+    
+    ReturnActivation(env, activation);
+}
+\end{lstlisting}
+
+\section{Refresh e Reorder}
+
+\subsection{Refresh}
+
+Ricalcola tutte le attivazioni:
+
+\begin{lstlisting}[language=CLIPS]
+(refresh rule-name)
+\end{lstlisting}
+
+\textbf{Uso}: Dopo modifica dinamica di salience o priorità.
+
+\subsection{Reorder}
+
+Riordina agenda con nuova strategia:
+
+\begin{lstlisting}[language=C]
+void RefreshAgenda(Environment *env, struct defrule *rule) {
+    // 1. Rimuovi attivazioni esistenti
+    RemoveActivationsForRule(env, rule);
+    
+    // 2. Rigenera da partial matches
+    for (struct partialMatch *pm = rule->lastJoin->betaMemory;
+         pm != NULL;
+         pm = pm->nextInMemory) {
+        AddActivation(env, CreateActivation(env, rule, pm));
+    }
+}
+\end{lstlisting}
+
+\section{Focus Stack}
+
+\subsection{Struttura}
+
+\begin{lstlisting}[language=C]
+struct focus {
+    struct defmodule *theModule;
+    struct focus *next;
+};
+
+struct focus *CurrentFocus = NULL;
+\end{lstlisting}
+
+\subsection{Operazioni}
+
+\begin{lstlisting}[language=CLIPS]
+(focus MODULE-NAME)      ; Push modulo su stack
+(return)                 ; Pop modulo corrente
+(get-focus)              ; Query modulo corrente
+(list-focus-stack)       ; Visualizza stack
+\end{lstlisting}
+
+\textbf{Implementazione}:
+
+\begin{lstlisting}[language=C]
+void Focus(Environment *env, struct defmodule *module) {
+    struct focus *newFocus = get_struct(env, focus);
+    newFocus->theModule = module;
+    newFocus->next = env->CurrentFocus;
+    env->CurrentFocus = newFocus;
+}
+
+struct defmodule *GetCurrentModule(Environment *env) {
+    if (env->CurrentFocus != NULL) {
+        return env->CurrentFocus->theModule;
+    }
+    return env->FindDefmodule(env, "MAIN");
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item Agenda organizza il \textbf{conflict set}
+\item \textbf{Strategie} multiple per ordinamento
+\item \textbf{Salience} permette priorità esplicite
+\item \textbf{Dynamic salience} per priorità calcolate
+\item \textbf{Focus stack} gestisce moduli
+\end{enumerate}
+
+\subsection{Per SLIPS}
+
+\begin{itemize}
+\item Implementare tutte le strategie standard
+\item Supportare salience dinamica
+\item Gestire focus stack correttamente
+\item Mantenere efficienza in inserimento/rimozione
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Reference - Capitolo "Agenda"
+\item CLIPS Source - \texttt{agenda.c}
+\item Brownston et al. (1985). "OPS5 Conflict Resolution"
+\end{itemize}

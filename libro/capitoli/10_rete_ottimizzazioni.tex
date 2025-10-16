@@ -1,0 +1,541 @@
+% Capitolo 10: Ottimizzazioni dell'Algoritmo RETE
+
+\chapter{Ottimizzazioni e Varianti di RETE}
+\label{cap:rete_ottimizzazioni}
+
+\section{Introduzione}
+
+Sebbene RETE sia già altamente efficiente, esistono numerose ottimizzazioni e varianti che possono migliorarne ulteriormente le prestazioni in scenari specifici.
+
+\section{Node Sharing}
+
+\subsection{Condivisione tra Regole}
+
+\textbf{Principio}: Regole con pattern comuni condividono nodi.
+
+\begin{lstlisting}[language=CLIPS]
+;; Tre regole con prefisso comune
+(defrule r1 (a) (b) (c1) => ...)
+(defrule r2 (a) (b) (c2) => ...)
+(defrule r3 (a) (b) (c3) => ...)
+\end{lstlisting}
+
+\textbf{Struttura condivisa}:
+\begin{itemize}
+\item Un solo join per (a)
+\item Un solo join per (b)
+\item Tre join diversi per (c1), (c2), (c3)
+\end{itemize}
+
+\textbf{Benefici}:
+\begin{itemize}
+\item Riduzione nodi: da $3 \times 3 = 9$ a $2 + 3 = 5$
+\item Riduzione beta memories
+\item Join eseguiti una sola volta
+\end{itemize}
+
+\subsection{Implementazione}
+
+\begin{algorithm}
+\caption{Trova o Crea Nodo Condiviso}
+\begin{algorithmic}[1]
+\Function{GetOrCreateJoinNode}{$parent, pattern$}
+  \For{each child in $parent.children$}
+    \If{child.pattern $\equiv$ pattern}
+      \State \Return child \Comment{Riusa esistente}
+    \EndIf
+  \EndFor
+  \State $newNode \gets $ \Call{CreateJoinNode}{pattern}
+  \State $parent.children$.append($newNode$)
+  \State \Return newNode
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Right/Left Unlinking}
+
+\subsection{Problema}
+
+Join con input vuoto sprecano tempo:
+
+\begin{itemize}
+\item Alpha memory vuota $\Rightarrow$ no match possibili
+\item Beta memory vuota $\Rightarrow$ no match possibili
+\end{itemize}
+
+\subsection{Soluzione: Unlinking}
+
+\textbf{Right unlinking}:
+\begin{itemize}
+\item Se alpha memory diventa vuota, "scollega" join
+\item Non processa left activations
+\item Ricollega al primo assert
+\end{itemize}
+
+\textbf{Left unlinking}:
+\begin{itemize}
+\item Se beta memory sinistra vuota, scollega
+\item Non processa right activations
+\item Ricollega quando arriva primo token
+\end{itemize}
+
+\begin{lstlisting}[language=Swift]
+class JoinNode {
+    var linked: Bool = false
+    
+    func checkLinking() {
+        let shouldLink = !leftMemory.isEmpty && !rightMemory.isEmpty
+        if shouldLink && !linked {
+            linked = true
+            // Processa tutti i match accumulati
+        } else if !shouldLink && linked {
+            linked = false
+        }
+    }
+    
+    override func leftActivate(token: Token) {
+        guard linked else { return }  // Skip se unlinked
+        // ... normale processing
+    }
+}
+\end{lstlisting}
+
+\textbf{Speedup}: Fino a 50% in scenari con molti join inattivi.
+
+\section{Hashing e Indexing}
+
+\subsection{Hash Join}
+
+Per join su uguaglianza di variabili:
+
+\begin{lstlisting}[language=CLIPS]
+(pattern1 ?x ...)
+(pattern2 ?x ...)  ; Join test: ?x = ?x
+\end{lstlisting}
+
+\textbf{Ottimizzazione}:
+\begin{itemize}
+\item Indicizza token per valore di \texttt{?x}
+\item Lookup $O(1)$ invece di scan $O(n)$
+\end{itemize}
+
+\begin{lstlisting}[language=Swift]
+class HashJoinNode: JoinNode {
+    var hashIndex: [Value: Set<Token>] = [:]
+    
+    override func leftActivate(token: Token) {
+        let key = token.binding[joinVariable]!
+        if let rightMatches = rightMemory.lookup(key) {
+            for fact in rightMatches {
+                let newToken = token.extend(with: fact)
+                propagate(newToken)
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Indexing Multilivello}
+
+Per pattern con più constraint costanti:
+
+\begin{lstlisting}[language=CLIPS]
+(persona (eta 30) (citta "Roma") (professione "ingegnere"))
+\end{lstlisting}
+
+\textbf{Indice composto}: (eta, citta, professione) $\rightarrow$ fatti.
+
+\textbf{Beneficio}: Da $O(m)$ a $O(1)$ per fatti specifici.
+
+\section{Pattern Reordering}
+
+\subsection{Ordinamento Ottimale}
+
+\textbf{Euristiche per ordinare pattern}:
+
+\begin{enumerate}
+\item \textbf{Selettività}: Pattern più selettivi prima
+\item \textbf{Costanti}: Pattern con costanti prima
+\item \textbf{Variabili condivise}: Massimizzare early join pruning
+\end{enumerate}
+
+\begin{esempio}[Riordinamento]
+\textbf{Originale}:
+\begin{lstlisting}[language=CLIPS]
+(defrule example
+  (persona (citta ?c))         ; Generico: 1000 match
+  (citta (nome ?c) (paese "IT")) ; Selettivo: 100 match
+  (meteo (citta ?c) (temp ?t&:(> ?t 30))) ; Molto selettivo: 10 match
+  =>
+  ...)
+\end{lstlisting}
+
+\textbf{Ottimizzato}:
+\begin{lstlisting}[language=CLIPS]
+(defrule example-opt
+  (meteo (citta ?c) (temp ?t&:(> ?t 30))) ; 10 match
+  (citta (nome ?c) (paese "IT"))          ; Filter a 10
+  (persona (citta ?c))                    ; Final join
+  =>
+  ...)
+\end{lstlisting}
+
+\textbf{Beneficio}:
+\begin{itemize}
+\item Originale: $1000 \times 100 \times 10 = 10^6$ combinazioni considerate
+\item Ottimizzato: $10 \times 100 \times 1000 = 10^6$ ma con early pruning, praticamente $\approx 1000$
+\end{itemize}
+\end{esempio}
+
+\subsection{Analisi Dinamica}
+
+Raccogliere statistiche a runtime:
+
+\begin{lstlisting}[language=Swift]
+class PatternStatistics {
+    var matchCount: Int = 0
+    var totalFacts: Int = 0
+    
+    var selectivity: Double {
+        guard totalFacts > 0 else { return 1.0 }
+        return Double(matchCount) / Double(totalFacts)
+    }
+}
+
+// Riordina pattern prima di compilare
+func optimizeRulePatterns(_ rule: Rule) {
+    rule.patterns.sort { p1, p2 in
+        stats[p1]!.selectivity < stats[p2]!.selectivity
+    }
+}
+\end{lstlisting}
+
+\section{Partial Evaluation}
+
+\subsection{Costanti Compile-Time}
+
+Pre-calcolare test quando possibile:
+
+\begin{lstlisting}[language=CLIPS]
+;; Invece di
+(test (> (* 10 5) 40))
+
+;; Valutare a compile-time
+(test TRUE)  ; Sempre vero
+\end{lstlisting}
+
+\subsection{Inlining}
+
+Sostituire funzioni semplici con codice inline:
+
+\begin{lstlisting}[language=Swift]
+// Invece di call dinamica
+if evaluatePredicate(">", value, 18) { ... }
+
+// Inline diretto
+if value > 18 { ... }
+\end{lstlisting}
+
+\section{Memory Management}
+
+\subsection{Token Pooling}
+
+\textbf{Problema}: Allocazione/deallocazione continua di token.
+
+\textbf{Soluzione}: Object pool.
+
+\begin{lstlisting}[language=Swift]
+class TokenPool {
+    private var pool: [Token] = []
+    private let maxPoolSize = 1000
+    
+    func acquire(facts: [Fact]) -> Token {
+        if let token = pool.popLast() {
+            token.reset(with: facts)
+            return token
+        }
+        return Token(facts: facts)
+    }
+    
+    func release(_ token: Token) {
+        guard pool.count < maxPoolSize else { return }
+        pool.append(token)
+    }
+}
+\end{lstlisting}
+
+\textbf{Beneficio}: Riduzione garbage collection, locality migliore.
+
+\subsection{Compact Token Representation}
+
+Invece di:
+\begin{lstlisting}[language=Swift]
+struct Token {
+    var facts: [Fact]          // Array completo
+    var bindings: [String: Value]  // Dictionary
+}
+\end{lstlisting}
+
+Usare:
+\begin{lstlisting}[language=Swift]
+struct CompactToken {
+    var factIDs: [Int32]       // Solo ID (4 byte ciascuno)
+    var bindingArray: [Value]  // Array flat, no hash overhead
+    var bindingKeys: UInt64    // Bitmap per chiavi
+}
+\end{lstlisting}
+
+\textbf{Beneficio}: 50-70% riduzione memoria per token.
+
+\section{Parallel RETE}
+
+\subsection{Parallelizzazione Join}
+
+\textbf{Opportunità}:
+\begin{itemize}
+\item Join indipendenti processabili in parallelo
+\item Alpha network intrinsecamente parallelizzabile
+\end{itemize}
+
+\begin{lstlisting}[language=Swift]
+func rightActivateParallel(fact: Fact) {
+    let affectedJoins = findAffectedJoins(fact)
+    
+    DispatchQueue.concurrentPerform(iterations: affectedJoins.count) { i in
+        let join = affectedJoins[i]
+        join.process(fact)
+    }
+}
+\end{lstlisting}
+
+\textbf{Sfida}: Sincronizzazione accesso a beta memories.
+
+\subsection{Lock-Free Data Structures}
+
+Per beta memories concorrenti:
+
+\begin{lstlisting}[language=Swift]
+class LockFreeBetaMemory {
+    private var tokens = Atomic<Set<Token>>()
+    
+    func add(_ token: Token) -> Bool {
+        tokens.modify { set in
+            set.insert(token).inserted
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Incremental Compilation}
+
+\subsection{Dynamic Rule Addition}
+
+Aggiungere regole senza ricostruire l'intera rete:
+
+\begin{algorithm}
+\caption{Aggiungi Regola Incrementalmente}
+\begin{algorithmic}[1]
+\Function{AddRule}{$rule$}
+  \For{each pattern in $rule.patterns$}
+    \State $alphaNode \gets $ \Call{CompileAlpha}{pattern}
+    \State $betaNode \gets $ \Call{IntegrateInBeta}{pattern, alphaNode}
+  \EndFor
+  \State $prodNode \gets $ \Call{CreateProductionNode}{rule}
+  \State \Call{PropagateExistingFacts}{$prodNode$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Complessità}: $O(k \cdot d + m \cdot c_{\text{new}})$ invece di $O(n \cdot k)$.
+
+\section{Specializzazioni}
+
+\subsection{Fast Path per Pattern Semplici}
+
+\begin{lstlisting}[language=Swift]
+protocol PatternMatcher {
+    func match(_ fact: Fact) -> Bool
+}
+
+// Fast path: test singolo
+class SimpleEqualityMatcher: PatternMatcher {
+    let slot: String
+    let value: Value
+    
+    func match(_ fact: Fact) -> Bool {
+        return fact[slot] == value  // Direct comparison
+    }
+}
+
+// General path: test multipli
+class ComplexMatcher: PatternMatcher {
+    let tests: [Test]
+    
+    func match(_ fact: Fact) -> Bool {
+        return tests.allSatisfy { $0.evaluate(fact) }
+    }
+}
+\end{lstlisting}
+
+\textbf{Beneficio}: Evitare overhead per casi comuni.
+
+\subsection{Template Specialization}
+
+Per tipi di fatti noti a compile-time:
+
+\begin{lstlisting}[language=Swift]
+// Invece di generic access
+let age = fact.getValue(slot: "età") as! Int
+
+// Specializzato
+struct PersonaFact {
+    let id: Int
+    let nome: String
+    let età: Int
+}
+
+// Accesso diretto
+let age = personaFact.età
+\end{lstlisting}
+
+\section{Profiling e Tuning}
+
+\subsection{Metriche da Monitorare}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Metrica} & \textbf{Target} & \textbf{Azione se Fuori} \\
+\midrule
+Token/Beta memory & < 1000 & Rivedere pattern \\
+Conflict set size & 10-100 & Adjustare salience \\
+Join hit rate & > 0.1 & Verificare selettività \\
+Memory growth & Linear & Check memory leak \\
+Avg cycle time & < 10 ms & Profiling dettagliato \\
+\bottomrule
+\end{tabular}
+\caption{Metriche e target}
+\end{table}
+
+\subsection{Bottleneck Identification}
+
+\begin{lstlisting}[language=Swift]
+class ReteProfiler {
+    var nodeExecutionTime: [Node: TimeInterval] = [:]
+    var nodeActivationCount: [Node: Int] = [:]
+    
+    func profile<T>(_ node: Node, _ block: () -> T) -> T {
+        let start = Date()
+        defer {
+            let elapsed = Date().timeIntervalSince(start)
+            nodeExecutionTime[node, default: 0] += elapsed
+            nodeActivationCount[node, default: 0] += 1
+        }
+        return block()
+    }
+    
+    func topBottlenecks(n: Int) -> [(Node, TimeInterval)] {
+        nodeExecutionTime.sorted { $0.value > $1.value }.prefix(n)
+    }
+}
+\end{lstlisting}
+
+\section{Varianti Algoritmiche}
+
+\subsection{TREAT}
+
+\textbf{Differenze da RETE}:
+\begin{itemize}
+\item No beta memories
+\item Re-matching ad ogni ciclo
+\item Meno memoria, più tempo
+\end{itemize}
+
+\textbf{Quando usare}: WM molto volatile, poche regole.
+
+\subsection{LEAPS}
+
+\textbf{Collection-Oriented Match}:
+\begin{itemize}
+\item Lazy evaluation
+\item Query-driven
+\item Ottimo per reasoning backward-chaining
+\end{itemize}
+
+\subsection{Gator/A-RETE}
+
+\textbf{Adaptive RETE}:
+\begin{itemize}
+\item Switch tra RETE e TREAT dinamicamente
+\item Monitoring di volatilità WM
+\item Selezione automatica strategia
+\end{itemize}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item \textbf{Node sharing} riduce nodi fino a 50\%
+\item \textbf{Unlinking} elimina join inutili
+\item \textbf{Hashing} accelera join su variabili
+\item \textbf{Pattern reordering} cruciale per selettività
+\item \textbf{Memory management} impatta prestazioni
+\item \textbf{Profiling} essenziale per tuning
+\end{enumerate}
+
+\subsection{Linee Guida Pratiche}
+
+\begin{successbox}[Best Practices]
+\begin{enumerate}
+\item Inizia con RETE standard
+\item Aggiungi profiling
+\item Identifica bottleneck
+\item Applica ottimizzazioni mirate
+\item Misura impatto
+\item Itera
+\end{enumerate}
+\end{successbox}
+
+\subsection{Trade-off}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Ottimizzazione} & \textbf{Pro} & \textbf{Contro} \\
+\midrule
+Unlinking & -50\% activations & Complexity \\
+Hashing & $O(1)$ join & Memory overhead \\
+Reordering & -90\% combinations & Static analysis \\
+Parallelization & Speedup & Synchronization \\
+Specialization & +2x speed & Code duplication \\
+\bottomrule
+\end{tabular}
+\caption{Trade-off ottimizzazioni}
+\end{table}
+
+\subsection{Completamento Parte II}
+
+Con questo capitolo si conclude la Parte II sull'algoritmo RETE. Abbiamo visto:
+\begin{itemize}
+\item Fondamenti teorici (Cap. 5, 6)
+\item Rete Alpha (Cap. 7)
+\item Rete Beta (Cap. 8)
+\item Analisi di complessità (Cap. 9)
+\item Ottimizzazioni pratiche (Cap. 10)
+\end{itemize}
+
+La Parte III esplorerà l'architettura completa di CLIPS.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Doorenbos, R. (1995). "Production Matching..." - RETE/UL dettagliato
+\item Brant, D. et al. (1991). "Incremental RETE" - Parallelization
+\item Wright, I. et al. (1998). "Parallel Pattern Matching in RETE"
+\item Miranker, D. (1990). "TREAT Algorithm"
+\item Schmolze, J. (1991). "Guaranteeing Serializable Results in RETE"
+\end{itemize}

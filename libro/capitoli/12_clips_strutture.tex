@@ -1,0 +1,361 @@
+% Capitolo 12: Strutture Dati CLIPS
+
+\chapter{Strutture Dati Interne di CLIPS}
+\label{cap:clips_strutture}
+
+\section{Introduzione}
+
+Le strutture dati di CLIPS sono progettate per efficienza e flessibilità. Questo capitolo esplora le implementazioni C che SLIPS deve replicare fedelmente.
+
+\section{Simboli e Atomi}
+
+\subsection{Symbol Table}
+
+CLIPS mantiene una tabella globale di simboli per interning:
+
+\begin{lstlisting}[language=C]
+#define SYMBOL_HASH_SIZE 63559
+
+struct symbolHashNode {
+    struct symbolHashNode *next;
+    long count;
+    unsigned int depth;
+    unsigned short type;
+    char *contents;
+};
+
+static struct symbolHashNode **SymbolTable = NULL;
+\end{lstlisting}
+
+**Benefici**:
+\begin{itemize}
+\item Confronto $O(1)$ per uguaglianza (pointer comparison)
+\item Risparmio memoria (no duplicati)
+\item String immutabili garantite
+\end{itemize}
+
+\section{Multifield Values}
+
+\subsection{Struttura}
+
+\begin{lstlisting}[language=C]
+struct multifield {
+    unsigned short busyCount;
+    short multifieldLength;
+    struct multifieldMarker *multifields;
+};
+
+struct field {
+    unsigned short type;
+    union {
+        void *value;
+        CLIPSLexeme *lexemeValue;
+        CLIPSFloat *floatValue;
+        CLIPSInteger *integerValue;
+    };
+};
+\end{lstlisting}
+
+**Gestione**:
+\begin{itemize}
+\item Reference counting per sharing
+\item Copy-on-write quando modificati
+\item Pool per riuso
+\end{itemize}
+
+\section{Fatti}
+
+\subsection{Fact Structure}
+
+\begin{lstlisting}[language=C]
+struct fact {
+    struct patternEntity patternHeader;
+    struct deftemplate *whichDeftemplate;
+    void *list;
+    long long factIndex;
+    unsigned long depth;
+    struct fact *previousFact;
+    struct fact *nextFact;
+    struct patternMatch *list;
+    struct partialMatch *list;
+};
+\end{lstlisting}
+
+\subsection{Fact List}
+
+Lista doppiamente linkata per iterazione efficiente:
+
+\begin{lstlisting}[language=C]
+struct fact *FactList = NULL;
+struct fact *LastFact = NULL;
+long long NextFactIndex = 0;
+
+struct fact *Assert(struct fact *theFact) {
+    theFact->factIndex = NextFactIndex++;
+    theFact->nextFact = NULL;
+    theFact->previousFact = LastFact;
+    
+    if (LastFact == NULL)
+        FactList = theFact;
+    else
+        LastFact->nextFact = theFact;
+    
+    LastFact = theFact;
+    return theFact;
+}
+\end{lstlisting}
+
+\section{Deftemplate}
+
+\subsection{Struttura}
+
+\begin{lstlisting}[language=C]
+struct deftemplate {
+    struct constructHeader header;
+    struct templateSlot *slotList;
+    unsigned int implied : 1;
+    unsigned int watch : 1;
+    unsigned int inScope : 1;
+    unsigned short numberOfSlots;
+    long busyCount;
+    struct factPatternNode *patternNetwork;
+};
+
+struct templateSlot {
+    struct symbolHashNode *slotName;
+    unsigned int multislot : 1;
+    unsigned int noDefault : 1;
+    unsigned int defaultPresent : 1;
+    unsigned int defaultDynamic : 1;
+    struct expr *constraints;
+    struct expr *defaultList;
+    struct expr *facetList;
+    struct templateSlot *next;
+};
+\end{lstlisting}
+
+\section{Regole}
+
+\subsection{Defrule Structure}
+
+\begin{lstlisting}[language=C]
+struct defrule {
+    struct constructHeader header;
+    int salience;
+    unsigned int afterBreakpoint : 1;
+    unsigned int watchActivation : 1;
+    unsigned int watchFiring : 1;
+    unsigned int autoFocus : 1;
+    struct expr *dynamicSalience;
+    struct expr *actions;
+    struct joinNode *lastJoin;
+    struct joinNode *disjunct;
+};
+\end{lstlisting}
+
+\section{Pattern Network}
+
+\subsection{Pattern Nodes}
+
+\begin{lstlisting}[language=C]
+struct factPatternNode {
+    unsigned short whichField;
+    unsigned short whichSlot;
+    unsigned short leaveFields;
+    struct lhsParseNode *networkTest;
+    struct factPatternNode *nextLevel;
+    struct factPatternNode *lastLevel;
+    struct factPatternNode *leftNode;
+    struct factPatternNode *rightNode;
+    struct alphaMemoryHash *alphaMemory;
+    long bsaveID;
+};
+\end{lstlisting}
+
+\subsection{Join Network}
+
+\begin{lstlisting}[language=C]
+struct joinNode {
+    unsigned int firstJoin : 1;
+    unsigned int logicalJoin : 1;
+    unsigned int joinFromTheRight : 1;
+    unsigned int patternIsNegated : 1;
+    long long memoryLeftAdds;
+    long long memoryRightAdds;
+    long long memoryLeftDeletes;
+    long long memoryRightDeletes;
+    struct expr *networkTest;
+    struct joinNode *lastLevel;
+    struct joinNode *nextLinks;
+    void *rightSideEntryStructure;
+    struct betaMemory *leftMemory;
+    struct betaMemory *rightMemory;
+    long bsaveID;
+};
+\end{lstlisting}
+
+\section{Token e Partial Match}
+
+\subsection{Struttura}
+
+\begin{lstlisting}[language=C]
+struct partialMatch {
+    unsigned int betaMemory : 1;
+    unsigned int busy : 1;
+    unsigned int deleting : 1;
+    unsigned int activationf : 1;
+    unsigned short bcount;
+    struct partialMatch *next;
+    struct multifield *binds;
+    struct alphaMatch *markers;
+    struct partialMatch *children;
+    struct partialMatch *rightParent;
+    struct partialMatch *nextInMemory;
+    struct partialMatch *prevInMemory;
+    struct joinNode *owner;
+};
+\end{lstlisting}
+
+**Gestione complessità**:
+\begin{itemize}
+\item Reference counting per cleanup
+\item Lazy deletion per efficienza
+\item Children list per propagazione retract
+\end{itemize}
+
+\section{Agenda e Attivazioni}
+
+\subsection{Activation}
+
+\begin{lstlisting}[language=C]
+struct activation {
+    struct defrule *theRule;
+    struct partialMatch *basis;
+    int salience;
+    unsigned long long timetag;
+    struct activation *prev;
+    struct activation *next;
+    struct patternEntity *sortedBasis;
+};
+\end{lstlisting}
+
+\subsection{Agenda Structure}
+
+\begin{lstlisting}[language=C]
+struct agenda {
+    struct activation *first;
+    struct activation *last;
+    struct defruleModule *whichModule;
+};
+\end{lstlisting}
+
+\section{Traduzione Swift per SLIPS}
+
+\subsection{Approccio}
+
+\textbf{Principi}:
+\begin{enumerate}
+\item Preservare semantica esatta
+\item Usare Swift idioms dove possibile
+\item Mantenere performance comparabili
+\item Type safety dove vantaggioso
+\end{enumerate}
+
+\subsection{Esempio: Symbol Table}
+
+\textbf{C}:
+\begin{lstlisting}[language=C]
+struct symbolHashNode *FindSymbol(char *str);
+\end{lstlisting}
+
+\textbf{Swift}:
+\begin{lstlisting}[language=Swift]
+class SymbolTable {
+    private var table: [String: Symbol] = [:]
+    
+    func intern(_ string: String) -> Symbol {
+        if let existing = table[string] {
+            return existing
+        }
+        let newSymbol = Symbol(contents: string)
+        table[string] = newSymbol
+        return newSymbol
+    }
+}
+
+struct Symbol: Hashable {
+    let contents: String
+    let id: Int  // For fast comparison
+}
+\end{lstlisting}
+
+\subsection{Esempio: Fact}
+
+\begin{lstlisting}[language=Swift]
+class Fact {
+    let template: Deftemplate
+    let slots: [String: Value]
+    let index: Int
+    var next: Fact?
+    weak var previous: Fact?
+    
+    // Pattern matching state
+    var alphaMatches: Set<AlphaMemory> = []
+    var tokens: Set<Token> = []
+}
+\end{lstlisting}
+
+\section{Gestione Memoria in Swift}
+
+\subsection{ARC vs Manual}
+
+**Differenze da C**:
+\begin{itemize}
+\item Swift usa ARC (Automatic Reference Counting)
+\item No malloc/free espliciti
+\item Weak references per evitare cicli
+\item Copy-on-write per collections
+\end{itemize}
+
+**Vantaggi**:
+\begin{itemize}
+\item Meno memory leak
+\item Code più sicuro
+\item Integrazione con Swift ecosystem
+\end{itemize}
+
+**Sfide**:
+\begin{itemize}
+\item Performance overhead di ARC
+\item Cicli di reference da gestire attentamente
+\item Pooling più complesso
+\end{itemize}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item CLIPS usa strutture C efficienti e compatte
+\item Symbol interning cruciale per performance
+\item Reference counting pervasivo
+\item Liste linkate per fatti e attivazioni
+\item Pattern network come DAG di nodi
+\end{enumerate}
+
+\subsection{Implicazioni per SLIPS}
+
+\begin{itemize}
+\item Preservare semantica esatta delle strutture
+\item Adattare a paradigmi Swift dove appropriato
+\item Mantenere efficienza comparabile
+\item Sfruttare type safety di Swift
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Architecture Manual - Capitolo 3
+\item CLIPS Source Code - \texttt{factmngr.c}, \texttt{ruledef.c}
+\item Swift Programming Language - Memory Management
+\end{itemize}

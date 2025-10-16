@@ -1,0 +1,568 @@
+% Capitolo 8: Rete Beta - Join e Combinazione di Pattern
+
+\chapter{Rete Beta: Join e Negazione}
+\label{cap:rete_beta}
+
+\section{Introduzione}
+
+La rete beta è la seconda componente dell'algoritmo RETE, responsabile della \textit{combinazione} di pattern: verificare constraint inter-elemento e costruire match completi per le regole.
+
+\subsection{Responsabilità della Rete Beta}
+
+\begin{infobox}[Funzioni Principali]
+\begin{enumerate}
+\item \textbf{Join}: Combinare match di pattern diversi
+\item \textbf{Negazione}: Gestire pattern negativi (NOT)
+\item \textbf{Test inter-elemento}: Verificare constraint tra fatti
+\item \textbf{Partial match storage}: Memorizzare risultati intermedi
+\item \textbf{Conflict set generation}: Produrre attivazioni complete
+\end{enumerate}
+\end{infobox}
+
+\section{Struttura della Rete Beta}
+
+\subsection{Tipi di Nodi Beta}
+
+\begin{definizione}[Nodi Beta]
+La rete beta è un albero binario con nodi di tipo:
+\begin{itemize}
+\item \textbf{Join node}: Combina due stream di partial match
+\item \textbf{Negative node}: Implementa negazione (NOT)
+\item \textbf{Beta memory}: Memorizza partial match intermedi
+\item \textbf{Production node}: Terminale, genera attivazioni
+\end{itemize}
+\end{definizione}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=2cm and 2cm,
+  alpha/.style={ellipse, draw, fill=blue!20, minimum width=1.5cm},
+  joinnode/.style={trapezium, draw, fill=green!20, minimum width=1.5cm, trapezium left angle=70, trapezium right angle=110},
+  beta/.style={rectangle, draw, fill=yellow!20, minimum width=1.5cm},
+  prod/.style={rectangle, draw, fill=red!20, minimum width=1.5cm, thick}
+]
+  \node[alpha] (am1) {AM1};
+  \node[alpha, right=of am1] (am2) {AM2};
+  \node[joinnode, below=of am1, xshift=2cm] (j1) {Join};
+  \node[beta, below=of j1] (bm1) {BM1};
+  \node[alpha, below=of am2, xshift=2cm] (am3) {AM3};
+  \node[joinnode, below=of bm1, xshift=1.5cm] (j2) {Join};
+  \node[prod, below=of j2] (p1) {Rule R1};
+  
+  \draw[->] (am1) -- (j1);
+  \draw[->] (am2) -- (j1);
+  \draw[->] (j1) -- (bm1);
+  \draw[->] (bm1) -- (j2);
+  \draw[->] (am3) -- (j2);
+  \draw[->] (j2) -- (p1);
+\end{tikzpicture}
+\caption{Esempio di rete beta con join nodes}
+\label{fig:rete_beta_esempio}
+\end{figure}
+
+\subsection{Partial Match}
+
+\begin{definizione}[Partial Match]
+Un partial match (token) è una tupla ordinata di fatti che soddisfano i primi $k$ pattern di una regola:
+\begin{equation}
+t = (f_1, f_2, \ldots, f_k) \quad \text{con binding } \theta
+\end{equation}
+\end{definizione}
+
+\textbf{Esempio}:
+\begin{lstlisting}[language=CLIPS]
+(defrule r1
+  (persona (id ?id) (nome ?n))       ; Pattern 1
+  (ordine (cliente ?id) (totale ?t)) ; Pattern 2
+  =>
+  ...)
+
+;; Partial match dopo pattern 1:
+;; token1 = ([persona id=123 nome="Mario"], {?id=123, ?n="Mario"})
+
+;; Partial match completo (dopo pattern 2):
+;; token2 = ([persona id=123 ...], [ordine cliente=123 totale=100], 
+;;           {?id=123, ?n="Mario", ?t=100})
+\end{lstlisting}
+
+\section{Join Nodes}
+
+\subsection{Funzionamento}
+
+Un join node combina:
+\begin{itemize}
+\item \textbf{Left input}: Stream di partial match (da beta memory)
+\item \textbf{Right input}: Stream di fatti (da alpha memory)
+\end{itemize}
+
+\textbf{Output}: Nuovi partial match che soddisfano i join tests.
+
+\subsection{Join Tests}
+
+\begin{definizione}[Join Test]
+Un join test è una condizione che deve essere soddisfatta per combinare un partial match con un nuovo fatto:
+\begin{equation}
+\text{test}(token, fatto) \in \{\text{true}, \text{false}\}
+\end{equation}
+\end{definizione}
+
+\textbf{Tipi comuni}:
+\begin{itemize}
+\item Uguaglianza di variabili: \texttt{?id} nel pattern 1 = \texttt{?id} nel pattern 2
+\item Predicati: \texttt{(test (> ?x ?y))}
+\item Binding consistency
+\end{itemize}
+
+\subsection{Algoritmo di Join}
+
+\begin{algorithm}
+\caption{Right Activation (nuovo fatto)}
+\begin{algorithmic}[1]
+\Require Join node $j$, Fatto $f$
+\Function{RightActivate}{$j, f$}
+  \State $leftMemory \gets j.leftParent.memory$
+  \For{each token $t$ in $leftMemory$}
+    \If{\Call{EvaluateJoinTests}{$j.tests, t, f$}}
+      \State $newToken \gets $ \Call{Extend}{$t, f$}
+      \State \Call{Propagate}{$j.children, newToken$}
+    \EndIf
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Left Activation (nuovo partial match)}
+\begin{algorithmic}[1]
+\Require Join node $j$, Token $t$
+\Function{LeftActivate}{$j, t$}
+  \State $rightMemory \gets j.rightParent.memory$
+  \For{each fact $f$ in $rightMemory$}
+    \If{\Call{EvaluateJoinTests}{$j.tests, t, f$}}
+      \State $newToken \gets $ \Call{Extend}{$t, f$}
+      \State \Call{Propagate}{$j.children, newToken$}
+    \EndIf
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Complessità}
+
+**Worst case** (senza hash join):
+\begin{equation}
+O(|left| \cdot |right|)
+\end{equation}
+
+**Con hash join** (quando possibile):
+\begin{equation}
+O(|left| + |right|)
+\end{equation}
+
+\section{Hash Join Optimization}
+
+\subsection{Principio}
+
+Quando il join test è un'uguaglianza su variabile:
+
+\begin{lstlisting}[language=CLIPS]
+(pattern1 ... ?x ...)
+(pattern2 ... ?x ...)  ; Stesso ?x
+\end{lstlisting}
+
+Possiamo indicizzare per valore di \texttt{?x}.
+
+\subsection{Implementazione}
+
+\begin{lstlisting}[language=Swift]
+class BetaMemory {
+    var tokens: Set<Token> = []
+    var hashIndex: [Int: Set<Token>] = [:]  // valore -> tokens
+    
+    func add(_ token: Token, hashOn variable: String) {
+        tokens.insert(token)
+        if let value = token.binding[variable] {
+            let hash = value.hashValue
+            hashIndex[hash, default: []].insert(token)
+        }
+    }
+    
+    func lookup(value: Value) -> Set<Token> {
+        return hashIndex[value.hashValue] ?? []
+    }
+}
+\end{lstlisting}
+
+\textbf{Complessità lookup}: $O(1)$ attesa.
+
+\section{Negative Nodes}
+
+\subsection{Semantica}
+
+Un pattern negato è soddisfatto quando \textit{nessun} fatto match esiste:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule no-orders
+  (cliente (id ?id))
+  (not (ordine (cliente ?id)))  ; Negazione!
+  =>
+  (printout t "Cliente " ?id " senza ordini" crlf))
+\end{lstlisting}
+
+\subsection{Implementazione con Counter}
+
+\begin{definizione}[Negative Node]
+Un negative node mantiene per ogni partial match un \textit{counter} di quanti fatti matchano il pattern negato:
+\begin{equation}
+\text{count}(token) = |\{f \mid \text{match}(token, f)\}|
+\end{equation}
+Token con $\text{count} = 0$ sono propagati.
+\end{definizione}
+
+\begin{algorithm}
+\caption{Negative Node - Right Activation}
+\begin{algorithmic}[1]
+\Require Negative node $n$, Fatto $f$
+\Function{NegativeRightActivate}{$n, f$}
+  \For{each token $t$ in $n.leftMemory$}
+    \If{\Call{MatchJoinTests}{$n.tests, t, f$}}
+      \State $t.negCount \gets t.negCount + 1$
+      \If{$t.negCount = 1$}  \Comment{Era 0, ora non più}
+        \State \Call{RemoveFromChildren}{$n, t$}
+      \EndIf
+    \EndIf
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Negative Node - Retract}
+\begin{algorithmic}[1]
+\Require Negative node $n$, Fatto $f$
+\Function{NegativeRetract}{$n, f$}
+  \For{each token $t$ in $n.leftMemory$}
+    \If{\Call{MatchJoinTests}{$n.tests, t, f$}}
+      \State $t.negCount \gets t.negCount - 1$
+      \If{$t.negCount = 0$}  \Comment{Ora soddisfatto!}
+        \State \Call{PropagateToChildren}{$n, t$}
+      \EndIf
+    \EndIf
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Esempio Dettagliato}
+
+\textbf{Stato iniziale}:
+\begin{itemize}
+\item WM = \{(cliente id=1), (cliente id=2)\}
+\item Token $t_1$ per cliente 1: count = 0 $\Rightarrow$ propagato
+\item Token $t_2$ per cliente 2: count = 0 $\Rightarrow$ propagato
+\end{itemize}
+
+\textbf{Assert} \texttt{(ordine cliente=1)}:
+\begin{itemize}
+\item Match $t_1$: count diventa 1
+\item $t_1$ ritirato dai children
+\item $t_2$ rimane (count ancora 0)
+\end{itemize}
+
+\textbf{Retract} \texttt{(ordine cliente=1)}:
+\begin{itemize}
+\item $t_1$: count torna a 0
+\item $t_1$ ripropagato ai children
+\end{itemize}
+
+\section{Beta Memories}
+
+\subsection{Scopo}
+
+Le beta memories memorizzano partial match intermedi per:
+\begin{itemize}
+\item Evitare ri-costruzione
+\item Fornire left input ai join successivi
+\item Implementare propagazione incrementale
+\end{itemize}
+
+\subsection{Strutture Dati}
+
+\textbf{Opzione 1: Set}
+\begin{lstlisting}[language=Swift]
+class BetaMemory {
+    var tokens: Set<Token> = []
+}
+\end{lstlisting}
+
+**Pro**: Semplice, no duplicati \\
+**Contro**: Overhead di hashing
+
+\textbf{Opzione 2: List}
+\begin{lstlisting}[language=Swift]
+class BetaMemory {
+    var tokens: [Token] = []
+}
+\end{lstlisting}
+
+**Pro**: Cache-friendly, iteration veloce \\
+**Contro**: Possibili duplicati, rimozione $O(n)$
+
+\subsection{Garbage Collection}
+
+\textbf{Problema}: Token obsoleti accumulano memoria.
+
+\textbf{Soluzione}:
+\begin{itemize}
+\item Reference counting da figli
+\item Periodic cleanup
+\item Compattazione quando memoria critica
+\end{itemize}
+
+\section{Production Nodes}
+
+\subsection{Funzione}
+
+I production nodes sono le foglie della rete beta:
+\begin{itemize}
+\item Ricevono match completi
+\item Generano attivazioni
+\item Popolano il conflict set
+\end{itemize}
+
+\subsection{Attivazione}
+
+\begin{lstlisting}[language=Swift]
+class ProductionNode {
+    let rule: Rule
+    var activations: Set<Activation> = []
+    
+    func activate(token: Token) {
+        let activation = Activation(
+            rule: rule, 
+            token: token,
+            salience: rule.salience
+        )
+        activations.insert(activation)
+        agenda.add(activation)
+    }
+    
+    func deactivate(token: Token) {
+        if let act = activations.first(where: { $0.token == token }) {
+            activations.remove(act)
+            agenda.remove(act)
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Propagazione Token}
+
+\subsection{Assert di Fatto}
+
+Percorso di propagazione:
+\begin{enumerate}
+\item Fatto entra in alpha memory
+\item Right-activate tutti i join che dipendono da quella AM
+\item Per ogni join match:
+  \begin{enumerate}
+  \item Crea nuovo token
+  \item Aggiungi a beta memory figlio
+  \item Left-activate join successivo
+  \end{enumerate}
+\item Continua fino a production node
+\end{enumerate}
+
+\subsection{Retract di Fatto}
+
+\textbf{Sfida}: Trovare tutti i token che dipendono dal fatto retratto.
+
+\textbf{Soluzione 1: Top-down deletion}
+\begin{itemize}
+\item Rimuovi fatto da alpha memory
+\item Propaga delete attraverso rete
+\item Rimuovi token che contengono il fatto
+\end{itemize}
+
+\textbf{Soluzione 2: Token tagging}
+\begin{itemize}
+\item Ogni token referenzia i fatti costituenti
+\item Al retract, cerca token con quel fatto
+\item Rimuovi direttamente
+\end{itemize}
+
+\section{Ottimizzazioni}
+
+\subsection{Node Sharing}
+
+Regole con prefissi comuni condividono nodi beta:
+
+\begin{lstlisting}[language=CLIPS]
+(defrule r1
+  (a) (b) (c1)
+  => ...)
+
+(defrule r2
+  (a) (b) (c2)
+  => ...)
+\end{lstlisting}
+
+Condividono i join per (a) e (b), divergono su (c1) vs (c2).
+
+\subsection{Right Unlinking}
+
+Se alpha memory è vuota, disattiva temporaneamente join:
+
+\begin{itemize}
+\item No right input $\Rightarrow$ no match possibili
+\item Risparmia left activations inutili
+\item Riattiva quando arriva primo fatto
+\end{itemize}
+
+\subsection{Left Unlinking}
+
+Dualmente, se beta memory sinistra è vuota:
+
+\begin{itemize}
+\item No left input $\Rightarrow$ no match
+\item Risparmia right activations
+\end{itemize}
+
+\section{Analisi di Complessità}
+
+\subsection{Spazio}
+
+\textbf{Numero di token}:
+\begin{equation}
+O\left(\prod_{i=1}^{k} |AM_i|\right) \approx O(m^k)
+\end{equation}
+
+nel worst case (pattern generici, cross-product).
+
+\textbf{In pratica}: Molto minore grazie a:
+\begin{itemize}
+\item Selettività dei pattern
+\item Join tests stringenti
+\item Condivisione dei nodi
+\end{itemize}
+
+\subsection{Tempo per Ciclo}
+
+**Assert**:
+\begin{equation}
+O(\text{\# activations} \cdot \text{costo join}) \approx O(a)
+\end{equation}
+
+dove $a$ = numero di join attivati.
+
+**Tipicamente** $a \ll m$ grazie a selettività.
+
+\section{Implementazione in CLIPS}
+
+\subsection{Codice C Rilevante}
+
+Dal file \texttt{reteutil.c}:
+
+\begin{lstlisting}[language=C]
+struct joinNode {
+    struct betaMemory *leftMemory;
+    struct alphaMemoryHash *rightMemory;
+    struct expr *networkTest;
+    struct joinNode *nextLevel;
+};
+
+struct partialMatch {
+    unsigned int count;
+    struct partialMatch *next;
+    struct fact **binds;
+};
+\end{lstlisting}
+
+\subsection{Traduzione SLIPS}
+
+\begin{lstlisting}[language=Swift]
+class JoinNode: BetaNode {
+    weak var leftParent: BetaMemory?
+    weak var rightParent: AlphaMemory?
+    var joinTests: [JoinTest] = []
+    
+    override func rightActivate(fact: Fact) {
+        guard let left = leftParent else { return }
+        for token in left.tokens {
+            if evaluateTests(token, fact) {
+                let newToken = token.extend(with: fact)
+                propagateLeft(newToken)
+            }
+        }
+    }
+    
+    override func leftActivate(token: Token) {
+        guard let right = rightParent else { return }
+        for fact in right.facts {
+            if evaluateTests(token, fact) {
+                let newToken = token.extend(with: fact)
+                propagateLeft(newToken)
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Testing e Debugging}
+
+\subsection{Invarianti da Verificare}
+
+\begin{enumerate}
+\item Token in beta memory devono essere consistenti
+\item Counter nei negative nodes mai negativo
+\item Token in production node hanno tutte le variabili bound
+\item No token duplicati (senza semantica bag)
+\item Activations corrispondono a token validi
+\end{enumerate}
+
+\subsection{Strumenti di Debug}
+
+\begin{itemize}
+\item \textbf{Token tracer}: Segue propagazione di specifici token
+\item \textbf{Memory dump}: Snapshot di beta memories
+\item \textbf{Join profiler}: Statistiche su hit/miss di join
+\item \textbf{Activation logger}: Log di aggiunta/rimozione attivazioni
+\end{itemize}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item La rete beta \textbf{combina pattern} tramite join incrementali
+\item I \textbf{partial match} (token) memorizzano risultati intermedi
+\item La \textbf{negazione} usa counter per test di assenza
+\item L'\textbf{hash join} ottimizza join su variabili comuni
+\item Trade-off spazio-tempo cruciale per prestazioni
+\end{enumerate}
+
+\subsection{Integrazione Alpha-Beta}
+
+\begin{itemize}
+\item Alpha filtra, Beta combina
+\item Alpha memories = input destro per join
+\item Beta memories = input sinistro per join
+\item Propagazione bidirezionale (left/right activation)
+\end{itemize}
+
+\subsection{Prossimi Passi}
+
+\begin{itemize}
+\item Capitolo~\ref{cap:rete_complessita}: Analisi formale della complessità
+\item Capitolo~\ref{cap:rete_ottimizzazioni}: Tecniche avanzate di ottimizzazione
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Forgy, C. (1982). "Rete: A Fast Algorithm..." - Sezione 4-6
+\item Doorenbos, R. (1995). "Production Matching..." - Beta network e RETE/UL
+\item CLIPS Architecture Manual - "Join Network"
+\item Brant, D. et al. (1991). "A Fast Algorithm for Production System Execution"
+\end{itemize}

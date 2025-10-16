@@ -1,0 +1,575 @@
+% Capitolo 3: Logica Formale per Sistemi a Produzione
+
+\chapter{Fondamenti di Logica Formale}
+\label{cap:logica_formale}
+
+\section{Introduzione}
+
+I sistemi a produzione si basano su solide fondamenta di logica formale. In questo capitolo esploreremo i principi logici che sottendono il ragionamento automatico, dal calcolo proposizionale alla logica del primo ordine, fornendo gli strumenti matematici necessari per comprendere la correttezza e la completezza dei sistemi esperti.
+
+\subsection{Motivazione}
+
+La logica formale fornisce:
+\begin{itemize}
+\item Un \textbf{linguaggio preciso} per esprimere conoscenza
+\item \textbf{Regole di inferenza} per derivare nuova conoscenza
+\item \textbf{Garanzie formali} di correttezza
+\item Una \textbf{base teorica} per verificare proprietà del sistema
+\end{itemize}
+
+\section{Logica Proposizionale}
+
+\subsection{Sintassi}
+
+\begin{definizione}[Formula Proposizionale]
+L'insieme delle formule proposizionali $\mathcal{L}_P$ è definito induttivamente:
+\begin{align}
+\varphi ::= &\; p \mid \bot \mid \top \mid \notag \\
+            &\; \neg \varphi \mid (\varphi \land \varphi) \mid (\varphi \lor \varphi) \mid (\varphi \rightarrow \varphi) \mid (\varphi \leftrightarrow \varphi)
+\end{align}
+dove $p \in \mathcal{P}$ è una variabile proposizionale, $\bot$ rappresenta falso, $\top$ rappresenta vero.
+\end{definizione}
+
+\textbf{Connettivi logici}:
+\begin{itemize}
+\item $\neg$ (negazione): "non"
+\item $\land$ (congiunzione): "e"
+\item $\lor$ (disgiunzione): "o"
+\item $\rightarrow$ (implicazione): "se... allora"
+\item $\leftrightarrow$ (biimplicazione): "se e solo se"
+\end{itemize}
+
+\subsection{Semantica}
+
+\begin{definizione}[Interpretazione]
+Un'interpretazione (o valutazione) è una funzione:
+\begin{equation}
+\mathcal{I}: \mathcal{P} \rightarrow \{\text{vero}, \text{falso}\}
+\end{equation}
+che assegna un valore di verità a ogni variabile proposizionale.
+\end{definizione}
+
+\begin{definizione}[Tabella di Verità]
+La semantica dei connettivi è definita dalle seguenti tabelle:
+
+\begin{center}
+\begin{tabular}{cc|c}
+$p$ & $q$ & $p \land q$ \\
+\hline
+V & V & V \\
+V & F & F \\
+F & V & F \\
+F & F & F
+\end{tabular}
+\quad
+\begin{tabular}{cc|c}
+$p$ & $q$ & $p \lor q$ \\
+\hline
+V & V & V \\
+V & F & V \\
+F & V & V \\
+F & F & F
+\end{tabular}
+\quad
+\begin{tabular}{cc|c}
+$p$ & $q$ & $p \rightarrow q$ \\
+\hline
+V & V & V \\
+V & F & F \\
+F & V & V \\
+F & F & V
+\end{tabular}
+\end{center}
+\end{definizione}
+
+\subsection{Concetti Fondamentali}
+
+\begin{definizione}[Modello]
+Un'interpretazione $\mathcal{I}$ è un \textit{modello} di una formula $\varphi$ (scritto $\mathcal{I} \models \varphi$) se $\varphi$ è vera sotto $\mathcal{I}$.
+\end{definizione}
+
+\begin{definizione}[Tautologia, Contraddizione, Contingenza]
+Una formula $\varphi$ è:
+\begin{itemize}
+\item \textbf{Tautologia} se $\mathcal{I} \models \varphi$ per ogni interpretazione $\mathcal{I}$
+\item \textbf{Contraddizione} se $\mathcal{I} \not\models \varphi$ per ogni interpretazione $\mathcal{I}$
+\item \textbf{Contingenza} altrimenti
+\end{itemize}
+\end{definizione}
+
+\textbf{Esempi}:
+\begin{itemize}
+\item Tautologia: $p \lor \neg p$ (legge del terzo escluso)
+\item Contraddizione: $p \land \neg p$
+\item Contingenza: $p \land q$
+\end{itemize}
+
+\subsection{Conseguenza Logica}
+
+\begin{definizione}[Conseguenza Logica]
+Una formula $\psi$ è conseguenza logica di un insieme di formule $\Gamma$ (scritto $\Gamma \models \psi$) se:
+\begin{equation}
+\forall \mathcal{I}: (\mathcal{I} \models \gamma \text{ per ogni } \gamma \in \Gamma) \Rightarrow \mathcal{I} \models \psi
+\end{equation}
+\end{definizione}
+
+In altre parole: ogni modello di $\Gamma$ è anche modello di $\psi$.
+
+\section{Logica del Primo Ordine (FOL)}
+
+\subsection{Sintassi}
+
+La logica del primo ordine estende quella proposizionale con:
+\begin{itemize}
+\item \textbf{Variabili}: $x, y, z, \ldots$
+\item \textbf{Costanti}: $a, b, c, \ldots$
+\item \textbf{Funzioni}: $f, g, h, \ldots$
+\item \textbf{Predicati}: $P, Q, R, \ldots$
+\item \textbf{Quantificatori}: $\forall$ (per ogni), $\exists$ (esiste)
+\end{itemize}
+
+\begin{definizione}[Termine]
+L'insieme dei termini è definito induttivamente:
+\begin{equation}
+t ::= x \mid c \mid f(t_1, \ldots, t_n)
+\end{equation}
+\end{definizione}
+
+\begin{definizione}[Formula FOL]
+L'insieme delle formule FOL è definito induttivamente:
+\begin{align}
+\varphi ::= &\; P(t_1, \ldots, t_n) \mid \bot \mid \top \mid \notag \\
+            &\; \neg \varphi \mid (\varphi \land \varphi) \mid (\varphi \lor \varphi) \mid \notag \\
+            &\; (\varphi \rightarrow \varphi) \mid (\varphi \leftrightarrow \varphi) \mid \notag \\
+            &\; \forall x. \varphi \mid \exists x. \varphi
+\end{align}
+\end{definizione}
+
+\subsection{Semantica}
+
+\begin{definizione}[Struttura]
+Una struttura (o interpretazione) per FOL è una coppia $\mathcal{M} = \langle D, \mathcal{I} \rangle$ dove:
+\begin{itemize}
+\item $D$ è un insieme non vuoto (dominio)
+\item $\mathcal{I}$ assegna:
+  \begin{itemize}
+  \item A ogni costante $c$ un elemento $\mathcal{I}(c) \in D$
+  \item A ogni funzione $f$ di arietà $n$ una funzione $\mathcal{I}(f): D^n \rightarrow D$
+  \item A ogni predicato $P$ di arietà $n$ una relazione $\mathcal{I}(P) \subseteq D^n$
+  \end{itemize}
+\end{itemize}
+\end{definizione}
+
+\subsection{Quantificatori}
+
+\begin{definizione}[Semantica dei Quantificatori]
+Data una struttura $\mathcal{M}$ e un'assegnazione $\sigma$ delle variabili:
+\begin{itemize}
+\item $\mathcal{M}, \sigma \models \forall x. \varphi$ sse $\mathcal{M}, \sigma[x \mapsto d] \models \varphi$ per ogni $d \in D$
+\item $\mathcal{M}, \sigma \models \exists x. \varphi$ sse $\mathcal{M}, \sigma[x \mapsto d] \models \varphi$ per qualche $d \in D$
+\end{itemize}
+\end{definizione}
+
+\textbf{Esempi}:
+\begin{itemize}
+\item $\forall x. \text{Umano}(x) \rightarrow \text{Mortale}(x)$ \\
+  "Tutti gli umani sono mortali"
+\item $\exists x. \text{Filosofo}(x) \land \text{Greco}(x)$ \\
+  "Esiste un filosofo greco"
+\end{itemize}
+
+\section{Regole di Inferenza}
+
+\subsection{Deduzione Naturale}
+
+Le regole di inferenza permettono di derivare nuove formule da formule date.
+
+\begin{teorema}[Modus Ponens]
+\begin{equation}
+\frac{\varphi \quad \varphi \rightarrow \psi}{\psi}
+\end{equation}
+Se $\varphi$ è vero e $\varphi$ implica $\psi$, allora $\psi$ è vero.
+\end{teorema}
+
+\begin{teorema}[Modus Tollens]
+\begin{equation}
+\frac{\varphi \rightarrow \psi \quad \neg \psi}{\neg \varphi}
+\end{equation}
+\end{teorema}
+
+\begin{teorema}[Sillogismo Ipotetico]
+\begin{equation}
+\frac{\varphi \rightarrow \psi \quad \psi \rightarrow \chi}{\varphi \rightarrow \chi}
+\end{equation}
+\end{teorema}
+
+\subsection{Regole per Quantificatori}
+
+\textbf{Introduzione universale ($\forall$-I)}:
+\begin{equation}
+\frac{\varphi[x/a]}{\forall x. \varphi} \quad \text{(dove $a$ è arbitrario)}
+\end{equation}
+
+\textbf{Eliminazione universale ($\forall$-E)}:
+\begin{equation}
+\frac{\forall x. \varphi}{\varphi[x/t]} \quad \text{(per qualsiasi termine $t$)}
+\end{equation}
+
+\textbf{Introduzione esistenziale ($\exists$-I)}:
+\begin{equation}
+\frac{\varphi[x/t]}{\exists x. \varphi} \quad \text{(per qualsiasi termine $t$)}
+\end{equation}
+
+\textbf{Eliminazione esistenziale ($\exists$-E)}:
+\begin{equation}
+\frac{\exists x. \varphi \quad \varphi[x/a] \vdash \psi}{\psi} \quad \text{(dove $a$ è fresco)}
+\end{equation}
+
+\section{Sistemi a Produzione come Logica}
+
+\subsection{Rappresentazione Logica delle Regole}
+
+Una regola di produzione:
+\begin{lstlisting}[language=CLIPS]
+(defrule nome
+  (pattern1)
+  (pattern2)
+  =>
+  (azione))
+\end{lstlisting}
+
+può essere vista come un'implicazione logica:
+\begin{equation}
+\text{pattern1} \land \text{pattern2} \rightarrow \text{azione}
+\end{equation}
+
+\subsection{Forward Chaining come Modus Ponens}
+
+Il forward chaining è l'applicazione ripetuta del modus ponens:
+
+\begin{enumerate}
+\item \textbf{Base di conoscenza}: $\{F_1, F_2, \ldots, F_n\}$ (fatti)
+\item \textbf{Regola}: $P_1 \land P_2 \land \ldots \land P_k \rightarrow C$
+\item \textbf{Matching}: Se $\{F_1, \ldots, F_n\} \models P_1 \land \ldots \land P_k$
+\item \textbf{Firing}: Aggiungi $C$ alla base di conoscenza
+\end{enumerate}
+
+\begin{esempio}[Deduzione Sillogistica]
+\begin{align*}
+&\text{Fatto 1:} \quad \text{Socrate è un uomo} \\
+&\text{Fatto 2:} \quad \text{Tutti gli uomini sono mortali} \\
+&\text{Regola:} \quad \text{Uomo}(x) \rightarrow \text{Mortale}(x) \\
+&\text{Conclusione:} \quad \text{Socrate è mortale}
+\end{align*}
+\end{esempio}
+
+\subsection{Correttezza e Completezza}
+
+\begin{definizione}[Correttezza]
+Un sistema di inferenza è \textit{corretto} (sound) se:
+\begin{equation}
+\Gamma \vdash \varphi \Rightarrow \Gamma \models \varphi
+\end{equation}
+Ovvero: tutto ciò che è derivabile è anche vero.
+\end{definizione}
+
+\begin{definizione}[Completezza]
+Un sistema di inferenza è \textit{completo} (complete) se:
+\begin{equation}
+\Gamma \models \varphi \Rightarrow \Gamma \vdash \varphi
+\end{equation}
+Ovvero: tutto ciò che è vero è anche derivabile.
+\end{definizione}
+
+\begin{teorema}[Teoremi di Gödel per FOL]
+La logica del primo ordine è:
+\begin{enumerate}
+\item \textbf{Corretta}: le regole di inferenza preservano la verità
+\item \textbf{Completa}: ogni conseguenza logica è derivabile
+\item \textbf{Indecidibile}: non esiste algoritmo che determini se $\Gamma \models \varphi$ in tempo finito
+\end{enumerate}
+\end{teorema}
+
+\section{Limiti della Logica Classica nei Sistemi Esperti}
+
+\subsection{Ragionamento Non Monotono}
+
+La logica classica è monotona:
+\begin{equation}
+\Gamma \models \varphi \Rightarrow \Gamma \cup \{\psi\} \models \varphi
+\end{equation}
+
+Aggiungere nuova informazione non invalida conclusioni precedenti.
+
+\textbf{Problema}: Nel mondo reale spesso ragioniamo per \textit{default}:
+\begin{itemize}
+\item "Gli uccelli volano" (default)
+\item "I pinguini sono uccelli"
+\item "I pinguini \textbf{non} volano" (eccezione)
+\end{itemize}
+
+\subsection{Chiusura del Mondo (CWA)}
+
+\begin{definizione}[Closed World Assumption]
+Ciò che non è esplicitamente noto o derivabile è assunto falso:
+\begin{equation}
+\Gamma \not\vdash \varphi \Rightarrow \Gamma \vdash \neg \varphi
+\end{equation}
+\end{definizione}
+
+Questa assunzione è usata nei database e in CLIPS per la negazione (\texttt{not}).
+
+\subsection{Ragionamento Temporale}
+
+I sistemi a produzione operano nel tempo:
+\begin{itemize}
+\item Lo stato della WM cambia ad ogni ciclo
+\item Le regole hanno effetti temporali
+\item L'ordine di firing può essere rilevante
+\end{itemize}
+
+Logiche modali temporali (LTL, CTL) sono necessarie per ragionare formalmente su proprietà temporali.
+
+\section{Logiche Non Standard per Sistemi Esperti}
+
+\subsection{Logica di Default}
+
+\begin{definizione}[Regola di Default (Reiter)]
+Una regola di default ha la forma:
+\begin{equation}
+\frac{\varphi : M\psi_1, \ldots, M\psi_n}{\chi}
+\end{equation}
+Significato: "Se $\varphi$ è vero e $\psi_1, \ldots, \psi_n$ sono consistenti con ciò che sappiamo, concludi $\chi$"
+\end{definizione}
+
+\subsection{Logica Modale}
+
+Operatori modali:
+\begin{itemize}
+\item $\Box \varphi$ ("necessariamente $\varphi$")
+\item $\Diamond \varphi$ ("possibilmente $\varphi$")
+\end{itemize}
+
+Utili per ragionare su credenze, conoscenza, obblighi.
+
+\subsection{Logica Fuzzy}
+
+Estende la logica classica a valori di verità nell'intervallo $[0, 1]$:
+\begin{itemize}
+\item $\mathcal{I}(\varphi \land \psi) = \min(\mathcal{I}(\varphi), \mathcal{I}(\psi))$
+\item $\mathcal{I}(\varphi \lor \psi) = \max(\mathcal{I}(\varphi), \mathcal{I}(\psi))$
+\item $\mathcal{I}(\neg \varphi) = 1 - \mathcal{I}(\varphi)$
+\end{itemize}
+
+Permette di gestire incertezza e vaghezza.
+
+\section{Unificazione}
+
+\subsection{Sostituzione}
+
+\begin{definizione}[Sostituzione]
+Una sostituzione è un insieme finito di coppie:
+\begin{equation}
+\theta = \{x_1 / t_1, x_2 / t_2, \ldots, x_n / t_n\}
+\end{equation}
+dove ogni $x_i$ è una variabile e ogni $t_i$ è un termine con $x_i \neq t_i$.
+\end{definizione}
+
+\textbf{Applicazione}: $\varphi\theta$ è la formula ottenuta sostituendo simultaneamente ogni $x_i$ con $t_i$ in $\varphi$.
+
+\subsection{Unificatore}
+
+\begin{definizione}[Unificatore]
+Una sostituzione $\theta$ è un \textit{unificatore} di termini $t_1$ e $t_2$ se:
+\begin{equation}
+t_1\theta = t_2\theta
+\end{equation}
+\end{definizione}
+
+\begin{definizione}[Unificatore Più Generale (MGU)]
+$\theta$ è MGU di $t_1$ e $t_2$ se:
+\begin{enumerate}
+\item $\theta$ unifica $t_1$ e $t_2$
+\item Per ogni altro unificatore $\sigma$ esiste $\lambda$ tale che $\sigma = \theta\lambda$
+\end{enumerate}
+\end{definizione}
+
+\subsection{Algoritmo di Unificazione}
+
+\begin{algorithm}
+\caption{Algoritmo di Unificazione (Robinson)}
+\begin{algorithmic}[1]
+\Require Due termini $s$ e $t$
+\Ensure MGU $\theta$ se esiste, altrimenti \texttt{fail}
+\Function{Unify}{$s, t$}
+  \If{$s = t$}
+    \State \Return $\{\}$ \Comment{Identici}
+  \ElsIf{$s$ è variabile}
+    \If{$s$ appare in $t$}
+      \State \Return \texttt{fail} \Comment{Occur check}
+    \Else
+      \State \Return $\{s/t\}$
+    \EndIf
+  \ElsIf{$t$ è variabile}
+    \State \Return \Call{Unify}{$t, s$}
+  \ElsIf{$s = f(s_1, \ldots, s_n)$ e $t = g(t_1, \ldots, t_m)$}
+    \If{$f \neq g$ o $n \neq m$}
+      \State \Return \texttt{fail}
+    \EndIf
+    \State $\theta \gets \{\}$
+    \For{$i = 1$ to $n$}
+      \State $\sigma \gets$ \Call{Unify}{$s_i\theta, t_i\theta$}
+      \If{$\sigma = $ \texttt{fail}}
+        \State \Return \texttt{fail}
+      \EndIf
+      \State $\theta \gets \theta \circ \sigma$
+    \EndFor
+    \State \Return $\theta$
+  \EndIf
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Complessità}: $O(n)$ nel numero di simboli nei termini (quasi-lineare con tecniche di union-find).
+
+\subsection{Unificazione in CLIPS}
+
+L'unificazione è usata nel pattern matching:
+\begin{lstlisting}[language=CLIPS]
+;; Pattern con variabili
+(persona (nome ?x) (eta ?y))
+
+;; Fatto
+(persona (nome "Mario") (eta 30))
+
+;; Unificazione: {?x/"Mario", ?y/30}
+\end{lstlisting}
+
+\section{Risoluzione}
+
+\subsection{Forma Normale Congiuntiva}
+
+\begin{definizione}[Clausola]
+Una clausola è una disgiunzione di letterali:
+\begin{equation}
+L_1 \lor L_2 \lor \ldots \lor L_n
+\end{equation}
+dove ogni $L_i$ è un letterale (atomo o sua negazione).
+\end{definizione}
+
+\begin{definizione}[CNF]
+Una formula è in \textit{Forma Normale Congiuntiva} (CNF) se è una congiunzione di clausole:
+\begin{equation}
+(L_{11} \lor \ldots \lor L_{1n_1}) \land \ldots \land (L_{m1} \lor \ldots \lor L_{mn_m})
+\end{equation}
+\end{definizione}
+
+\subsection{Regola di Risoluzione}
+
+\begin{teorema}[Risoluzione Proposizionale]
+Date due clausole:
+\begin{align}
+C_1 &= L \lor A_1 \lor \ldots \lor A_n \\
+C_2 &= \neg L \lor B_1 \lor \ldots \lor B_m
+\end{align}
+la loro \textit{risolvente} è:
+\begin{equation}
+R = A_1 \lor \ldots \lor A_n \lor B_1 \lor \ldots \lor B_m
+\end{equation}
+\end{teorema}
+
+\subsection{Risoluzione FOL}
+
+Per FOL, combiniamo risoluzione e unificazione:
+
+\begin{teorema}[Risoluzione con Unificazione]
+Date clausole:
+\begin{align}
+C_1 &= L_1 \lor A \\
+C_2 &= L_2 \lor B
+\end{align}
+se $\theta = \text{MGU}(L_1, \neg L_2)$ esiste, la risolvente è:
+\begin{equation}
+R = (A \lor B)\theta
+\end{equation}
+\end{teorema}
+
+\subsection{Teorema di Completezza}
+
+\begin{teorema}[Completezza della Risoluzione]
+La risoluzione è completa per la refutazione: \\
+$\Gamma \models \varphi$ se e solo se $\Gamma \cup \{\neg \varphi\}$ deriva la clausola vuota $\square$ per risoluzione.
+\end{teorema}
+
+\section{Connessione con CLIPS}
+
+\subsection{Pattern come Formule}
+
+Un pattern CLIPS:
+\begin{lstlisting}[language=CLIPS]
+(persona (nome ?n) (eta ?e&:(> ?e 18)))
+\end{lstlisting}
+
+corrisponde alla formula FOL:
+\begin{equation}
+\exists n, e. \text{Persona}(n, e) \land e > 18
+\end{equation}
+
+\subsection{Regole come Clausole di Horn}
+
+\begin{definizione}[Clausola di Horn]
+Una clausola con al più un letterale positivo:
+\begin{equation}
+\neg P_1 \lor \neg P_2 \lor \ldots \lor \neg P_n \lor Q
+\end{equation}
+equivalente a:
+\begin{equation}
+P_1 \land P_2 \land \ldots \land P_n \rightarrow Q
+\end{equation}
+\end{definizione}
+
+Le regole CLIPS sono essenzialmente clausole di Horn.
+
+\subsection{Limitazioni}
+
+CLIPS non supporta nativamente:
+\begin{itemize}
+\item Quantificazione universale nelle LHS (solo esistenziale implicita)
+\item Negazione di congiunzioni arbitrarie
+\item Logica higher-order
+\item Ragionamento probabilistico intrinseco
+\end{itemize}
+
+Queste limitazioni garantiscono decidibilità e efficienza.
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item La logica formale fornisce le \textbf{fondamenta teoriche} dei sistemi a produzione
+\item L'\textbf{unificazione} è l'operazione centrale per il pattern matching
+\item La \textbf{risoluzione} offre un metodo di inferenza completo
+\item I sistemi reali richiedono estensioni della logica classica
+\item CLIPS usa un sottoinsieme decidibile ed efficiente di FOL
+\end{enumerate}
+
+\subsection{Implicazioni per SLIPS}
+
+La traduzione C $\rightarrow$ Swift deve preservare:
+\begin{itemize}
+\item Semantica dell'unificazione
+\item Ordine di valutazione dei pattern
+\item Comportamento della negazione (CWA)
+\item Corretta gestione delle variabili e sostituzioni
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item \textit{Mathematical Logic} - J. Shoenfield (1967)
+\item \textit{Logic for Computer Science} - J. Gallier (1986)
+\item \textit{Artificial Intelligence: A Modern Approach} - Russell \& Norvig (cap. 7-9)
+\item \textit{Handbook of Logic in AI} - Vol. 1-2, Gabbay et al.
+\item CLIPS Reference Manual - Sezione "Pattern Matching"
+\end{itemize}

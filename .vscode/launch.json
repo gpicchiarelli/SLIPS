@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SLIPS}",
+            "name": "Debug slips-cli",
+            "program": "${workspaceFolder:SLIPS}/.build/debug/slips-cli",
+            "preLaunchTask": "swift: Build Debug slips-cli"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SLIPS}",
+            "name": "Release slips-cli",
+            "program": "${workspaceFolder:SLIPS}/.build/release/slips-cli",
+            "preLaunchTask": "swift: Build Release slips-cli"
+        }
+    ]
+}

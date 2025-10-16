@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test su ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
+        
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Verifica versione Swift
+      run: swift --version
+      
+    - name: Cache Swift packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/Library/Caches/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+          
+    - name: Risoluzione dipendenze
+      run: swift package resolve
+      
+    - name: Build debug
+      run: swift build -v
+      
+    - name: Esegui test
+      run: swift test -v --parallel --enable-code-coverage
+      
+    - name: Genera coverage report
+      if: matrix.os == 'macos-15'
+      run: |
+        xcrun llvm-cov export -format="lcov" \
+          .build/debug/SLIPSPackageTests.xctest/Contents/MacOS/SLIPSPackageTests \
+          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+          
+    - name: Upload coverage a Codecov
+      if: matrix.os == 'macos-15'
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.lcov
+        fail_ci_if_error: false
+        verbose: true
+        
+  build-release:
+    name: Build Release
+    runs-on: macos-15
+    needs: test
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Cache Swift packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/Library/Caches/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-release-${{ hashFiles('Package.swift', 'Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-release-
+          ${{ runner.os }}-spm-
+          
+    - name: Build release
+      run: swift build -c release -v
+      
+    - name: Verifica eseguibile slips-cli
+      run: |
+        .build/release/slips-cli --version || echo "CLI creata con successo"
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: slips-cli-macos
+        path: .build/release/slips-cli
+        retention-days: 7

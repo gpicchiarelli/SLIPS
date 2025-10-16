@@ -1,0 +1,169 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Installa SwiftLint
+      run: brew install swiftlint
+      
+    - name: Cache SwiftLint
+      uses: actions/cache@v4
+      with:
+        path: ~/Library/Caches/SwiftLint
+        key: ${{ runner.os }}-swiftlint-${{ hashFiles('.swiftlint.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-swiftlint-
+          
+    - name: Esegui SwiftLint
+      run: swiftlint lint --reporter github-actions-logging
+      
+    - name: Genera report SwiftLint
+      if: always()
+      run: |
+        swiftlint lint --reporter html > swiftlint-report.html || true
+        swiftlint lint --reporter json > swiftlint-report.json || true
+        
+    - name: Upload report SwiftLint
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: swiftlint-reports
+        path: |
+          swiftlint-report.html
+          swiftlint-report.json
+        retention-days: 30
+        
+  swiftformat:
+    name: SwiftFormat Check
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Installa SwiftFormat
+      run: brew install swiftformat
+      
+    - name: Verifica formattazione
+      run: |
+        swiftformat --lint Sources Tests
+        
+  security-audit:
+    name: Security Audit
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Risoluzione dipendenze
+      run: swift package resolve
+      
+    - name: Audit dipendenze
+      run: |
+        # Verifica vulnerabilità note nelle dipendenze
+        swift package show-dependencies --format json > dependencies.json
+        cat dependencies.json
+        
+    - name: Upload dependencies
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependencies-tree
+        path: dependencies.json
+        retention-days: 30
+        
+  build-documentation:
+    name: Verifica Documentazione
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Verifica versione Swift
+      run: swift --version
+      
+    - name: Installa DocC
+      run: |
+        # DocC è incluso in Xcode/Swift moderni
+        which docc || echo "DocC verrà usato tramite swift package"
+        
+    - name: Genera documentazione
+      run: |
+        swift package generate-documentation \
+          --target SLIPS \
+          --output-path ./docs-output \
+          || echo "⚠️  DocC non disponibile o errore di generazione"
+          
+    - name: Verifica coverage documentazione
+      run: |
+        # Conta simboli pubblici documentati vs totali
+        echo "📊 Analisi coverage documentazione..."
+        find Sources -name "*.swift" -type f -exec grep -h "^public\|^open" {} \; | wc -l
+        
+  complexity-analysis:
+    name: Analisi Complessità
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Installa lizard
+      run: pip3 install lizard
+      
+    - name: Analizza complessità ciclomatica
+      run: |
+        echo "📊 Analisi complessità ciclomatica (Lizard)..."
+        lizard Sources -l swift -o lizard-report.html -H || true
+        lizard Sources -l swift -w -T cyclomatic_complexity=15
+        
+    - name: Upload report complessità
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: complexity-report
+        path: lizard-report.html
+        retention-days: 30
+        
+  code-stats:
+    name: Statistiche Codice
+    runs-on: macos-15
+    
+    steps:
+    - name: Checkout codice
+      uses: actions/checkout@v5
+      
+    - name: Installa tokei
+      run: brew install tokei
+      
+    - name: Genera statistiche
+      run: |
+        echo "📊 Statistiche del codice..."
+        tokei Sources Tests
+        tokei Sources Tests --output json > code-stats.json
+        
+    - name: Upload statistiche
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-statistics
+        path: code-stats.json
+        retention-days: 30
+

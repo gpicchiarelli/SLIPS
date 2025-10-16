@@ -1,0 +1,324 @@
+% Capitolo 26: Debugging e Troubleshooting
+
+\chapter{Debugging e Troubleshooting}
+\label{cap:debugging}
+
+\section{Introduzione}
+
+Debugging di sistemi a produzione richiede strumenti e tecniche specifiche. Questo capitolo presenta gli strumenti di debugging di SLIPS.
+
+\section{Watch Facilities}
+
+\subsection{Implementazione}
+
+\begin{lstlisting}[language=Swift]
+public enum WatchItem {
+    case facts
+    case rules
+    case activations
+    case focus
+    case compilations
+    case statistics
+}
+
+public class WatchManager {
+    private var watched: Set<WatchItem> = []
+    
+    public func watch(_ item: WatchItem) {
+        watched.insert(item)
+    }
+    
+    public func unwatch(_ item: WatchItem) {
+        watched.remove(item)
+    }
+    
+    public func isWatching(_ item: WatchItem) -> Bool {
+        return watched.contains(item)
+    }
+}
+
+// Uso nell'environment
+extension Environment {
+    func notifyFactAssert(_ fact: Fact) {
+        if watchManager.isWatching(.facts) {
+            print("==> f-\(fact.id) (\(fact.template.name) \(formatSlots(fact.slots)))")
+        }
+    }
+    
+    func notifyRuleFiring(_ rule: Defrule) {
+        if watchManager.isWatching(.rules) {
+            print("FIRE \(rule.name)")
+        }
+    }
+}
+\end{lstlisting>
+
+\section{Inspection Commands}
+
+\subsection{Facts Inspection}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    public func facts(module: String? = nil) {
+        let filtered = module != nil 
+            ? factList.filter { $0.template.module.name == module }
+            : factList
+        
+        for fact in filtered {
+            print("f-\(fact.id) (\(fact.template.name)")
+            for (slot, value) in fact.slots {
+                print("  (\(slot) \(value))")
+            }
+            print(")")
+        }
+    }
+    
+    public func ppfact(_ id: Int) {
+        guard let fact = factList.first(where: { $0.id == id }) else {
+            print("Error: Fact \(id) not found")
+            return
+        }
+        
+        print("(\(fact.template.name)")
+        for (slot, value) in fact.slots.sorted(by: { $0.key < $1.key }) {
+            print("  (\(slot) \(value))")
+        }
+        print(")")
+    }
+}
+\end{lstlisting}
+
+\subsection{Agenda Inspection}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    public func agenda(module: String? = nil) {
+        let activations = module != nil
+            ? agenda.all.filter { $0.rule.module.name == module }
+            : agenda.all
+        
+        for (index, activation) in activations.enumerated() {
+            print("\(index): \(activation.salience) : \(activation.rule.name)")
+            print("  Bindings: \(activation.token.bindings)")
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Matches Inspection}
+
+\begin{lstlisting}[language=Swift]
+extension Environment {
+    public func matches(ruleName: String) {
+        guard let rule = rules[ruleName] else {
+            print("Error: Rule \(ruleName) not found")
+            return
+        }
+        
+        guard let prodNode = rule.productionNode else {
+            print("Rule not compiled")
+            return
+        }
+        
+        print("Partial matches for \(ruleName):")
+        
+        // Show matches at each level
+        var currentNode: ReteNode? = prodNode
+        var level = rule.patterns.count
+        
+        while let node = currentNode {
+            if let betaMem = node as? BetaMemory {
+                print("Pattern \(level):")
+                for token in betaMem.tokens {
+                    print("  \(token.facts.map { "f-\($0.id)" }.joined(separator: ", "))")
+                }
+                level -= 1
+            }
+            
+            // Navigate up (simplified)
+            currentNode = nil  // Would need parent pointers
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Breakpoints}
+
+\subsection{Rule Breakpoints}
+
+\begin{lstlisting}[language=Swift]
+public class BreakpointManager {
+    private var ruleBreakpoints: Set<String> = []
+    private var factBreakpoints: Set<Int> = []
+    
+    public func setRuleBreakpoint(_ ruleName: String) {
+        ruleBreakpoints.insert(ruleName)
+    }
+    
+    public func removeRuleBreakpoint(_ ruleName: String) {
+        ruleBreakpoints.remove(ruleName)
+    }
+    
+    public func shouldBreak(beforeFiring rule: Defrule) -> Bool {
+        return ruleBreakpoints.contains(rule.name)
+    }
+}
+
+extension Environment {
+    private func fireRule(_ activation: Activation) {
+        if breakpointManager.shouldBreak(beforeFiring: activation.rule) {
+            print("BREAKPOINT: About to fire \(activation.rule.name)")
+            print("Bindings: \(activation.token.bindings)")
+            
+            // Enter debug REPL
+            debugREPL(activation: activation)
+        }
+        
+        // Execute rule
+        // ...
+    }
+    
+    private func debugREPL(activation: Activation) {
+        print("Debug> (c)ontinue, (s)tep, (i)nspect, (q)uit")
+        // Interactive debugging
+    }
+}
+\end{lstlisting}
+
+\section{Tracing}
+
+\subsection{Execution Trace}
+
+\begin{lstlisting}[language=Swift]
+public class ExecutionTracer {
+    private var trace: [TraceEvent] = []
+    private var isTracing = false
+    
+    public enum TraceEvent {
+        case factAssert(Fact)
+        case factRetract(Int)
+        case ruleFire(Defrule, Token)
+        case agendaAdd(Activation)
+        case agendaRemove(Activation)
+    }
+    
+    public func startTracing() {
+        isTracing = true
+        trace.removeAll()
+    }
+    
+    public func stopTracing() {
+        isTracing = false
+    }
+    
+    public func record(_ event: TraceEvent) {
+        guard isTracing else { return }
+        trace.append(event)
+    }
+    
+    public func printTrace() {
+        for (index, event) in trace.enumerated() {
+            print("\(index): \(formatEvent(event))")
+        }
+    }
+    
+    private func formatEvent(_ event: TraceEvent) -> String {
+        switch event {
+        case .factAssert(let f):
+            return "ASSERT f-\(f.id)"
+        case .factRetract(let id):
+            return "RETRACT f-\(id)"
+        case .ruleFire(let rule, _):
+            return "FIRE \(rule.name)"
+        case .agendaAdd(let act):
+            return "AGENDA+ \(act.rule.name)"
+        case .agendaRemove(let act):
+            return "AGENDA- \(act.rule.name)"
+        }
+    }
+}
+\end{lstlisting>
+
+\section{Common Issues}
+
+\subsection{Infinite Loops}
+
+\begin{warningbox}[Loop Detection]
+\begin{lstlisting}[language=CLIPS]
+;; BAD: Creates infinite loop
+(defrule loop
+  (counter ?n)
+  =>
+  (assert (counter (+ ?n 1))))
+\end{lstlisting}
+
+\textbf{Detection}:
+\begin{lstlisting}[language=Swift]
+class LoopDetector {
+    private var firedRules: [String] = []
+    private let maxConsecutiveFirings = 100
+    
+    func checkLoop(rule: String) -> Bool {
+        firedRules.append(rule)
+        
+        if firedRules.count > maxConsecutiveFirings {
+            let recent = firedRules.suffix(maxConsecutiveFirings)
+            if Set(recent).count < 10 {
+                print("WARNING: Possible infinite loop detected!")
+                print("Recent firings: \(recent.suffix(10))")
+                return true
+            }
+        }
+        
+        return false
+    }
+}
+\end{lstlisting}
+\end{warningbox}
+
+\subsection{Memory Leaks}
+
+\begin{lstlisting}[language=Swift]
+class LeakDetector {
+    private var baselineSnapshot: MemorySnapshot?
+    
+    func setBaseline(_ env: Environment) {
+        baselineSnapshot = MemorySnapshot(env)
+    }
+    
+    func checkLeaks(_ env: Environment) {
+        guard let baseline = baselineSnapshot else { return }
+        let current = MemorySnapshot(env)
+        
+        let factGrowth = current.factCount - baseline.factCount
+        let tokenGrowth = current.tokenCount - baseline.tokenCount
+        
+        if factGrowth > 1000 {
+            print("WARNING: Fact count grew by \(factGrowth)")
+        }
+        
+        if tokenGrowth > 10000 {
+            print("WARNING: Token count grew by \(tokenGrowth)")
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item \textbf{Watch facilities} per osservare esecuzione
+\item \textbf{Inspection commands} per interrogare stato
+\item \textbf{Breakpoints} per debugging interattivo
+\item \textbf{Tracing} per analisi post-mortem
+\item \textbf{Loop/leak detection} per robustezza
+\end{enumerate}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS User Guide - Debugging
+\item Xcode Debugging Guide
+\end{itemize}

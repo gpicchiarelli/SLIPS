@@ -1,0 +1,511 @@
+% Capitolo 17: Implementazione Core di SLIPS
+
+\chapter{SLIPS Core: Fondamenta Swift}
+\label{cap:slips_core}
+
+\section{Introduzione}
+
+Questo capitolo presenta l'implementazione core di SLIPS, mostrando come le strutture C di CLIPS vengono tradotte idiomaticamente in Swift preservando la semantica.
+
+\section{Environment}
+
+\subsection{Struttura Principale}
+
+\begin{lstlisting}[language=Swift]
+@MainActor
+public class Environment {
+    // Fatti
+    private(set) var factList: [Fact] = []
+    private var nextFactID: Int = 0
+    
+    // Regole e template
+    private(set) var rules: [String: Rule] = [:]
+    private(set) var templates: [String: Deftemplate] = [:]
+    
+    // Moduli
+    private(set) var modules: [String: Defmodule]
+    private(set) var currentModule: Defmodule
+    private var focusStack: FocusStack
+    
+    // RETE Network
+    private(set) var alphaNetwork: AlphaNetwork
+    private(set) var betaNetwork: BetaNetwork
+    
+    // Agenda
+    private(set) var agenda: Agenda
+    
+    // Router system
+    private var routers: [Router] = []
+    
+    // State
+    private var isRunning: Bool = false
+    private var haltFlag: Bool = false
+}
+\end{lstlisting}
+
+\subsection{Isolamento}
+
+Ogni `Environment` è isolato:
+
+\begin{lstlisting}[language=Swift]
+let env1 = Environment()
+let env2 = Environment()
+
+env1.load("rules1.clp")
+env2.load("rules2.clp")
+
+// Completamente indipendenti
+env1.run()  
+env2.run()
+\end{lstlisting}
+
+\textbf{Benefici}:
+\begin{itemize}
+\item Testing parallelo
+\item Multi-tenancy
+\item Sandbox per sperimentazione
+\end{itemize}
+
+\section{Value System}
+
+\subsection{Value Enum}
+
+\begin{lstlisting}[language=Swift]
+public enum Value: Hashable {
+    case symbol(String)
+    case string(String)
+    case integer(Int)
+    case float(Double)
+    case fact(Int)  // Fact ID
+    case multifield([Value])
+    case external(AnyHashable)  // User-defined
+    
+    var type: ValueType {
+        switch self {
+        case .symbol: return .symbol
+        case .string: return .string
+        case .integer: return .integer
+        case .float: return .float
+        case .fact: return .factAddress
+        case .multifield: return .multifield
+        case .external: return .external
+        }
+    }
+}
+\end{lstlisting}
+
+\textbf{Vs C}: In C usano tagged union, in Swift enum con associated values è più type-safe.
+
+\subsection{Symbol Interning}
+
+\begin{lstlisting}[language=Swift]
+class SymbolTable {
+    private var symbols: [String: Symbol] = [:]
+    private var nextID: Int = 0
+    
+    func intern(_ string: String) -> Symbol {
+        if let existing = symbols[string] {
+            return existing
+        }
+        let symbol = Symbol(id: nextID, contents: string)
+        nextID += 1
+        symbols[string] = symbol
+        return symbol
+    }
+}
+
+struct Symbol: Hashable {
+    let id: Int
+    let contents: String
+    
+    static func == (lhs: Symbol, rhs: Symbol) -> Bool {
+        return lhs.id == rhs.id  // O(1) comparison
+    }
+}
+\end{lstlisting}
+
+\section{Fatti}
+
+\subsection{Fact Structure}
+
+\begin{lstlisting}[language=Swift]
+public class Fact: Hashable, Identifiable {
+    public let id: Int
+    public let template: Deftemplate
+    public let slots: [String: Value]
+    public let isOrdered: Bool
+    
+    // RETE state
+    var alphaMemories: Set<AlphaMemory> = []
+    var tokens: Set<Token> = []
+    
+    init(id: Int, template: Deftemplate, slots: [String: Value]) {
+        self.id = id
+        self.template = template
+        self.slots = slots
+        self.isOrdered = template.isImplied
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    public static func == (lhs: Fact, rhs: Fact) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+\end{lstlisting}
+
+\subsection{Assertion}
+
+\begin{lstlisting}[language=Swift]
+@discardableResult
+public func assert(template: String, slots: [String: Value]) -> Fact? {
+    guard let deftemplate = templates[template] else {
+        print("Error: Template '\(template)' not found")
+        return nil
+    }
+    
+    // Validate
+    guard deftemplate.validate(slots: slots) else {
+        print("Error: Invalid slots for template '\(template)'")
+        return nil
+    }
+    
+    // Create fact
+    let fact = Fact(id: nextFactID, template: deftemplate, slots: slots)
+    nextFactID += 1
+    factList.append(fact)
+    
+    // Propagate through RETE
+    alphaNetwork.assertFact(fact)
+    
+    return fact
+}
+\end{lstlisting>
+
+\subsection{Retraction}
+
+\begin{lstlisting}[language=Swift]
+public func retract(fact: Fact) {
+    // Remove from list
+    factList.removeAll { $0.id == fact.id }
+    
+    // Propagate retraction through RETE
+    alphaNetwork.retractFact(fact)
+}
+
+public func retract(id: Int) {
+    guard let fact = factList.first(where: { $0.id == id }) else {
+        print("Error: Fact \(id) not found")
+        return
+    }
+    retract(fact: fact)
+}
+\end{lstlisting>
+
+\section{Deftemplate}
+
+\subsection{Structure}
+
+\begin{lstlisting}[language=Swift]
+public struct Deftemplate {
+    public let name: String
+    public let isImplied: Bool  // Ordered fact
+    public let slots: [Slot]
+    public let module: Defmodule
+    
+    public struct Slot {
+        public let name: String
+        public let isMultifield: Bool
+        public let type: ValueType?
+        public let defaultValue: Value?
+        public let range: ClosedRange<Double>?
+        public let allowedValues: Set<Value>?
+        
+        func validate(_ value: Value) -> Bool {
+            // Type check
+            if let type = type, value.type != type {
+                return false
+            }
+            
+            // Range check
+            if let range = range, case .float(let f) = value {
+                return range.contains(f)
+            }
+            
+            // Allowed values
+            if let allowed = allowedValues {
+                return allowed.contains(value)
+            }
+            
+            return true
+        }
+    }
+    
+    func validate(slots: [String: Value]) -> Bool {
+        for slot in self.slots {
+            if let value = slots[slot.name] {
+                if !slot.validate(value) {
+                    return false
+                }
+            } else if slot.defaultValue == nil {
+                // Required slot missing
+                return false
+            }
+        }
+        return true
+    }
+}
+\end{lstlisting>
+
+\section{Defrule}
+
+\subsection{Structure}
+
+\begin{lstlisting}[language=Swift]
+public class Defrule {
+    public let name: String
+    public let module: Defmodule
+    public let patterns: [Pattern]
+    public let actions: [Action]
+    public let salience: Int
+    public let autoFocus: Bool
+    public let dynamicSalience: Expression?
+    
+    // RETE connection
+    weak var productionNode: ProductionNode?
+}
+
+public struct Pattern {
+    public let template: String
+    public let constraints: [Constraint]
+    public let isNegated: Bool
+    
+    public struct Constraint {
+        public let slot: String
+        public let test: Test
+        
+        public enum Test {
+            case equals(Value)
+            case variable(String)
+            case predicate((Value) -> Bool)
+            case compound([Test])
+        }
+    }
+}
+
+public enum Action {
+    case assert(template: String, slots: [(String, Expression)])
+    case retract(Expression)
+    case modify(Expression, slots: [(String, Expression)])
+    case printout(router: String, values: [Expression])
+    case bind(variable: String, value: Expression)
+    case functionCall(name: String, args: [Expression])
+}
+\end{lstlisting}
+
+\section{Parser e Compiler}
+
+\subsection{S-Expression Parser}
+
+\begin{lstlisting}[language=Swift]
+class SExpressionParser {
+    func parse(_ input: String) throws -> [SExpr] {
+        var tokens = tokenize(input)
+        var result: [SExpr] = []
+        
+        while !tokens.isEmpty {
+            result.append(try parseExpr(&tokens))
+        }
+        
+        return result
+    }
+    
+    private func parseExpr(_ tokens: inout [Token]) throws -> SExpr {
+        guard let first = tokens.first else {
+            throw ParseError.unexpectedEOF
+        }
+        
+        tokens.removeFirst()
+        
+        switch first {
+        case .lparen:
+            var list: [SExpr] = []
+            while tokens.first != .rparen {
+                list.append(try parseExpr(&tokens))
+            }
+            tokens.removeFirst()  // consume rparen
+            return .list(list)
+            
+        case .symbol(let s):
+            return .symbol(s)
+            
+        case .string(let s):
+            return .string(s)
+            
+        case .number(let n):
+            return .number(n)
+            
+        default:
+            throw ParseError.unexpected(first)
+        }
+    }
+}
+\end{lstlisting>
+
+\subsection{Rule Compiler}
+
+\begin{lstlisting}[language=Swift]
+class RuleCompiler {
+    func compile(sexpr: SExpr, env: Environment) throws -> Defrule {
+        guard case .list(let items) = sexpr,
+              case .symbol("defrule") = items[0],
+              case .symbol(let name) = items[1] else {
+            throw CompileError.invalidDefrule
+        }
+        
+        var idx = 2
+        var salience = 0
+        var autoFocus = false
+        
+        // Parse declare
+        if case .list(let declare) = items[idx],
+           case .symbol("declare") = declare[0] {
+            (salience, autoFocus) = try parseDeclare(declare)
+            idx += 1
+        }
+        
+        // Parse patterns (LHS)
+        var patterns: [Pattern] = []
+        while idx < items.count, 
+              case .symbol("=>") = items[idx] {
+            break
+        }
+        while idx < items.count {
+            if case .symbol("=>") = items[idx] {
+                break
+            }
+            patterns.append(try compilePattern(items[idx], env: env))
+            idx += 1
+        }
+        
+        idx += 1  // skip =>
+        
+        // Parse actions (RHS)
+        var actions: [Action] = []
+        while idx < items.count {
+            actions.append(try compileAction(items[idx], env: env))
+            idx += 1
+        }
+        
+        return Defrule(
+            name: name,
+            module: env.currentModule,
+            patterns: patterns,
+            actions: actions,
+            salience: salience,
+            autoFocus: autoFocus,
+            dynamicSalience: nil
+        )
+    }
+}
+\end{lstlisting>
+
+\section{Execution Engine}
+
+\subsection{Run Loop}
+
+\begin{lstlisting}[language=Swift]
+public func run(limit: Int = -1) {
+    isRunning = true
+    haltFlag = false
+    var fired = 0
+    
+    while !haltFlag {
+        // Check limit
+        if limit >= 0 && fired >= limit {
+            break
+        }
+        
+        // Get next activation
+        guard let activation = agenda.next(from: currentModule) else {
+            break  // Quiescence
+        }
+        
+        // Fire rule
+        fireRule(activation)
+        fired += 1
+        
+        // Check for module changes (focus)
+        if focusStack.needsUpdate {
+            currentModule = focusStack.current
+        }
+    }
+    
+    isRunning = false
+}
+\end{lstlisting}
+
+\subsection{Rule Firing}
+
+\begin{lstlisting}[language=Swift]
+private func fireRule(_ activation: Activation) {
+    let bindings = activation.token.bindings
+    
+    for action in activation.rule.actions {
+        execute(action: action, bindings: bindings)
+    }
+}
+
+private func execute(action: Action, bindings: [String: Value]) {
+    switch action {
+    case .assert(let template, let slots):
+        let evaluatedSlots = slots.mapValues { expr in
+            evaluate(expr, bindings: bindings)
+        }
+        assert(template: template, slots: evaluatedSlots)
+        
+    case .retract(let expr):
+        if case .fact(let id) = evaluate(expr, bindings: bindings) {
+            retract(id: id)
+        }
+        
+    case .printout(let router, let values):
+        let output = values.map { evaluate($0, bindings: bindings) }
+                          .map { "\($0)" }
+                          .joined()
+        print(to: router, output)
+        
+    // ... other actions
+    }
+}
+\end{lstlisting}
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item SLIPS usa \textbf{Swift idioms} preservando semantica CLIPS
+\item \textbf{@MainActor} garantisce thread-safety
+\item \textbf{Enum con associated values} per type-safety
+\item \textbf{ARC} semplifica memory management
+\item Struttura modulare facilita testing
+\end{enumerate}
+
+\subsection{Trade-off}
+
+\begin{itemize}
+\item \textbf{Pro}: Type safety, memory safety, modern Swift
+\item \textbf{Contro}: Overhead ARC, meno controllo fine-grained
+\item \textbf{Risultato}: Codice più sicuro e manutenibile con performance accettabili
+\end{itemize}
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item Swift Programming Language - Memory Management
+\item Swift Concurrency - MainActor
+\item CLIPS Source - Core modules
+\end{itemize}

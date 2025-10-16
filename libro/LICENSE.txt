@@ -1,0 +1,82 @@
+SLIPS - Swift Language Implementation of Production Systems
+Libro Accademico - Prima Edizione
+
+Copyright (c) 2025 Contributori SLIPS
+
+================================================================================
+LICENZA CREATIVE COMMONS ATTRIBUZIONE - CONDIVIDI ALLO STESSO MODO 4.0
+INTERNAZIONALE (CC BY-SA 4.0)
+================================================================================
+
+Quest'opera è distribuita con Licenza Creative Commons Attribuzione - 
+Condividi allo stesso modo 4.0 Internazionale.
+
+Per leggere una copia della licenza visita:
+http://creativecommons.org/licenses/by-sa/4.0/
+
+oppure spedisci una lettera a:
+Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+================================================================================
+SEI LIBERO DI:
+================================================================================
+
+- CONDIVIDERE — copiare, distribuire e trasmettere quest'opera
+- MODIFICARE — trasformare quest'opera e svilupparla ulteriormente
+
+================================================================================
+ALLE SEGUENTI CONDIZIONI:
+================================================================================
+
+ATTRIBUZIONE — Devi riconoscere una menzione di paternità adeguata, fornire 
+un link alla licenza e indicare se sono state effettuate delle modifiche. 
+Puoi fare ciò in qualsiasi maniera ragionevolmente possibile, ma non in modo 
+tale da suggerire che il licenziante avalli te o il modo in cui usi l'opera.
+
+CONDIVIDI ALLO STESSO MODO — Se remixi, trasformi il materiale o ti basi su 
+di esso, devi distribuire i tuoi contributi con la stessa licenza dell'originale.
+
+DIVIETO DI RESTRIZIONI AGGIUNTIVE — Non puoi applicare termini legali o misure 
+tecnologiche che impongano ad altri soggetti dei vincoli giuridici su quanto la 
+licenza consente loro di fare.
+
+================================================================================
+NOTE:
+================================================================================
+
+- Il CODICE SORGENTE di SLIPS (file Swift) è licenziato separatamente con 
+  MIT License. Vedere file LICENSE nella root del repository.
+
+- Riferimenti e citazioni a CLIPS (NASA) sono di proprietà dei rispettivi autori.
+
+- Marchi citati (Swift, Apple, etc.) appartengono ai rispettivi proprietari.
+
+================================================================================
+ATTRIBUZIONE RICHIESTA:
+================================================================================
+
+Quando distribuisci o adatti quest'opera, includi:
+
+"Basato su 'SLIPS - Swift Language Implementation of Production Systems'
+ di Contributori SLIPS, disponibile su https://github.com/gpicchiarelli/SLIPS
+ Licenza: CC BY-SA 4.0"
+
+================================================================================
+DISCLAIMER:
+================================================================================
+
+QUESTO MATERIALE È FORNITO "COSÌ COM'È" SENZA GARANZIE DI ALCUN TIPO, 
+ESPLICITE O IMPLICITE, INCLUSE MA NON LIMITATE A GARANZIE DI COMMERCIABILITÀ, 
+IDONEITÀ PER UN PARTICOLARE SCOPO E NON VIOLAZIONE.
+
+IN NESSUN CASO GLI AUTORI O I TITOLARI DEL COPYRIGHT SARANNO RESPONSABILI 
+PER QUALSIASI RECLAMO, DANNO O ALTRA RESPONSABILITÀ.
+
+================================================================================
+
+Per domande sulla licenza:
+https://github.com/gpicchiarelli/SLIPS/issues
+
+Data: Ottobre 2025
+Versione: 1.0 (Prima Edizione)
+

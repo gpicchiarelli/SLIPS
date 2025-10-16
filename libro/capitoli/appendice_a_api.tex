@@ -1,0 +1,242 @@
+% Appendice A: Riferimento API Completo
+
+\chapter{Riferimento API Completo}
+\label{app:api}
+
+\section{API Pubblica CLIPS}
+
+\subsection{Gestione Environment}
+
+\begin{lstlisting}[language=Swift]
+@MainActor
+public enum CLIPS {
+    /// Crea nuovo environment
+    /// - Returns: Environment inizializzato
+    public static func createEnvironment() -> Environment
+    
+    /// Carica file .clp
+    /// - Parameter path: Percorso file
+    /// - Throws: IOError se file non trovato
+    public static func load(_ path: String) throws
+    
+    /// Reset environment (clear + deffacts)
+    public static func reset()
+    
+    /// Accesso environment corrente
+    public static var currentEnvironment: Environment? { get }
+}
+\end{lstlisting}
+
+\subsection{Esecuzione Regole}
+
+\begin{lstlisting}[language=Swift]
+extension CLIPS {
+    /// Esegue regole fino a esaurimento o limite
+    /// - Parameter limit: Numero massimo regole (nil = infinito)
+    /// - Returns: Numero regole eseguite
+    @discardableResult
+    public static func run(limit: Int?) -> Int
+}
+\end{lstlisting}
+
+\subsection{Gestione Fatti}
+
+\begin{lstlisting}[language=Swift]
+extension CLIPS {
+    /// Asserisce fatto
+    /// - Parameter fact: Espressione CLIPS
+    /// - Returns: ID del fatto (-1 se errore)
+    @discardableResult
+    public static func assert(fact: String) -> Int
+    
+    /// Ritrae fatto
+    /// - Parameter id: ID del fatto da ritrarre
+    public static func retract(id: Int)
+}
+\end{lstlisting}
+
+\subsection{Valutazione Espressioni}
+
+\begin{lstlisting}[language=Swift]
+extension CLIPS {
+    /// Valuta espressione CLIPS
+    /// - Parameter expr: Espressione S-expression
+    /// - Returns: Valore risultante
+    @discardableResult
+    public static func eval(expr: String) -> Value
+}
+\end{lstlisting}
+
+\section{Built-in Functions}
+
+\subsection{Matematica}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Funzione} & \textbf{Args} & \textbf{Descrizione} \\
+\midrule
+\texttt{+} & $n \geq 1$ & Somma argomenti \\
+\texttt{-} & $n \geq 1$ & Sottrazione (unario: negazione) \\
+\texttt{*} & $n \geq 1$ & Prodotto \\
+\texttt{/} & $n \geq 1$ & Divisione \\
+\texttt{div} & 2 & Divisione intera \\
+\texttt{mod} & 2 & Modulo \\
+\texttt{abs} & 1 & Valore assoluto \\
+\texttt{min} & $n \geq 1$ & Minimo \\
+\texttt{max} & $n \geq 1$ & Massimo \\
+\texttt{sqrt} & 1 & Radice quadrata \\
+\texttt{pow} & 2 & Potenza \\
+\texttt{exp} & 1 & Esponenziale \\
+\texttt{log} & 1 & Logaritmo naturale \\
+\texttt{log10} & 1 & Logaritmo base 10 \\
+\bottomrule
+\end{tabular}
+\caption{Funzioni matematiche}
+\label{tab:api_math}
+\end{table}
+
+\subsection{Logiche}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Funzione} & \textbf{Args} & \textbf{Descrizione} \\
+\midrule
+\texttt{and} & $n \geq 1$ & AND logico \\
+\texttt{or} & $n \geq 1$ & OR logico \\
+\texttt{not} & 1 & NOT logico \\
+\texttt{eq} & 2+ & Uguaglianza valore \\
+\texttt{neq} & 2+ & Disuguaglianza \\
+\texttt{=} & 2+ & Uguaglianza numerica \\
+\texttt{<>} & 2+ & Disuguaglianza numerica \\
+\texttt{<} & 2+ & Minore \\
+\texttt{<=} & 2+ & Minore o uguale \\
+\texttt{>} & 2+ & Maggiore \\
+\texttt{>=} & 2+ & Maggiore o uguale \\
+\bottomrule
+\end{tabular}
+\caption{Funzioni logiche}
+\label{tab:api_logic}
+\end{table}
+
+\subsection{Facts e Rules}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Funzione} & \textbf{Args} & \textbf{Descrizione} \\
+\midrule
+\texttt{assert} & 1+ & Asserisce fatto \\
+\texttt{retract} & 1+ & Ritrae fatto (per ID) \\
+\texttt{modify} & 2+ & Modifica fatto \\
+\texttt{duplicate} & 2+ & Duplica fatto \\
+\texttt{facts} & 0-1 & Lista fatti [modulo] \\
+\texttt{rules} & 0-1 & Lista regole [modulo] \\
+\texttt{agenda} & 0-1 & Lista agenda [modulo] \\
+\texttt{clear} & 0 & Pulisce environment \\
+\texttt{reset} & 0 & Reset + assert deffacts \\
+\texttt{run} & 0-1 & Esegue regole [limit] \\
+\bottomrule
+\end{tabular}
+\caption{Funzioni facts e rules}
+\label{tab:api_facts}
+\end{table}
+
+\subsection{Moduli}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llp{5cm}@{}}
+\toprule
+\textbf{Funzione} & \textbf{Args} & \textbf{Descrizione} \\
+\midrule
+\texttt{focus} & 1+ & Imposta focus su moduli \\
+\texttt{get-current-module} & 0 & Ritorna modulo corrente \\
+\texttt{set-current-module} & 1 & Imposta modulo corrente \\
+\texttt{list-defmodules} & 0 & Stampa lista moduli \\
+\texttt{get-defmodule-list} & 0 & Ritorna multifield moduli \\
+\bottomrule
+\end{tabular}
+\caption{Funzioni moduli}
+\label{tab:api_modules}
+\end{table}
+
+\section{Value Type}
+
+\begin{lstlisting}[language=Swift]
+public enum Value: Codable, Equatable {
+    case int(Int64)
+    case float(Double)
+    case string(String)
+    case symbol(String)
+    case boolean(Bool)
+    case multifield([Value])
+    case none
+}
+\end{lstlisting}
+
+\section{Template e Pattern}
+
+\subsection{Pattern Test Types}
+
+\begin{lstlisting}[language=Swift]
+public struct PatternTest: Codable {
+    public enum Kind: Codable {
+        case constant(Value)
+        case variable(String)
+        case mfVariable(String)
+        case predicate(ExpressionNode)
+        case sequence([PatternTest])
+    }
+    public let kind: Kind
+}
+\end{lstlisting}
+
+\section{Pattern Matching API}
+
+\subsection{Constraint Builders}
+
+\begin{lstlisting}[language=Swift]
+public class PatternBuilder {
+    public func pattern(_ template: String, 
+                       @ConstraintBuilder _ constraints: () -> [Constraint]) -> Pattern {
+        Pattern(template: template, constraints: constraints())
+    }
+}
+
+@resultBuilder
+public struct ConstraintBuilder {
+    public static func buildBlock(_ components: Constraint...) -> [Constraint] {
+        Array(components)
+    }
+}
+\end{lstlisting}
+
+\section{Error Handling}
+
+\subsection{Error Types}
+
+\begin{lstlisting}[language=Swift]
+public enum CLIPSError: Error {
+    case parseError(String, line: Int, column: Int)
+    case runtimeError(String)
+    case undefinedTemplate(String)
+    case undefinedRule(String)
+    case invalidSlot(String)
+    case typeMismatch(expected: ValueType, got: ValueType)
+    case fileNotFound(String)
+}
+\end{lstlisting}
+
+\section{Esempi Completi}
+
+Vedere Appendice~\ref{app:esempi} per esempi d'uso completi e casi di studio.
+

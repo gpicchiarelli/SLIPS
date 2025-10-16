@@ -1,0 +1,356 @@
+% Capitolo 21: Pattern Matching Avanzato in SLIPS
+
+\chapter{Pattern Matching Avanzato}
+\label{cap:slips_pattern_matching}
+
+\section{Introduzione}
+
+SLIPS implementa tutte le funzionalità avanzate di pattern matching di CLIPS, con particolare attenzione a multifield e constraint complessi.
+
+\section{Constraint System}
+
+\begin{lstlisting}[language=Swift]
+public enum Constraint {
+    case equals(Value)
+    case notEquals(Value)
+    case variable(String)
+    case multifieldVariable(String)
+    case predicate(PredicateFunction)
+    case conjunction([Constraint])
+    case disjunction([Constraint])
+    case negation(Constraint)
+    
+    func evaluate(_ value: Value, bindings: [String: Value]) -> BindingResult {
+        switch self {
+        case .equals(let expected):
+            return value == expected ? .success([:]) : .failure
+            
+        case .variable(let name):
+            if let bound = bindings[name] {
+                return value == bound ? .success([:]) : .failure
+            }
+            return .success([name: value])
+            
+        case .predicate(let fn):
+            return fn(value, bindings) ? .success([:]) : .failure
+            
+        case .conjunction(let constraints):
+            return evaluateConjunction(constraints, value, bindings)
+            
+        case .disjunction(let constraints):
+            return evaluateDisjunction(constraints, value, bindings)
+            
+        case .negation(let inner):
+            let result = inner.evaluate(value, bindings: bindings)
+            return result.isSuccess ? .failure : .success([:])
+            
+        default:
+            return .failure
+        }
+    }
+}
+
+public enum BindingResult {
+    case success([String: Value])
+    case failure
+    
+    var isSuccess: Bool {
+        if case .success = self { return true }
+        return false
+    }
+}
+\end{lstlisting}
+
+\section{Multifield Matching}
+
+\subsection{Multifield Pattern}
+
+\begin{lstlisting}[language=Swift]
+struct MultifieldPattern {
+    var segments: [Segment]
+    
+    enum Segment {
+        case single(Constraint)
+        case multifield(String?)  // Variable name or anonymous
+    }
+    
+    func match(_ values: [Value], bindings: [String: Value]) -> [BindingResult] {
+        return matchSegments(segments, values: values, bindings: bindings)
+    }
+    
+    private func matchSegments(
+        _ segments: [Segment],
+        values: [Value],
+        bindings: [String: Value],
+        offset: Int = 0
+    ) -> [BindingResult] {
+        guard !segments.isEmpty else {
+            return offset == values.count ? [.success(bindings)] : []
+        }
+        
+        let first = segments.first!
+        let rest = Array(segments.dropFirst())
+        
+        switch first {
+        case .single(let constraint):
+            guard offset < values.count else { return [] }
+            let result = constraint.evaluate(values[offset], bindings: bindings)
+            guard case .success(let newBindings) = result else { return [] }
+            var combined = bindings
+            combined.merge(newBindings) { $1 }
+            return matchSegments(rest, values: values, bindings: combined, offset: offset + 1)
+            
+        case .multifield(let varName):
+            // Try all possible lengths for multifield
+            var results: [BindingResult] = []
+            let minRest = minimumLength(rest)
+            let maxLength = values.count - offset - minRest
+            
+            for length in 0...maxLength {
+                let segment = Array(values[offset..<(offset + length)])
+                var newBindings = bindings
+                if let name = varName {
+                    newBindings[name] = .multifield(segment)
+                }
+                results.append(contentsOf: matchSegments(
+                    rest,
+                    values: values,
+                    bindings: newBindings,
+                    offset: offset + length
+                ))
+            }
+            
+            return results
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Example Usage}
+
+\begin{lstlisting}[language=CLIPS]
+;; Pattern: (lista $?start 10 $?end)
+;; Fact: (lista 1 2 10 3 4)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Swift]
+let pattern = MultifieldPattern(segments: [
+    .multifield("start"),
+    .single(.equals(.integer(10))),
+    .multifield("end")
+])
+
+let fact = [.integer(1), .integer(2), .integer(10), .integer(3), .integer(4)]
+
+let matches = pattern.match(fact, bindings: [:])
+// Result: [
+//   .success(["start": .multifield([1, 2]), "end": .multifield([3, 4])])
+// ]
+\end{lstlisting}
+
+\section{Unification}
+
+\begin{lstlisting}[language=Swift]
+class Unifier {
+    func unify(
+        pattern: Pattern,
+        fact: Fact,
+        bindings: [String: Value] = [:]
+    ) -> BindingResult {
+        var currentBindings = bindings
+        
+        for (slotName, constraint) in pattern.constraints {
+            guard let factValue = fact.slots[slotName] else {
+                return .failure  // Missing slot
+            }
+            
+            let result = constraint.evaluate(factValue, bindings: currentBindings)
+            
+            guard case .success(let newBindings) = result else {
+                return .failure
+            }
+            
+            // Merge bindings
+            for (key, value) in newBindings {
+                if let existing = currentBindings[key] {
+                    if existing != value {
+                        return .failure  // Conflict
+                    }
+                } else {
+                    currentBindings[key] = value
+                }
+            }
+        }
+        
+        return .success(currentBindings)
+    }
+}
+\end{lstlisting}
+
+\section{Test Nodes}
+
+\subsection{Test CE}
+
+\begin{lstlisting}[language=CLIPS]
+(defrule example
+  (a ?x)
+  (b ?y)
+  (test (> ?x ?y))  ; Inter-element test
+  =>
+  ...)
+\end{lstlisting}
+
+\begin{lstlisting}[language=Swift]
+class TestNode: ReteNode {
+    let testExpression: Expression
+    
+    func activate(token: Token) {
+        let result = evaluate(testExpression, bindings: token.bindings)
+        
+        if case .symbol("TRUE") = result {
+            // Pass through unchanged
+            for child in children {
+                child.activate(token: token)
+            }
+        }
+        // Else filter out
+    }
+}
+\end{lstlisting}
+
+\section{Function Calls in Patterns}
+
+\begin{lstlisting}[language=CLIPS]
+(defrule check-range
+  (value ?v&:(numberp ?v)&:(> ?v 10)&:(< ?v 100))
+  =>
+  ...)
+\end{lstlisting>
+
+\begin{lstlisting}[language=Swift]
+typealias PredicateFunction = (Value, [String: Value]) -> Bool
+
+let constraint = Constraint.conjunction([
+    .predicate { value, _ in
+        if case .integer = value { return true }
+        if case .float = value { return true }
+        return false
+    },
+    .predicate { value, _ in
+        guard case .integer(let i) = value else { return false }
+        return i > 10
+    },
+    .predicate { value, _ in
+        guard case .integer(let i) = value else { return false }
+        return i < 100
+    }
+])
+\end{lstlisting}
+
+\section{Exists and Forall}
+
+\subsection{Exists}
+
+\begin{lstlisting}[language=CLIPS]
+(defrule has-order
+  (exists (order (status pending)))
+  =>
+  (printout t "Has pending orders" crlf))
+\end{lstlisting>
+
+\begin{lstlisting}[language=Swift]
+class ExistsNode: ReteNode {
+    private var counters: [Token: Int] = [:]
+    
+    func leftActivate(token: Token) {
+        counters[token] = 0
+        checkAndPropagate(token)
+    }
+    
+    func rightActivate(fact: Fact) {
+        for token in leftParent!.tokens {
+            if testPass(token, fact) {
+                let wasZero = (counters[token] == 0)
+                counters[token]! += 1
+                
+                if wasZero {
+                    // Now exists - propagate
+                    propagate(token)
+                }
+            }
+        }
+    }
+    
+    func rightRetract(fact: Fact) {
+        for token in leftParent!.tokens {
+            if testPass(token, fact) {
+                counters[token]! -= 1
+                
+                if counters[token] == 0 {
+                    // No longer exists - remove
+                    removeFromChildren(token)
+                }
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Pattern Optimization}
+
+\subsection{Compile-Time Optimization}
+
+\begin{lstlisting}[language=Swift]
+class PatternOptimizer {
+    func optimize(_ pattern: Pattern) -> Pattern {
+        var optimized = pattern
+        
+        // 1. Constant folding
+        optimized = foldConstants(optimized)
+        
+        // 2. Predicate simplification
+        optimized = simplifyPredicates(optimized)
+        
+        // 3. Reorder constraints by selectivity
+        optimized = reorderConstraints(optimized)
+        
+        return optimized
+    }
+    
+    private func foldConstants(_ pattern: Pattern) -> Pattern {
+        // Replace (test (> 10 5)) with (test TRUE)
+        // ...
+    }
+    
+    private func reorderConstraints(_ pattern: Pattern) -> Pattern {
+        // Put most selective constraints first
+        let sorted = pattern.constraints.sorted { c1, c2 in
+            estimateSelectivity(c1) < estimateSelectivity(c2)
+        }
+        return Pattern(template: pattern.template, constraints: sorted)
+    }
+}
+\end{lstlisting>
+
+\section{Conclusioni del Capitolo}
+
+\subsection{Punti Chiave}
+
+\begin{enumerate}
+\item \textbf{Constraint system} flessibile con enum
+\item \textbf{Multifield matching} con backtracking
+\item \textbf{Unification} preserva semantica CLIPS
+\item \textbf{Test nodes} per constraint inter-elemento
+\item \textbf{Exists/forall} con counter-based logic
+\end{enumerate}
+
+\subsection{Fine Parte IV}
+
+Con questo si conclude la Parte IV sull'implementazione SLIPS. La Parte V copre sviluppo, performance e futuro.
+
+\subsection{Letture Consigliate}
+
+\begin{itemize}
+\item CLIPS Source - \texttt{pattern.c}, \texttt{prcdrpsr.c}
+\item Swift Pattern Matching
+\end{itemize}
