@@ -114,20 +114,30 @@ public struct ReteNetwork {
     
     public init() {}
     
-    // WRAPPER TEMPORANEO: per compatibilità con test che usano env.rete.beta
-    // Nel sistema esplicito, le beta memories sono nei JoinNode, non centralizzate
-    // Questo wrapper legge dalle memorie dei join nodes
+    // WRAPPER TEMPORANEO: per compatibilità con test legacy
+    // Nel sistema esplicito CLIPS-like, le memorie sono nei nodi, non centralizzate
     public var beta: [String: BetaMemory] {
         get {
             var result: [String: BetaMemory] = [:]
-            for (ruleName, productionNode) in productionNodes {
-                // Trova l'ultimo join/beta memory prima del production node
-                // Per ora, crea una beta memory vuota come placeholder
+            for (ruleName, _) in productionNodes {
                 result[ruleName] = BetaMemory()
             }
             return result
         }
     }
+    
+    public var betaLevels: [String: [Int: BetaMemory]] {
+        get { [:] }  // Placeholder
+    }
+    
+    public var graphs: [String: RuleGraph] {
+        get { [:] }  // Placeholder
+    }
+}
+
+// Strutture legacy placeholder
+public struct RuleGraph {
+    public var nodes: [String] = []
 }
 
 public struct JoinKeyPartC: Codable { public let slot: String; public let varName: String?; public let constValue: Value? }

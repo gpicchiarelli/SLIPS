@@ -38,30 +38,111 @@ public enum NetworkBuilder {
             let alphaNode = findOrCreateAlphaNode(pattern: pattern, env: &env)
             
             if pattern.negated {
-                // NOT CE: crea NotNodeClass
+                // ✅ NOT CE: in CLIPS C è un joinNode con patternIsNegated=true
+                // Ref: network.h:113 - unsigned int patternIsNegated : 1
                 if env.watchRete {
                     print("[RETE Build]   Level \(currentLevel + 1): NOT pattern \(pattern.name)")
                 }
                 
                 let joinKeys = extractJoinKeys(pattern, previousPatterns: Array(rule.patterns[..<index]))
-                let notNode = NotNodeClass(
-                    pattern: pattern,
+                let testsForLevel = extractTestsForLevel(
+                    level: currentLevel,
+                    allTests: rule.tests,
+                    patternsUpTo: index,
+                    patterns: rule.patterns
+                )
+                
+                let notJoin = JoinNodeClass(
+                    left: currentNode,  // nil se primo pattern
+                    right: alphaNode,
                     keys: joinKeys,
-                    alphaNode: alphaNode,
+                    tests: testsForLevel,
                     level: currentLevel + 1
                 )
                 
-                if let prev = currentNode {
-                    linkNodes(from: prev, to: notNode)
+                // ✅ Imposta flag NOT
+                notJoin.patternIsNegated = true
+                
+                // ✅ Se primo pattern, marca firstJoin per EmptyDrive
+                if index == 0 {
+                    notJoin.firstJoin = true
+                    firstJoinCreated = true
+                    if env.watchRete {
+                        print("[RETE Build]     *** NOT first pattern, firstJoin=true for rule '\(rule.name)'")
+                    }
                 }
-                currentNode = notNode
+                
+                // Registra come listener dell'alpha
+                alphaNode.rightJoinListeners.append(notJoin)
+                
+                if let prevJoin = lastJoinNode {
+                    let link = JoinLink()
+                    link.join = notJoin
+                    link.enterDirection = "l"
+                    prevJoin.nextLinks.append(link)
+                }
+                lastJoinNode = notJoin
+                
+                if let prev = currentNode {
+                    linkNodes(from: prev, to: notJoin)
+                }
+                currentNode = notJoin
                 currentLevel += 1
                 
             } else if pattern.exists {
-                // EXISTS viene trasformato in NOT(NOT) dal parser (evaluator.swift)
-                // Quindi non raggiungiamo mai questo branch
-                // Se lo raggiungiamo, è un errore
-                fatalError("[RETE Build] EXISTS pattern dovrebbe essere trasformato in NOT(NOT) dal parser")
+                // ✅ FEDELE A CLIPS C (rulelhs.c:827-843 + network.h): EXISTS → NOT(NOT)
+                // In CLIPS C, sono due joinNode con patternIsNegated=true
+                if env.watchRete {
+                    print("[RETE Build]   EXISTS pattern \(pattern.name) → building NOT(NOT) with JoinNodes")
+                }
+                
+                let joinKeys = extractJoinKeys(pattern, previousPatterns: Array(rule.patterns[..<index]))
+                let testsForLevel = extractTestsForLevel(
+                    level: currentLevel,
+                    allTests: rule.tests,
+                    patternsUpTo: index,
+                    patterns: rule.patterns
+                )
+                
+                // NOT interno (primo livello)
+                let innerNot = JoinNodeClass(
+                    left: currentNode,
+                    right: alphaNode,
+                    keys: joinKeys,
+                    tests: testsForLevel,
+                    level: currentLevel + 1
+                )
+                innerNot.patternIsNegated = true
+                
+                if index == 0 {
+                    innerNot.firstJoin = true
+                    firstJoinCreated = true
+                }
+                alphaNode.rightJoinListeners.append(innerNot)
+                
+                // "NOT" esterno (secondo livello) - in realtà è un join EXISTS
+                // ✅ Ref: rulebld.c:1182-1186 - se existsRHS, patternIsNegated=FALSE!
+                let outerJoin = JoinNodeClass(
+                    left: innerNot,
+                    right: alphaNode,
+                    keys: joinKeys,
+                    tests: [],
+                    level: currentLevel + 2
+                )
+                outerJoin.patternIsNegated = false  // ✅ FALSE per EXISTS!
+                outerJoin.patternIsExists = true  // Marca come EXISTS
+                
+                // Link
+                let link = JoinLink()
+                link.join = outerJoin
+                link.enterDirection = "l"
+                innerNot.nextLinks.append(link)
+                lastJoinNode = outerJoin
+                
+                linkNodes(from: innerNot, to: outerJoin)
+                
+                currentNode = outerJoin
+                currentLevel += 2  // Due livelli
                 
             } else {
                 // Pattern positivo: crea JoinNodeClass
@@ -364,10 +445,8 @@ public enum NetworkBuilder {
             joinNode.successors.append(to)
         } else if let betaMemory = from as? BetaMemoryNode {
             betaMemory.successors.append(to)
-        } else if let notNode = from as? NotNodeClass {
-            notNode.successors.append(to)
         }
-        // ExistsNodeClass rimosso: EXISTS trasformato in NOT(NOT)
+        // NOT/EXISTS sono JoinNodeClass con flag, non classi separate
     }
 }
 

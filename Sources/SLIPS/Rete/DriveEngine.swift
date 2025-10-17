@@ -276,56 +276,53 @@ public enum DriveEngine {
             if !joinExpr { return }
         }
         
-        // Handle negated first pattern or join from right
-        if join.patternIsNegated || (join.joinFromTheRight && !join.patternIsExists) {
-            // NOT come primo pattern: usa leftMemory bucket 0
-            if join.leftMemory == nil || join.leftMemory?.beta[0] == nil {
-                if theEnv.watchRete {
-                    print("[RETE] EmptyDrive: NOT first pattern, creating parent")
-                }
-                // Crea parent se non esiste
+        // ✅ FEDELE A CLIPS C (drive.c:1075-1106)
+        // Handle negated first pattern
+        if join.patternIsNegated && !join.patternIsExists {
+            // NOT semplice (non EXISTS): crea parent, AddBlockedLink, e RETURN senza propagare
+            // Ref: drive.c:1075-1090
+            if join.leftMemory == nil {
+                join.leftMemory = BetaMemoryHash(initialSize: 17)
+            }
+            if join.leftMemory?.beta[0] == nil {
                 let parent = CreateEmptyPartialMatch()
                 parent.hashValue = 0
-                if join.leftMemory == nil {
-                    join.leftMemory = BetaMemoryHash(initialSize: 17)
-                }
                 join.leftMemory?.beta[0] = parent
             }
             
             guard let notParent = join.leftMemory?.beta[0] else { return }
+            if notParent.marker != nil { return }
             
-            if notParent.marker != nil {
-                return
-            }
-            
-            // AddBlockedLink(notParent, rhsBinds) - da implementare
-            // PosEntryRetractBeta se ha children - da implementare
+            // AddBlockedLink(notParent, rhsBinds)
+            // PosEntryRetractBeta se ha children
             
             if theEnv.watchRete {
-                print("[RETE] EmptyDrive: NOT first pattern handled")
+                print("[RETE] EmptyDrive: NOT first pattern, blocked and return")
             }
-            return
+            return  // ✅ NOT semplice NON propaga!
         }
         
-        // Handle exists first pattern
-        var existsParent: PartialMatch? = nil
+        // Handle EXISTS (secondo NOT del NOT(NOT))
         if join.patternIsExists {
+            // Ref: drive.c:1100-1106
             if join.leftMemory == nil {
-                // Crea leftMemory e parent
                 join.leftMemory = BetaMemoryHash(initialSize: 17)
+            }
+            if join.leftMemory?.beta[0] == nil {
                 let parent = CreateEmptyPartialMatch()
                 parent.hashValue = 0
                 join.leftMemory?.beta[0] = parent
-                existsParent = parent
-            } else {
-                existsParent = join.leftMemory?.beta[0]
             }
             
-            if existsParent?.marker != nil {
-                return
-            }
+            guard let existsParent = join.leftMemory?.beta[0] else { return }
+            if existsParent.marker != nil { return }
             
             // AddBlockedLink(existsParent, rhsBinds)
+            
+            if theEnv.watchRete {
+                print("[RETE] EmptyDrive: EXISTS pattern, blocked but CONTINUE")
+            }
+            // ✅ NON fa return! Continua a propagare
         }
         
         // Propaga attraverso nextLinks

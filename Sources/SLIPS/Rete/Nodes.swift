@@ -149,18 +149,48 @@ public final class JoinNodeClass: ReteNode {
     public func activate(token: BetaToken, env: inout Environment) {
         if env.watchRete {
             let memCount = rightInput?.memory.count ?? 0
-            print("[RETE] JoinNode activate (from LEFT): level=\(level), rightAlpha=\(memCount) facts")
+            print("[RETE] JoinNode activate (from LEFT): level=\(level), negated=\(patternIsNegated), exists=\(patternIsExists), rightAlpha=\(memCount) facts")
         }
         
+        // ✅ GESTIONE NOT (patternIsNegated)
+        // Ref: NetworkAssertLeft in drive.c con logica NOT
+        if patternIsNegated {
+            // NOT logic: propaga solo se NON trova match nell'alpha
+            guard let rightAlpha = rightInput else { return }
+            
+            var foundMatch = false
+            for factID in rightAlpha.memory {
+                guard let fact = env.facts[factID] else { continue }
+                guard !token.usedFacts.contains(factID) else { continue }
+                
+                // Verifica se il fatto matcha con i binding correnti
+                if matchesWithBindings(fact: fact, bindings: token.bindings, env: &env) {
+                    foundMatch = true
+                    break
+                }
+            }
+            
+            // Propaga solo se NOT è vera (nessun match trovato)
+            if !foundMatch {
+                if env.watchRete {
+                    print("[RETE] JoinNode NOT: no match found, propagating token")
+                }
+                for successor in successors {
+                    successor.activate(token: token, env: &env)
+                }
+            } else {
+                if env.watchRete {
+                    print("[RETE] JoinNode NOT: match found, blocking token")
+                }
+            }
+            return
+        }
+        
+        // ✅ JOIN NORMALE (pattern positivo)
         // ✅ CRITICO: Aggiungi token alla leftMemory (ref: NetworkAssertLeft in drive.c)
-        // Quando un token arriva dal lato SINISTRO (da BetaMemory predecessore),
-        // va salvato nella leftMemory per futuri join con fatti dal lato destro
         let pm = PartialMatchBridge.createPartialMatch(from: token, env: env)
         
         // ✅ CRITICO: Ricalcola hash usando joinKeys
-        // Ref: drive.c:940 - hashValue = BetaMemoryHashValue(..., join->leftHash, ...)
-        // L'hash deve basarsi sulle variabili COMUNI (joinKeys) non su tutti i fact IDs
-        // SEMPLIFICAZIONE: Se joinKeys è vuoto, usa hash 0 (tutti nello stesso bucket)
         var hasher = Hasher()
         for key in joinKeys.sorted() {
             if let value = token.bindings[key] {
@@ -208,6 +238,43 @@ public final class JoinNodeClass: ReteNode {
             let elapsed = Date().timeIntervalSince(start)
             print("[RETE Profile] JoinNode level \(level): \(joinCount) joins in \(elapsed * 1000)ms")
         }
+    }
+    
+    /// Verifica se un fatto matcha con i binding correnti (per NOT)
+    /// Ref: EvaluateSecondaryNetworkTest in drive.c
+    private func matchesWithBindings(
+        fact: Environment.FactRec,
+        bindings: [String: Value],
+        env: inout Environment
+    ) -> Bool {
+        guard let rightAlpha = rightInput else { return false }
+        guard fact.name == rightAlpha.pattern.name else { return false }
+        
+        for (slot, test) in rightAlpha.pattern.slots {
+            guard let factValue = fact.slots[slot] else { return false }
+            
+            switch test.kind {
+            case .constant(let v):
+                if v != factValue { return false }
+            case .variable(let name):
+                if let existing = bindings[name], existing != factValue { return false }
+            case .mfVariable(let name):
+                if let existing = bindings[name], existing != factValue { return false }
+            case .predicate(let exprNode):
+                let old = env.localBindings
+                env.localBindings = bindings
+                let res = Evaluator.EvaluateExpression(&env, exprNode)
+                env.localBindings = old
+                switch res {
+                case .boolean(let b): if !b { return false }
+                case .int(let i): if i == 0 { return false }
+                default: break
+                }
+            case .sequence:
+                break
+            }
+        }
+        return true
     }
     
     /// Tenta il join di un token beta con un fatto alpha
