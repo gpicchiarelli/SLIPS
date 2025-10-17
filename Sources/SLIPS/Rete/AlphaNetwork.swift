@@ -112,19 +112,11 @@ public struct ReteNetwork {
     /// Ref: factmngr.c - hash table per template lookups
     public var alpha: AlphaIndex = AlphaIndex()
     
-    public init() {}
+    /// Beta memory storage per regola (per accesso test)
+    /// Contiene i token finali che hanno matchato tutti i pattern della regola
+    public var beta: [String: BetaMemory] = [:]
     
-    // WRAPPER TEMPORANEO: per compatibilità con test legacy
-    // Nel sistema esplicito CLIPS-like, le memorie sono nei nodi, non centralizzate
-    public var beta: [String: BetaMemory] {
-        get {
-            var result: [String: BetaMemory] = [:]
-            for (ruleName, _) in productionNodes {
-                result[ruleName] = BetaMemory()
-            }
-            return result
-        }
-    }
+    public init() {}
     
     public var betaLevels: [String: [Int: BetaMemory]] {
         get { [:] }  // Placeholder

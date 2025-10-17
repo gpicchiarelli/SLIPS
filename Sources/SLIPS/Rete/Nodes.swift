@@ -250,19 +250,26 @@ public final class JoinNodeClass: ReteNode {
         guard let rightAlpha = rightInput else { return false }
         guard fact.name == rightAlpha.pattern.name else { return false }
         
+        // ✅ USA Propagation.extractBindings per gestire sequenze correttamente
+        // Ref: VariablePatternMatch in factrete.c
+        let factBindings = Propagation.extractBindings(fact: fact, pattern: rightAlpha.pattern)
+        
+        // Verifica che tutti i binding estratti siano compatibili con quelli esistenti
+        for (key, factValue) in factBindings {
+            if let existingValue = bindings[key] {
+                if existingValue != factValue {
+                    return false
+                }
+            }
+        }
+        
+        // Valuta predicati aggiuntivi se presenti
         for (slot, test) in rightAlpha.pattern.slots {
-            guard let factValue = fact.slots[slot] else { return false }
-            
-            switch test.kind {
-            case .constant(let v):
-                if v != factValue { return false }
-            case .variable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .mfVariable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .predicate(let exprNode):
+            if case .predicate(let exprNode) = test.kind {
                 let old = env.localBindings
-                env.localBindings = bindings
+                var combinedBindings = bindings
+                combinedBindings.merge(factBindings) { existing, _ in existing }
+                env.localBindings = combinedBindings
                 let res = Evaluator.EvaluateExpression(&env, exprNode)
                 env.localBindings = old
                 switch res {
@@ -270,10 +277,9 @@ public final class JoinNodeClass: ReteNode {
                 case .int(let i): if i == 0 { return false }
                 default: break
                 }
-            case .sequence:
-                break
             }
         }
+        
         return true
     }
     
@@ -374,19 +380,11 @@ public final class JoinNodeClass: ReteNode {
     /// NUOVO: Usa hash lookup O(1) come in CLIPS C (con fallback durante transizione)
     /// (ref: NetworkAssertRight in drive.c con GetLeftBetaMemory)
     public func activateFromRight(fact: Environment.FactRec, env: inout Environment) {
-        // Estrai bindings dal fatto secondo il pattern
+        // ✅ USA extractBindings con supporto sequence matching
+        // Ref: VariablePatternMatch in factrete.c
         var bindings: [String: Value] = [:]
         if let rightAlpha = rightInput {
-            for (slot, test) in rightAlpha.pattern.slots {
-                if let value = fact.slots[slot] {
-                    switch test.kind {
-                    case .variable(let name), .mfVariable(let name):
-                        bindings[name] = value
-                    default:
-                        break
-                    }
-                }
-            }
+            bindings = Propagation.extractBindings(fact: fact, pattern: rightAlpha.pattern)
         }
         
         // Crea PartialMatch dal fatto
@@ -616,19 +614,26 @@ public final class NotNodeClass: ReteNode {
     ) -> Bool {
         guard fact.name == pattern.name else { return false }
         
+        // ✅ USA Propagation.extractBindings per gestire sequenze correttamente
+        // Ref: VariablePatternMatch in factrete.c
+        let factBindings = Propagation.extractBindings(fact: fact, pattern: pattern)
+        
+        // Verifica che tutti i binding estratti siano compatibili con quelli esistenti
+        for (key, factValue) in factBindings {
+            if let existingValue = bindings[key] {
+                if existingValue != factValue {
+                    return false
+                }
+            }
+        }
+        
+        // Valuta predicati aggiuntivi se presenti
         for (slot, test) in pattern.slots {
-            guard let factValue = fact.slots[slot] else { return false }
-            
-            switch test.kind {
-            case .constant(let v):
-                if v != factValue { return false }
-            case .variable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .mfVariable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .predicate(let exprNode):
+            if case .predicate(let exprNode) = test.kind {
                 let old = env.localBindings
-                env.localBindings = bindings
+                var combinedBindings = bindings
+                combinedBindings.merge(factBindings) { existing, _ in existing }
+                env.localBindings = combinedBindings
                 let res = Evaluator.EvaluateExpression(&env, exprNode)
                 env.localBindings = old
                 switch res {
@@ -639,9 +644,6 @@ public final class NotNodeClass: ReteNode {
                 default:
                     break
                 }
-            case .sequence:
-                // Implementazione futura Fase 2
-                break
             }
         }
         
@@ -746,6 +748,17 @@ public final class ProductionNode: ReteNode {
         if let rule = env.rules.first(where: { $0.name == ruleName || $0.displayName == ruleName }) {
             activation.moduleName = rule.moduleName
             activation.displayName = rule.displayName  // ✅ Per deduplica disjuncts
+        }
+        
+        // ✅ SALVA TOKEN nel beta storage per accesso test
+        // Ref: Beta memory storage in CLIPS C
+        if env.rete.beta[ruleName] == nil {
+            env.rete.beta[ruleName] = BetaMemory()
+        }
+        env.rete.beta[ruleName]?.tokens.append(token)
+        
+        if env.watchRete {
+            print("[RETE] ProductionNode: Saved token in beta storage (total=\(env.rete.beta[ruleName]?.tokens.count ?? 0))")
         }
         
         // Aggiungi solo se non già presente (deduplica)

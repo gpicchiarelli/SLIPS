@@ -112,11 +112,27 @@ public enum Propagation {
         env.agendaQueue.removeByFactID(factID)
         activationsRemoved = beforeAgenda - env.agendaQueue.queue.count
         
+        // ✅ Rimuovi token dal beta storage che usano questo fatto
+        // Ref: Retract logic in CLIPS C drive.c
+        for (ruleName, betaMem) in env.rete.beta {
+            let before = betaMem.tokens.count
+            env.rete.beta[ruleName]?.tokens.removeAll { token in
+                token.usedFacts.contains(factID)
+            }
+            let removed = before - (env.rete.beta[ruleName]?.tokens.count ?? 0)
+            if removed > 0 {
+                tokensRemoved += removed
+                if env.watchRete {
+                    print("[RETE Retract]   Removed \(removed) token(s) from beta[\(ruleName)]")
+                }
+            }
+        }
+        
         // 3. Gestione speciale per regole EXISTS
         // Quando l'ultimo fatto di un template viene retratto, rimuovi attivazioni EXISTS per quel template
         // Ref: drive.c retract logic per EXISTS
         // Verifica se l'alpha per questo template è ora vuota
-        for (ruleName, production) in env.rete.productionNodes {
+        for (ruleName, _) in env.rete.productionNodes {
             if let rule = env.rules.first(where: { $0.name == ruleName }) {
                 // Se la regola ha EXISTS su questo template e l'alpha è vuota, rimuovi attivazione
                 for pattern in rule.patterns where pattern.exists && pattern.name == factName {
@@ -186,7 +202,8 @@ public enum Propagation {
     }
     
     /// Estrae binding da un fatto dato un pattern
-    private static func extractBindings(
+    /// Ref: VariablePatternMatch in factrete.c (CLIPS 6.4.2)
+    public static func extractBindings(
         fact: Environment.FactRec,
         pattern: Pattern
     ) -> [String: Value] {
@@ -196,14 +213,202 @@ public enum Propagation {
             guard let value = fact.slots[slot] else { continue }
             
             switch test.kind {
-            case .variable(let name), .mfVariable(let name):
+            case .variable(let name):
+                // Single-field variable: bind direttamente
                 bindings[name] = value
+                
+            case .mfVariable(let name):
+                // Multifield variable: bind come multifield
+                // Se il valore è già multifield, usa quello
+                // Altrimenti wrappa in multifield
+                if case .multifield = value {
+                    bindings[name] = value
+                } else {
+                    bindings[name] = .multifield([value])
+                }
+                
+            case .sequence(let items):
+                // Pattern di sequenza complesso: richiede matching avanzato
+                // Ref: VariablePatternMatch in factrete.c
+                if case .multifield(let values) = value {
+                    // Tenta di matchare la sequenza con backtracking
+                    if let seqBindings = matchSequence(items: items, values: values) {
+                        bindings.merge(seqBindings) { _, new in new }
+                    }
+                } else {
+                    // Valore singolo: tratta come sequenza di un elemento
+                    if let seqBindings = matchSequence(items: items, values: [value]) {
+                        bindings.merge(seqBindings) { _, new in new }
+                    }
+                }
+                
             default:
                 break
             }
         }
         
         return bindings
+    }
+    
+    /// Match sequenza con backtracking per pattern complessi
+    /// Gestisce pattern come: a $?x b $?y c
+    /// Ref: VariablePatternMatch in factrete.c (CLIPS 6.4.2)
+    private static func matchSequence(
+        items: [PatternTest],
+        values: [Value]
+    ) -> [String: Value]? {
+        var bindings: [String: Value] = [:]
+        
+        // Conta variabili multifield e calcola minimo required
+        var mfVarCount = 0
+        var minRequired = 0
+        for item in items {
+            if case .mfVariable = item.kind {
+                mfVarCount += 1
+            } else {
+                minRequired += 1
+            }
+        }
+        
+        // Verifica se ci sono abbastanza valori
+        guard values.count >= minRequired else {
+            return nil
+        }
+        
+        // Algoritmo di backtracking per matchare sequenza
+        // Ref: factrete.c:VariablePatternMatch
+        return backtrack(
+            itemIndex: 0,
+            valueIndex: 0,
+            items: items,
+            values: values,
+            bindings: &bindings,
+            minRequired: minRequired
+        ) ? bindings : nil
+    }
+    
+    /// Backtracking ricorsivo per sequence matching
+    /// Ref: factrete.c logic
+    private static func backtrack(
+        itemIndex: Int,
+        valueIndex: Int,
+        items: [PatternTest],
+        values: [Value],
+        bindings: inout [String: Value],
+        minRequired: Int
+    ) -> Bool {
+        // Caso base: tutti gli item processati
+        if itemIndex >= items.count {
+            // Success se abbiamo consumato tutti i valori
+            return valueIndex >= values.count
+        }
+        
+        // Caso base: valori esauriti ma item rimanenti
+        if valueIndex >= values.count {
+            // Success solo se tutti gli item rimanenti sono mfVariable
+            // che possono bindare a lista vuota
+            for i in itemIndex..<items.count {
+                if case .mfVariable(let name) = items[i].kind {
+                    bindings[name] = .multifield([])
+                } else {
+                    return false
+                }
+            }
+            return true
+        }
+        
+        let currentItem = items[itemIndex]
+        
+        switch currentItem.kind {
+        case .constant(let expectedValue):
+            // Costante: deve matchare esattamente
+            guard valueIndex < values.count,
+                  values[valueIndex] == expectedValue else {
+                return false
+            }
+            return backtrack(
+                itemIndex: itemIndex + 1,
+                valueIndex: valueIndex + 1,
+                items: items,
+                values: values,
+                bindings: &bindings,
+                minRequired: minRequired
+            )
+            
+        case .variable(let name):
+            // Variabile single-field: bind un valore
+            guard valueIndex < values.count else {
+                return false
+            }
+            let oldBinding = bindings[name]
+            bindings[name] = values[valueIndex]
+            
+            if backtrack(
+                itemIndex: itemIndex + 1,
+                valueIndex: valueIndex + 1,
+                items: items,
+                values: values,
+                bindings: &bindings,
+                minRequired: minRequired
+            ) {
+                return true
+            }
+            
+            // Backtrack: ripristina binding
+            if let old = oldBinding {
+                bindings[name] = old
+            } else {
+                bindings.removeValue(forKey: name)
+            }
+            return false
+            
+        case .mfVariable(let name):
+            // Variabile multifield: prova tutte le lunghezze possibili
+            // Ref: factrete.c - greedy matching con backtracking
+            
+            // Calcola costanti rimanenti (minimo da lasciare)
+            var minToLeave = 0
+            for i in (itemIndex + 1)..<items.count {
+                if case .mfVariable = items[i].kind {
+                    // Altra mfVar, può bindare a 0
+                } else {
+                    minToLeave += 1
+                }
+            }
+            
+            // Massimo che questa mfVar può prendere
+            let valuesRemaining = values.count - valueIndex
+            let maxCanTake = valuesRemaining - minToLeave
+            
+            // Prova da lunghezza massima a 0 (greedy first)
+            for length in stride(from: maxCanTake, through: 0, by: -1) {
+                let oldBinding = bindings[name]
+                let taken = Array(values[valueIndex..<(valueIndex + length)])
+                bindings[name] = .multifield(taken)
+                
+                if backtrack(
+                    itemIndex: itemIndex + 1,
+                    valueIndex: valueIndex + length,
+                    items: items,
+                    values: values,
+                    bindings: &bindings,
+                    minRequired: minRequired
+                ) {
+                    return true
+                }
+                
+                // Backtrack
+                if let old = oldBinding {
+                    bindings[name] = old
+                } else {
+                    bindings.removeValue(forKey: name)
+                }
+            }
+            return false
+            
+        default:
+            return false
+        }
     }
     
     /// Gestisce propagazione retract per NOT nodes
