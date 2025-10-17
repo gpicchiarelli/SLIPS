@@ -5,7 +5,7 @@
 
 \section{Il Problema del Pattern Matching Efficiente}
 
-Prima di tuffarci nei dettagli tecnici dell'algoritmo RETE, vale la pena soffermarsi sul problema che risolve. Non è un problema teorico da paper accademico — è un ostacolo concreto che ha quasi ucciso i sistemi a produzione sul nascere negli anni '70.
+Prima di tuffarci nei dettagli tecnici dell'algoritmo RETE, vale la pena soffermarsi sul problema che risolve. Non è un problema teorico da paper accademico — è un ostacolo concreto che ha quasi ucciso i sistemi esperti sul nascere negli anni '70.
 
 Immaginate di essere un ingegnere che deve costruire un sistema esperto medico. Avete raccolto centinaia di regole diagnostiche da medici esperti, trasformandole in forma if-then. Avete un database di pazienti con i loro sintomi, analisi, storia clinica. Tutto sembra perfetto sulla carta. Poi accendete il sistema e... dopo tre minuti sta ancora processando il primo paziente. Dopo un'ora, siete solo a metà. Proiettate i tempi e realizzate che processare tutti i pazienti richiederebbe giorni.
 
@@ -68,7 +68,7 @@ A 1 GHz (1 confronto/ns), servirebbero:
 
 \subsection{L'Intuizione di Forgy}
 
-La storia racconta che Charles Forgy ebbe la sua illuminazione osservando il comportamento reale dei sistemi a produzione. Invece di concentrarsi sulla teoria astratta, guardò cosa accadeva effettivamente, ciclo dopo ciclo, in un sistema in funzione. E notò qualcosa di apparentemente banale ma profondamente importante.
+La storia racconta che Charles Forgy ebbe la sua illuminazione osservando il comportamento reale dei sistemi esperti. Invece di concentrarsi sulla teoria astratta, guardò cosa accadeva effettivamente, ciclo dopo ciclo, in un sistema in funzione. E notò qualcosa di apparentemente banale ma profondamente importante.
 
 Quando un sistema esperto medico analizza un paziente e conclude "somministrare antibiotico", cosa cambia nella base di conoscenza? Un fatto, forse due. Il paziente ora ha una prescrizione, forse uno stato di trattamento. Ma i suoi 50 sintomi registrati? Immutati. Le sue 20 analisi del sangue? Le stesse. Le 1000 regole nel sistema? Identiche. Eppure, l'approccio naïve ricominciava da zero, verificando tutte le 1000 regole contro tutti i fatti, anche se il 99% era rimasto uguale al ciclo precedente.
 

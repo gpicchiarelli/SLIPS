@@ -1,16 +1,16 @@
-% Capitolo 2: Sistemi a Produzione
+% Capitolo 2: Sistemi Esperti Basati su Regole
 
-\chapter{Sistemi a Produzione}
+\chapter{Sistemi Esperti Basati su Regole}
 \label{cap:sistemi_produzione}
 
-\section{Introduzione ai Production Systems}
+\section{Introduzione al Modello a Regole di Produzione}
 
-Un \textit{sistema a produzione} (production system) è un modello computazionale per la rappresentazione e l'esecuzione della conoscenza basato su regole. Inventato da Allen Newell e Herbert Simon alla fine degli anni '50, rappresenta uno dei paradigmi fondamentali dell'intelligenza artificiale simbolica.
+Un \textit{sistema esperto basato su regole} (o \textit{production system} nella terminologia anglosassone) è un modello computazionale per la rappresentazione e l'esecuzione della conoscenza attraverso regole if-then. Inventato da Allen Newell e Herbert Simon alla fine degli anni '50, rappresenta uno dei paradigmi fondamentali dell'intelligenza artificiale simbolica e la base teorica dei sistemi esperti.
 
 \subsection{Definizione Formale}
 
-\begin{definizione}[Sistema a Produzione]
-Un sistema a produzione è una quadrupla $\mathcal{P} = \langle WM, PM, CS, \sigma \rangle$ dove:
+\begin{definizione}[Sistema Esperto Basato su Regole]
+Un sistema esperto basato su regole è una quadrupla $\mathcal{P} = \langle WM, PM, CS, \sigma \rangle$ dove:
 \begin{itemize}
 \item $WM$ (Working Memory) è l'insieme dei \textit{fatti} attualmente noti
 \item $PM$ (Production Memory) è l'insieme delle \textit{regole} di produzione
@@ -78,7 +78,7 @@ Regola per assegnare la lode:
 Prima di addentrarci nella formalizzazione, vale la pena vedere un sistema a produzione "in azione" con un esempio concreto che mostra la potenza e l'eleganza di questo paradigma.
 
 \begin{successbox}[Caso d'Uso Reale: XCON/R1 alla Digital Equipment Corporation]
-Uno degli esempi più celebri di successo commerciale dei sistemi a produzione è XCON (eXpert CONfigurer), sviluppato alla Digital Equipment Corporation (DEC) nei primi anni '80.
+Uno degli esempi più celebri di successo commerciale dei sistemi esperti basati su regole è XCON (eXpert CONfigurer), sviluppato alla Digital Equipment Corporation (DEC) nei primi anni '80.
 
 \textbf{Il Problema}: DEC vendeva sistemi VAX altamente configurabili — potevi scegliere tra centinaia di componenti hardware (CPU, memoria, dischi, controller, cavi, cabinet). Configurare un sistema valido richiedeva enorme esperienza: bisognava verificare compatibilità elettriche, limiti di potenza, lunghezze cavi, slot disponibili. Un errore significava spedire hardware incompatibile al cliente, con costi di reso e reputazione danneggiata.
 
@@ -243,7 +243,7 @@ Un sistema a produzione termina se e solo se esiste un $k \in \mathbb{N}$ tale c
 \end{proof}
 
 \begin{warningbox}[Non Determinismo]
-In generale, sistemi a produzione possono essere \textbf{non-deterministici}: l'ordine di esecuzione dipende dalla strategia $\sigma$ e può influenzare il risultato finale.
+In generale, i sistemi esperti basati su regole possono essere \textbf{non-deterministici}: l'ordine di esecuzione dipende dalla strategia $\sigma$ e può influenzare il risultato finale.
 \end{warningbox}
 
 \begin{teorema}[Confluenza]
@@ -495,7 +495,7 @@ Viene espanso in:
 
 \section{Vantaggi e Svantaggi}
 
-\subsection{Vantaggi dei Production Systems}
+\subsection{Vantaggi dei Sistemi Esperti Basati su Regole}
 
 \begin{enumerate}
 \item \textbf{Modularità}
@@ -561,13 +561,13 @@ Viene espanso in:
 
 \section{Confronto con Altri Paradigmi}
 
-\subsection{Production Systems vs Sistemi Procedurali}
+\subsection{Sistemi Esperti vs Sistemi Procedurali}
 
 \begin{table}[h]
 \centering
 \begin{tabular}{@{}lll@{}}
 \toprule
-\textbf{Aspetto} & \textbf{Production System} & \textbf{Procedurale} \\
+\textbf{Aspetto} & \textbf{Sistema Esperto} & \textbf{Procedurale} \\
 \midrule
 Controllo & Data-driven & Control-flow esplicito \\
 Modularità & Alta (regole indipendenti) & Bassa (chiamate funzioni) \\
@@ -577,11 +577,11 @@ Performance & Variabile (dipende da RETE) & Prevedibile \\
 Debugging & Complesso (emergent behavior) & Diretto (stack trace) \\
 \bottomrule
 \end{tabular}
-\caption{Confronto Production Systems vs Programmazione Procedurale}
+\caption{Confronto Sistemi Esperti vs Programmazione Procedurale}
 \label{tab:prod_vs_proc}
 \end{table}
 
-\subsection{Production Systems vs Sistemi Logici (Prolog)}
+\subsection{Sistemi Esperti vs Sistemi Logici (Prolog)}
 
 \begin{table}[h]
 \centering
@@ -603,7 +603,7 @@ Persistenza & Fatti persistono & Backtrack annulla \\
 
 \section{Domini Applicativi}
 
-I sistemi a produzione sono particolarmente adatti per:
+I sistemi esperti basati su regole sono particolarmente adatti per:
 
 \subsection{Configurazione e Pianificazione}
 
@@ -663,7 +663,7 @@ I sistemi a produzione sono particolarmente adatti per:
 2025 & SLIPS 1.0 - traduzione Swift \\
 \bottomrule
 \end{tabular}
-\caption{Timeline evoluzione sistemi a produzione}
+\caption{Timeline evoluzione sistemi esperti basati su regole}
 \label{tab:timeline}
 \end{table}
 
@@ -690,7 +690,7 @@ Tuttavia, nel XXI secolo si assiste a una rinascita come:
 In questo capitolo abbiamo:
 
 \begin{itemize}
-\item Definito formalmente i sistemi a produzione
+\item Definito formalmente i sistemi esperti basati su regole
 \item Introdotto il ciclo recognize-act
 \item Presentato pattern matching e unificazione
 \item Analizzato il problema della complessità

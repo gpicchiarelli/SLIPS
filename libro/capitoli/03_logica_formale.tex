@@ -1,11 +1,11 @@
-% Capitolo 3: Logica Formale per Sistemi a Produzione
+% Capitolo 3: Logica Formale per Sistemi Esperti
 
 \chapter{Fondamenti di Logica Formale}
 \label{cap:logica_formale}
 
 \section{Introduzione}
 
-I sistemi a produzione si basano su solide fondamenta di logica formale. In questo capitolo esploreremo i principi logici che sottendono il ragionamento automatico, dal calcolo proposizionale alla logica del primo ordine, fornendo gli strumenti matematici necessari per comprendere la correttezza e la completezza dei sistemi esperti.
+I sistemi esperti basati su regole si fondano su solide basi di logica formale. In questo capitolo esploreremo i principi logici che sottendono il ragionamento automatico, dal calcolo proposizionale alla logica del primo ordine, fornendo gli strumenti matematici necessari per comprendere la correttezza e la completezza dei sistemi esperti.
 
 \subsection{Motivazione}
 
@@ -225,7 +225,7 @@ Se $\varphi$ è vero e $\varphi$ implica $\psi$, allora $\psi$ è vero.
 \frac{\exists x. \varphi \quad \varphi[x/a] \vdash \psi}{\psi} \quad \text{(dove $a$ è fresco)}
 \end{equation}
 
-\section{Sistemi a Produzione come Logica}
+\section{Sistemi Esperti come Logica}
 
 \subsection{Rappresentazione Logica delle Regole}
 
@@ -321,7 +321,7 @@ Questa assunzione è usata nei database e in CLIPS per la negazione (\texttt{not
 
 \subsection{Ragionamento Temporale}
 
-I sistemi a produzione operano nel tempo:
+I sistemi esperti basati su regole operano nel tempo:
 \begin{itemize}
 \item Lo stato della WM cambia ad ogni ciclo
 \item Le regole hanno effetti temporali
@@ -547,7 +547,7 @@ Queste limitazioni garantiscono decidibilità e efficienza.
 \subsection{Punti Chiave}
 
 \begin{enumerate}
-\item La logica formale fornisce le \textbf{fondamenta teoriche} dei sistemi a produzione
+\item La logica formale fornisce le \textbf{fondamenta teoriche} dei sistemi esperti basati su regole
 \item L'\textbf{unificazione} è l'operazione centrale per il pattern matching
 \item La \textbf{risoluzione} offre un metodo di inferenza completo
 \item I sistemi reali richiedono estensioni della logica classica
