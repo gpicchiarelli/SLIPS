@@ -1,0 +1,368 @@
+Building for debugging...
+[0/4] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.19s)
+Test Suite 'All tests' started at 2025-10-17 22:53:08.521.
+Test Suite 'SLIPSPackageTests.xctest' started at 2025-10-17 22:53:08.525.
+Test Suite 'AgendaStrategyTests' started at 2025-10-17 22:53:08.525.
+Test Case '-[SLIPSTests.AgendaStrategyTests testDepthVsBreadth]' started.
+Test Case '-[SLIPSTests.AgendaStrategyTests testDepthVsBreadth]' passed (0.007 seconds).
+Test Suite 'AgendaStrategyTests' passed at 2025-10-17 22:53:08.532.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.007 (0.007) seconds
+Test Suite 'CLIPSEquivalenceTests' started at 2025-10-17 22:53:08.532.
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testBasicScaffold]' started.
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testBasicScaffold]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testFeatureProgramsIfPresent]' started.
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testFeatureProgramsIfPresent]' passed (0.021 seconds).
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testFileUtilDribbleAndBatch]' started.
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testFileUtilDribbleAndBatch]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testLoadSimpleClp]' started.
+Test Case '-[SLIPSTests.CLIPSEquivalenceTests testLoadSimpleClp]' passed (0.001 seconds).
+Test Suite 'CLIPSEquivalenceTests' passed at 2025-10-17 22:53:08.555.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.022 (0.023) seconds
+Test Suite 'ConsoleListingTests' started at 2025-10-17 22:53:08.555.
+Test Case '-[SLIPSTests.ConsoleListingTests testAgendaListsActivations]' started.
+Test Case '-[SLIPSTests.ConsoleListingTests testAgendaListsActivations]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ConsoleListingTests testFactsFilterByTemplate]' started.
+Test Case '-[SLIPSTests.ConsoleListingTests testFactsFilterByTemplate]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ConsoleListingTests testRulesFilterByName]' started.
+Test Case '-[SLIPSTests.ConsoleListingTests testRulesFilterByName]' passed (0.000 seconds).
+Test Suite 'ConsoleListingTests' passed at 2025-10-17 22:53:08.556.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ConstructsTests' started at 2025-10-17 22:53:08.556.
+Test Case '-[SLIPSTests.ConstructsTests testTemplateAndFacts]' started.
+Test Case '-[SLIPSTests.ConstructsTests testTemplateAndFacts]' passed (0.000 seconds).
+Test Suite 'ConstructsTests' passed at 2025-10-17 22:53:08.556.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'DeffactsTests' started at 2025-10-17 22:53:08.556.
+Test Case '-[SLIPSTests.DeffactsTests testDeffactsAndReset]' started.
+Test Case '-[SLIPSTests.DeffactsTests testDeffactsAndReset]' passed (0.000 seconds).
+Test Suite 'DeffactsTests' passed at 2025-10-17 22:53:08.557.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'EvalTests' started at 2025-10-17 22:53:08.557.
+Test Case '-[SLIPSTests.EvalTests testArithmetic]' started.
+Test Case '-[SLIPSTests.EvalTests testArithmetic]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.EvalTests testLogic]' started.
+Test Case '-[SLIPSTests.EvalTests testLogic]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.EvalTests testPrintout]' started.
+Test Case '-[SLIPSTests.EvalTests testPrintout]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.EvalTests testSymbolsAndStrings]' started.
+Test Case '-[SLIPSTests.EvalTests testSymbolsAndStrings]' passed (0.000 seconds).
+Test Suite 'EvalTests' passed at 2025-10-17 22:53:08.558.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'JoinWhitelistStableTests' started at 2025-10-17 22:53:08.559.
+Test Case '-[SLIPSTests.JoinWhitelistStableTests testStableDetectionAndWhitelistActivation]' started.
+/Users/gpicchiarelli/Documents/SLIPS/Tests/SLIPSTests/JoinWhitelistStableTests.swift:20: error: -[SLIPSTests.JoinWhitelistStableTests testStableDetectionAndWhitelistActivation] : XCTAssertTrue failed
+/Users/gpicchiarelli/Documents/SLIPS/Tests/SLIPSTests/JoinWhitelistStableTests.swift:25: error: -[SLIPSTests.JoinWhitelistStableTests testStableDetectionAndWhitelistActivation] : XCTAssertEqual failed: ("3") is not equal to ("1")
+Test Case '-[SLIPSTests.JoinWhitelistStableTests testStableDetectionAndWhitelistActivation]' failed (0.050 seconds).
+Test Suite 'JoinWhitelistStableTests' failed at 2025-10-17 22:53:08.608.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.050 (0.050) seconds
+Test Suite 'MathFunctionsTests' started at 2025-10-17 22:53:08.608.
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsFloat]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsFloat]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsNegative]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsNegative]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsPositive]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAbsPositive]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAcos]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAcos]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAcosDomainError]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAcosDomainError]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAcosh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAcosh]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAsin]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAsin]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAsinh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAsinh]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAtan2]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAtan2]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAtan]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAtan]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testAtanh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testAtanh]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testCircleArea]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testCircleArea]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testCos]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testCos]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testCosh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testCosh]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testCosPi]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testCosPi]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRad90]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRad90]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRad]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRad]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRadRoundtrip]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testDegRadRoundtrip]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testExp]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testExp]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testExpOne]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testExpOne]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testLog10]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testLog10]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testLog]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testLog]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testLogDomainError]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testLogDomainError]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testLogExpInverse]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testLogExpInverse]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testModDivisionByZero]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testModDivisionByZero]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testModFloat]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testModFloat]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testModNegative]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testModNegative]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testModPositive]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testModPositive]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testPi]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testPi]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testPow]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testPow]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testPowFractional]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testPowFractional]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testPowNegative]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testPowNegative]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testPythagorean]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testPythagorean]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRadDeg]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRadDeg]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRadDegPiHalf]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRadDegPiHalf]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundDown]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundDown]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundHalfNegative]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundHalfNegative]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundHalfPositive]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundHalfPositive]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundUp]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testRoundUp]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSin]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSin]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSinCosIdentity]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSinCosIdentity]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSinh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSinh]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSinPiHalf]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSinPiHalf]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrt2]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrt2]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrt]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrt]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrtDomainError]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testSqrtDomainError]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testTan]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testTan]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MathFunctionsTests testTanh]' started.
+Test Case '-[SLIPSTests.MathFunctionsTests testTanh]' passed (0.001 seconds).
+Test Suite 'MathFunctionsTests' passed at 2025-10-17 22:53:08.631.
+	 Executed 48 tests, with 0 failures (0 unexpected) in 0.018 (0.023) seconds
+Test Suite 'ModuleAwareAgendaTests' started at 2025-10-17 22:53:08.631.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testActivationGetsModuleName]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testActivationGetsModuleName]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFilterAgendaByModule]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFilterAgendaByModule]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFocusCommandChangesPriority]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFocusCommandChangesPriority]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFocusStackSorting]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testFocusStackSorting]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testMultiModuleActivationOrder]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testMultiModuleActivationOrder]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testRuleGetsModuleName]' started.
+Test Case '-[SLIPSTests.ModuleAwareAgendaTests testRuleGetsModuleName]' passed (0.000 seconds).
+Test Suite 'ModuleAwareAgendaTests' passed at 2025-10-17 22:53:08.637.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'ModulesTests' started at 2025-10-17 22:53:08.637.
+Test Case '-[SLIPSTests.ModulesTests testAgendaWithModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testAgendaWithModule]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testCannotCreateDuplicateModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testCannotCreateDuplicateModule]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testCreateNewModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testCreateNewModule]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleParsing]' started.
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleParsing]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleWithExport]' started.
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleWithExport]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleWithImport]' started.
+Test Case '-[SLIPSTests.ModulesTests testDefmoduleWithImport]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testFocusCommand]' started.
+Test Case '-[SLIPSTests.ModulesTests testFocusCommand]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testFocusMultipleModules]' started.
+Test Case '-[SLIPSTests.ModulesTests testFocusMultipleModules]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testFocusPushAndPop]' started.
+Test Case '-[SLIPSTests.ModulesTests testFocusPushAndPop]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testFocusStackInitiallyEmpty]' started.
+Test Case '-[SLIPSTests.ModulesTests testFocusStackInitiallyEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testFocusStackMultiplePushes]' started.
+Test Case '-[SLIPSTests.ModulesTests testFocusStackMultiplePushes]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentFocusModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentFocusModule]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentModule]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentModuleCommand]' started.
+Test Case '-[SLIPSTests.ModulesTests testGetCurrentModuleCommand]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testGetDefmoduleListCommand]' started.
+Test Case '-[SLIPSTests.ModulesTests testGetDefmoduleListCommand]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testListDefmodules]' started.
+Test Case '-[SLIPSTests.ModulesTests testListDefmodules]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testListDefmodulesCommand]' started.
+Test Case '-[SLIPSTests.ModulesTests testListDefmodulesCommand]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testMainModuleCreatedByDefault]' started.
+Test Case '-[SLIPSTests.ModulesTests testMainModuleCreatedByDefault]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testModuleItemsRegistered]' started.
+Test Case '-[SLIPSTests.ModulesTests testModuleItemsRegistered]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testModuleWithRules]' started.
+Test Case '-[SLIPSTests.ModulesTests testModuleWithRules]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ModulesTests testSetCurrentModule]' started.
+Test Case '-[SLIPSTests.ModulesTests testSetCurrentModule]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ModulesTests testSetCurrentModuleCommand]' started.
+Test Case '-[SLIPSTests.ModulesTests testSetCurrentModuleCommand]' passed (0.000 seconds).
+Test Suite 'ModulesTests' passed at 2025-10-17 22:53:08.651.
+	 Executed 22 tests, with 0 failures (0 unexpected) in 0.011 (0.014) seconds
+Test Suite 'MultifieldAdvancedTests' started at 2025-10-17 22:53:08.651.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testCrossSlotVariableSharingWithSequence]' started.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testCrossSlotVariableSharingWithSequence]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testExistsWithSequence]' started.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testExistsWithSequence]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testNotWithSequence]' started.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testNotWithSequence]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testRetractRemovesTokensForSequenceRule]' started.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testRetractRemovesTokensForSequenceRule]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testSegmentedMultislotBindsMultipleMfVars]' started.
+Test Case '-[SLIPSTests.MultifieldAdvancedTests testSegmentedMultislotBindsMultipleMfVars]' passed (0.001 seconds).
+Test Suite 'MultifieldAdvancedTests' passed at 2025-10-17 22:53:08.656.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'MultifieldFunctionsTests' started at 2025-10-17 22:53:08.656.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteAll]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteAll]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteFirst]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteFirst]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteLast]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteLast]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteRange]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteRange]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteSingle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testDeleteSingle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeEmpty]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeImplodeRoundtrip]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeImplodeRoundtrip]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeMixed]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeMixed]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeNumbers]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeNumbers]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeSimple]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeSimple]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeWhitespace]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testExplodeWhitespace]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstBasic]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstBasic]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstSingle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testFirstSingle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeMixed]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeMixed]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeNumbers]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeNumbers]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeSimple]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeSimple]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeStrings]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testImplodeStrings]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertBeginning]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertBeginning]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertEnd]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertEnd]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertMiddle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertMiddle]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertMultiple]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testInsertMultiple]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthMultiple]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthMultiple]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthOfInsert]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthOfInsert]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthSingle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testLengthSingle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberFirst]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberFirst]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberFound]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberFound]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberLast]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberLast]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberNotFound]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMemberNotFound]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMultifieldChaining]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMultifieldChaining]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMultifieldInPattern]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testMultifieldInPattern]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthBasic]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthBasic]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthLast]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthLast]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthMiddle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthMiddle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthOfSubseq]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthOfSubseq]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthOutOfBounds]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testNthOutOfBounds]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestBasic]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestBasic]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestEmpty]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestEmpty]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestSingle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestSingle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestTwo]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testRestTwo]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqFirst]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqFirst]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqFullRange]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqFullRange]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqMiddle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqMiddle]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqSingle]' started.
+Test Case '-[SLIPSTests.MultifieldFunctionsTests testSubseqSingle]' passed (0.000 seconds).
+Test Suite 'MultifieldFunctionsTests' passed at 2025-10-17 22:53:08.676.
+	 Executed 47 tests, with 0 failures (0 unexpected) in 0.016 (0.020) seconds
+Test Suite 'NotUnboundVarTests' started at 2025-10-17 22:53:08.676.
+Test Case '-[SLIPSTests.NotUnboundVarTests testNotWithUnboundVariable]' started.
+Test Case '-[SLIPSTests.NotUnboundVarTests testNotWithUnboundVariable]' passed (0.001 seconds).
+Test Suite 'NotUnboundVarTests' passed at 2025-10-17 22:53:08.677.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'PerfDeltaNotExistsTests' started at 2025-10-17 22:53:08.677.
+Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfExistsUnaryActivation]' started.
+/Users/gpicchiarelli/Documents/SLIPS/Tests/SLIPSTests/PerfDeltaNotExistsTests.swift:10: Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfExistsUnaryActivation]' measured [Time, seconds] average: 0.004, relative standard deviation: 23.812%, values: [0.004543, 0.004873, 0.002140, 0.002326, 0.004227, 0.003642, 0.004079, 0.004547, 0.004945, 0.004577], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , polarity: prefers smaller, maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
+Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfExistsUnaryActivation]' passed (0.295 seconds).
+Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfNotUnaryActivation]' started.
+/Users/gpicchiarelli/Documents/SLIPS/Tests/SLIPSTests/PerfDeltaNotExistsTests.swift:24: Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfNotUnaryActivation]' measured [Time, seconds] average: 0.004, relative standard deviation: 10.355%, values: [0.003815, 0.003216, 0.004049, 0.003751, 0.002920, 0.003633, 0.003112, 0.003918, 0.003183, 0.003570], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , polarity: prefers smaller, maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
+Test Case '-[SLIPSTests.PerfDeltaNotExistsTests testPerfNotUnaryActivation]' passed (0.290 seconds).
+Test Suite 'PerfDeltaNotExistsTests' passed at 2025-10-17 22:53:09.261.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.584 (0.584) seconds
+Test Suite 'ReteAlphaTests' started at 2025-10-17 22:53:09.261.
+Test Case '-[SLIPSTests.ReteAlphaTests testAlphaIndexUpdatesOnAssertRetract]' started.
+Test Case '-[SLIPSTests.ReteAlphaTests testAlphaIndexUpdatesOnAssertRetract]' passed (0.000 seconds).
+Test Suite 'ReteAlphaTests' passed at 2025-10-17 22:53:09.261.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'ReteDeltaRetractTests' started at 2025-10-17 22:53:09.261.
+Test Case '-[SLIPSTests.ReteDeltaRetractTests testMultiLevelDeltaRetractRemovesOnlyAffectedTokens]' started.
+Test Case '-[SLIPSTests.ReteDeltaRetractTests testMultiLevelDeltaRetractRemovesOnlyAffectedTokens]' passed (0.002 seconds).
+Test Suite 'ReteDeltaRetractTests' passed at 2025-10-17 22:53:09.263.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'ReteExplicitNodesTests' started at 2025-10-17 22:53:09.264.
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAlphaNodeCreationAndSharing]' started.
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAlphaNodeCreationAndSharing]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAlphaNodeWithConstants]' started.
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAlphaNodeWithConstants]' passed (0.001 seconds).
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAssertPropagation]' started.
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testAssertPropagation]' passed (0.000 seconds).
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testBetaMemoryPersistence]' started.
+/Users/gpicchiarelli/Documents/SLIPS/Tests/SLIPSTests/ReteExplicitNodesTests.swift:144: error: -[SLIPSTests.ReteExplicitNodesTests testBetaMemoryPersistence] : XCTAssertEqual failed: ("0") is not equal to ("1")
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testBetaMemoryPersistence]' failed (0.001 seconds).
+Test Case '-[SLIPSTests.ReteExplicitNodesTests testComplexNetworkWith5Levels]' started.
+◇ Test run started.
+↳ Testing Library Version: 1085
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

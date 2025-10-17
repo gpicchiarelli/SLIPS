@@ -64,7 +64,8 @@ public enum RuleEngine {
 
     public static func onAssert(_ env: inout Environment, _ fact: Environment.FactRec) {
         // FASE 1: Usa Propagation engine se flag esplicito è attivo
-        if env.useExplicitReteNodes {
+        // NOTA: Se experimentalJoinCheck è attivo, usiamo il percorso legacy che ha i controlli di stabilità
+        if env.useExplicitReteNodes && !env.experimentalJoinCheck {
             // Aggiungi al vecchio alpha index (per backward compatibility)
             env.rete.alpha.add(fact)
             
@@ -138,7 +139,17 @@ public enum RuleEngine {
                 } else {
                     added = BetaEngine.updateGraphOnAssert(&env, ruleName: rule.name, compiled: cr, facts: pool)
                 }
-                // Attivazioni via RETE o fallback exists-only
+                // Per coerenza con join-check, riallinea la memoria terminale con una ricostruzione completa
+                // IMPORTANTE: questo deve essere fatto PRIMA del check di stabilità
+                if env.experimentalJoinCheck {
+                    let allFacts = Array(env.facts.values)
+                    // Riallinea la snapshot terminale con il calcolo completo
+                    let ms = BetaEngine.computeMatches(&env, compiled: cr, facts: allFacts)
+                    let toks = ms.map { BetaToken(bindings: $0.bindings, usedFacts: $0.usedFacts) }
+                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map { BetaEngine.tokenKeyHash64($0) })
+                    env.rete.beta[rule.name] = mem
+                }
+                // Verifica stabilità DOPO il riallineamento
                 if let mem = env.rete.beta[rule.name] {
                     let jList = mem.tokens.map { PartialMatch(bindings: $0.bindings, usedFacts: $0.usedFacts) }
                     if env.experimentalJoinCheck {
@@ -185,15 +196,6 @@ public enum RuleEngine {
                             }
                         }
                     }
-                }
-                // Per coerenza con join-check, riallinea la memoria terminale con una ricostruzione completa
-                if env.experimentalJoinCheck {
-                    let allFacts = Array(env.facts.values)
-                    // Riallinea la snapshot terminale con il calcolo completo
-                    let ms = BetaEngine.computeMatches(&env, compiled: cr, facts: allFacts)
-                    let toks = ms.map { BetaToken(bindings: $0.bindings, usedFacts: $0.usedFacts) }
-                    let mem = BetaMemory(); mem.tokens = toks; mem.keyIndex = Set(toks.map { BetaEngine.tokenKeyHash64($0) })
-                    env.rete.beta[rule.name] = mem
                 }
             } else {
                 // Percorso standard: solo naive

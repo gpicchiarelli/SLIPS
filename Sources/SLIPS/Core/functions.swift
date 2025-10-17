@@ -365,7 +365,8 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         }
         
         // FASE 1: Usa Propagation engine se flag esplicito è attivo
-        if env.useExplicitReteNodes {
+        // NOTA: Se experimentalJoinCheck è attivo, usiamo il percorso legacy che ha i controlli di stabilità
+        if env.useExplicitReteNodes && !env.experimentalJoinCheck {
             Propagation.propagateRetract(factID: Int(id), env: &env)
             // Aggiorna anche alpha index tradizionale per backward compatibility
             env.rete.alpha.remove(fact)

@@ -24,3 +24,4 @@ jobs:
         fail-on-severity: moderate
         comment-summary-in-pr: true
 
+

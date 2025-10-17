@@ -166,3 +166,4 @@ jobs:
         # Esegui verifica (non bloccante)
         pa11y-ci --config .pa11y.json || echo "⚠️  Alcune verifiche di accessibilità non sono passate"
 
+

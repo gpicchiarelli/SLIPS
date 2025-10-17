@@ -147,9 +147,9 @@ public enum CLIPS {
         env.initializeModules()
         // Strategia agenda di default
         env.agendaQueue.setStrategy(.depth)
-        // Abilita join-check e attivazione via RETE di default su regole stabili
-        env.experimentalJoinCheck = true
-        env.joinActivateDefaultOnStable = true
+        // NOTA: experimentalJoinCheck è false di default, può essere attivato con (set-join-check on)
+        // env.experimentalJoinCheck = false  // default value
+        env.joinActivateDefaultOnStable = false  // Cambiato a false per usare percorso esplicito di default
         currentEnv = env
         return env
     }
