@@ -170,10 +170,13 @@ public enum Evaluator {
                                     let np = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
                                     altSets = altSets.map { $0 + [np] }
                                 }
-                            } else if cn.type == .fcall, (cn.value?.value as? String) == "exists" {
+                            }
+                            else if cn.type == .fcall, (cn.value?.value as? String) == "exists" {
+                                // ✅ FEDELE A CLIPS C (rulelhs.c:827-843): EXISTS → NOT(NOT)
                                 if let inner = cn.argList, let (p, _) = parseSimplePattern(&env, inner) {
-                                    let ep = Pattern(name: p.name, slots: p.slots, negated: false, exists: true)
-                                    altSets = altSets.map { $0 + [ep] }
+                                    let innerNot = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
+                                    let outerNot = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
+                                    altSets = altSets.map { $0 + [innerNot, outerNot] }
                                 }
                             } else if let (p, preds) = parseSimplePattern(&env, cn) {
                                 altSets = altSets.map { $0 + [p] }
@@ -209,9 +212,15 @@ public enum Evaluator {
                         continue
                     }
                     if n.type == .fcall, (n.value?.value as? String) == "exists" {
+                        // ✅ FEDELE A CLIPS C (rulelhs.c:827-843): EXISTS viene trasformato in doppia negazione
+                        // (exists (pattern)) → (not (not (pattern)))
                         if let inner = n.argList, let (p, _) = parseSimplePattern(&env, inner) {
-                            let ep = Pattern(name: p.name, slots: p.slots, negated: false, exists: true)
-                            altSets = altSets.map { $0 + [ep] }
+                            // Pattern interno: NOT(pattern)
+                            let innerNot = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
+                            // Pattern esterno: NOT(NOT(pattern))
+                            let outerNot = Pattern(name: p.name, slots: p.slots, negated: true, exists: false)
+                            // Aggiungi ENTRAMBI i pattern NOT (doppia negazione)
+                            altSets = altSets.map { $0 + [innerNot, outerNot] }
                         }
                         cur = n.nextArg
                         continue

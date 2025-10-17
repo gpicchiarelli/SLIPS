@@ -200,99 +200,19 @@ public enum Propagation {
         return bindings
     }
     
-    /// Rimuovi token che contengono un factID specifico
-    /// Ritorna il numero di token rimossi
-    private static func removeTokensWithFact(
-        factID: Int,
-        fromProduction productionNode: ProductionNode,
-        ruleName: String,
-        env: inout Environment
-    ) -> Int {
-        var removed = 0
-        
-        // Naviga i predecessori del production node per trovare beta memories
-        // Per ora, usa una ricerca nelle beta memories dell'environment
-        
-        // Cerca nella beta memory principale per questa regola
-        if let betaMemory = env.rete.beta[ruleName] {
-            let beforeCount = betaMemory.tokens.count
-            
-            // Rimuovi token che usano il facto
-            betaMemory.tokens.removeAll { token in
-                token.usedFacts.contains(factID)
-            }
-            
-            // Rigenera keyIndex
-            betaMemory.keyIndex.removeAll()
-            betaMemory.hashBuckets.removeAll()
-            for (index, token) in betaMemory.tokens.enumerated() {
-                let hash = BetaEngine.tokenKeyHash64(token)
-                betaMemory.keyIndex.insert(hash)
-                
-                // Rigenera hash bucket
-                var hasher = Hasher()
-                for key in token.bindings.keys.sorted() {
-                    hasher.combine(key)
-                }
-                let joinHash = UInt(hasher.finalize())
-                betaMemory.hashBuckets[joinHash, default: []].append(index)
-            }
-            
-            removed = beforeCount - betaMemory.tokens.count
-        }
-        
-        // Cerca nelle beta memories per livello
-        if let leveledMemories = env.rete.betaLevels[ruleName] {
-            for (_, betaMemory) in leveledMemories {
-                let beforeCount = betaMemory.tokens.count
-                
-                betaMemory.tokens.removeAll { token in
-                    token.usedFacts.contains(factID)
-                }
-                
-                // Rigenera indici
-                betaMemory.keyIndex.removeAll()
-                betaMemory.hashBuckets.removeAll()
-                for (index, token) in betaMemory.tokens.enumerated() {
-                    let hash = BetaEngine.tokenKeyHash64(token)
-                    betaMemory.keyIndex.insert(hash)
-                    
-                    var hasher = Hasher()
-                    for key in token.bindings.keys.sorted() {
-                        hasher.combine(key)
-                    }
-                    let joinHash = UInt(hasher.finalize())
-                    betaMemory.hashBuckets[joinHash, default: []].append(index)
-                }
-                
-                removed += beforeCount - betaMemory.tokens.count
-            }
-        }
-        
-        return removed
-    }
-    
     /// Gestisce propagazione retract per NOT nodes
     /// Un retract può rendere vera una condizione NOT precedentemente falsa
-    /// (ref: UpdateBetaForNOT in drive.c se presente, altrimenti logica inferita)
+    /// Ref: DriveRetractions in drive.c
     private static func propagateRetractToNotNodes(
         factID: Int,
         env: inout Environment
     ) {
-        // Per ogni NOT node nella rete, verifica se il fatto rimosso
-        // stava bloccando qualche token
-        
-        // Questa è una logica complessa che richiede:
-        // 1. Trovare tutti i NOT nodes
-        // 2. Per ogni NOT node, trovare i token predecessori che erano bloccati
-        // 3. Riattivare quei token se ora la condizione NOT è vera
-        
-        // Implementazione placeholder:
-        // Per ora, segna che potrebbe essere necessario un rebuild agenda
-        // nella logica esistente (RuleEngine.onRetract lo gestisce già)
+        // TODO: Implementare logica NOT retract secondo drive.c
+        // Per ora, la rimozione dalle alpha memories è sufficiente
+        // perché i NOT nodes verificano contro alpha memory
         
         if env.watchRete {
-            print("[RETE Retract]   NOT node propagation: handled by existing logic")
+            print("[RETE Retract]   NOT node propagation: alpha memories updated")
         }
     }
     

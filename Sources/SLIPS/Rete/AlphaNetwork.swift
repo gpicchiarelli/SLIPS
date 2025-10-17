@@ -97,27 +97,21 @@ public struct CompiledRule {
 }
 
 public struct ReteNetwork {
-    public var alpha: AlphaIndex = AlphaIndex()
-    public var rules: [String: CompiledRule] = [:]
-    public var beta: [String: BetaMemory] = [:]
-    // Memorie beta per livello di join: ruleName -> (levelIndex -> BetaMemory)
-    public var betaLevels: [String: [Int: BetaMemory]] = [:]
-    // Grafo dei nodi della rete per regola (scaffold esplicito per mappatura 1:1 con CLIPS)
-    public var graphs: [String: RuleGraph] = [:]
+    // Sistema RETE esplicito (unico percorso, come in CLIPS C)
+    // Ref: pattern.h (alpha nodes), network.h (join nodes, beta memory)
     
-    // FASE 1: Nodi espliciti class-based per RETE completa
-    // (ref: pattern.h, network.h in CLIPS)
-    /// Alpha nodes condivisi per pattern signature
+    /// Alpha nodes: pattern matching su singoli template
+    /// Ref: struct patternNodeHeader in pattern.h
     public var alphaNodes: [String: AlphaNodeClass] = [:]
-    /// Production nodes terminali per regola
+    
+    /// Production nodes: regole compilate
+    /// Ref: struct defrule *ruleToActivate in network.h joinNode
     public var productionNodes: [String: ProductionNode] = [:]
     
-    // Config di rete
-    public struct ReteConfig { 
-        public var enableHeuristicOrder: Bool = false
-        public var heuristicWhitelist: Set<String> = []
-    }
-    public var config: ReteConfig = ReteConfig()
+    /// Alpha index (per ricerca rapida fatti per template)
+    /// Ref: factmngr.c - hash table per template lookups
+    public var alpha: AlphaIndex = AlphaIndex()
+    
     public init() {}
 }
 

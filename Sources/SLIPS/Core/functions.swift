@@ -364,39 +364,10 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             Router.Writeln(&env, ")")
         }
         
-        // FASE 1: Usa Propagation engine se flag esplicito è attivo
-        // NOTA: Se experimentalJoinCheck è attivo, usiamo il percorso legacy che ha i controlli di stabilità
-        if env.useExplicitReteNodes && !env.experimentalJoinCheck {
-            Propagation.propagateRetract(factID: Int(id), env: &env)
-            // Aggiorna anche alpha index tradizionale per backward compatibility
-            env.rete.alpha.remove(fact)
-            return .boolean(true)  // ✅ Come CLIPS C: retract ritorna TRUE se successo
-        }
-        
-        // Logica esistente (backward compatibility)
+        // Propaga retract attraverso rete RETE (unico percorso, come in CLIPS C)
+        // Ref: NetworkRetract in drive.c
         env.rete.alpha.remove(fact)
-        if env.experimentalJoinCheck || env.experimentalJoinActivate {
-            for (rname, cr) in env.rete.rules {
-                let hasNegUse = cr.patterns.contains { $0.original.name == fact.name && $0.original.negated }
-                _ = cr.patterns.contains { $0.original.name == fact.name && $0.original.exists }
-                if hasNegUse {
-                    // Per CE negati, il ritiro può sbloccare token: ricostruzione completa
-                    let facts = Array(env.facts.values)
-                    _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
-                } else {
-                    // CE exists parzialmente supportato in delta
-                    BetaEngine.updateGraphOnRetractDelta(&env, ruleName: rname, factID: fact.id)
-                }
-            }
-        }
-        // Rimuovi attivazioni collegate al fatto retratto (incrementale)
-        env.agendaQueue.removeByFactID(fact.id)
-        // Se una regola solo-EXISTS non è più soddisfatta (nessun fatto per il template), rimuovi eventuali attivazioni residue
-        for r in env.rules where r.patterns.count == 1 && r.patterns[0].exists {
-            let tmpl = r.patterns[0].name
-            let hasAny = !(env.rete.alpha.byTemplate[tmpl]?.isEmpty ?? true)
-            if !hasAny { env.agendaQueue.removeByRuleName(r.name) }
-        }
+        Propagation.propagateRetract(factID: Int(id), env: &env)
         return .boolean(true)
     }
     return .boolean(false)
