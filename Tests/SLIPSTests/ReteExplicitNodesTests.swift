@@ -106,7 +106,7 @@ final class ReteExplicitNodesTests: XCTestCase {
         _ = createEnv(watchRete: false)  // Disabilita per test normale
         
         _ = CLIPS.eval(expr: "(deftemplate node (slot id) (slot next))")
-        _ = CLIPS.eval(expr: "(defrule chain (node id ?a next ?b) (node id ?b next ?c) (node id ?c) => (printout t \"chain\"))")
+        _ = CLIPS.eval(expr: "(defrule chain (node (id ?a) (next ?b)) (node (id ?b) (next ?c)) (node (id ?c)) => (printout t \"chain\" crlf))")
         
         // Crea catena: 1 -> 2 -> 3
         _ = CLIPS.eval(expr: "(assert node id 1 next 2)")
@@ -248,7 +248,7 @@ final class ReteExplicitNodesTests: XCTestCase {
         
         // Regola con 5 pattern (semplifico senza test constraints per ora)
         _ = CLIPS.eval(expr: "(deftemplate node (slot id) (slot value))")
-        _ = CLIPS.eval(expr: "(defrule complex-rule (node id 1) (node id 2) (node id 3) (node id 4) (node id 5) => (printout t \"Chain\"))")
+        _ = CLIPS.eval(expr: "(defrule complex-rule (node (id 1)) (node (id 2)) (node (id 3)) (node (id 4)) (node (id 5)) => (printout t \"Chain\" crlf))")
         
         // Assert fatti in ordine crescente
         for i in 1...5 {
