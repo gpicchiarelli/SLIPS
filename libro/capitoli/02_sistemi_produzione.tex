@@ -75,6 +75,26 @@ Regola per assegnare la lode:
 
 \subsection{Il Ciclo Recognize-Act}
 
+Prima di addentrarci nella formalizzazione, vale la pena vedere un sistema a produzione "in azione" con un esempio concreto che mostra la potenza e l'eleganza di questo paradigma.
+
+\begin{successbox}[Caso d'Uso Reale: XCON/R1 alla Digital Equipment Corporation]
+Uno degli esempi più celebri di successo commerciale dei sistemi a produzione è XCON (eXpert CONfigurer), sviluppato alla Digital Equipment Corporation (DEC) nei primi anni '80.
+
+\textbf{Il Problema}: DEC vendeva sistemi VAX altamente configurabili — potevi scegliere tra centinaia di componenti hardware (CPU, memoria, dischi, controller, cavi, cabinet). Configurare un sistema valido richiedeva enorme esperienza: bisognava verificare compatibilità elettriche, limiti di potenza, lunghezze cavi, slot disponibili. Un errore significava spedire hardware incompatibile al cliente, con costi di reso e reputazione danneggiata.
+
+\textbf{La Soluzione}: XCON codificava la conoscenza dei tecnici esperti in circa 2.500 regole di produzione. Ogni regola catturava un pezzo di conoscenza:
+
+\textit{"SE il sistema ha un controller disk X E lo slot è di tipo Y E la distanza dal CPU è > 10m ALLORA usa cavo tipo Z"}
+
+\textit{"SE la potenza totale supera 500W E usi cabinet standard ALLORA aggiungi power supply aggiuntivo"}
+
+Il sistema processava un ordine cliente verificando migliaia di vincoli in pochi minuti, producendo una configurazione validata e completa.
+
+\textbf{L'Impatto}: Nel 1986, XCON configurava il 95\% degli ordini VAX. DEC stimò risparmi di oltre \$25 milioni annui eliminando errori di configurazione, resi, e interventi manuali dei tecnici. Il sistema "conosceva" più di qualsiasi singolo tecnico e non sbagliava mai per distrazione o stanchezza.
+
+Questo è il paradigma a produzione al suo meglio: conoscenza modulare (ogni regola indipendente), dichiarativa (cosa verificare, non come), e robusta (aggiungere una regola non rompe le altre).
+\end{successbox}
+
 L'esecuzione di un sistema a produzione segue il \textit{ciclo recognize-act}:
 
 \begin{algorithm}[H]

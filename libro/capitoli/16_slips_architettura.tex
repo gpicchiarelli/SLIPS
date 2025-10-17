@@ -5,9 +5,13 @@
 
 \section{Principi di Progettazione}
 
-L'architettura di SLIPS si fonda su tre pilastri:
+Progettare l'architettura di SLIPS è stato un esercizio di equilibrismi. Da un lato, la tentazione di "modernizzare" CLIPS — riorganizzare le strutture dati, semplificare i flussi algoritmici, applicare i pattern moderni che Swift rende naturali. Dall'altro, la necessità di mantenere fedeltà semantica a un sistema che ha 35 anni di battle-testing e milioni di linee di codice production che dipendono dal suo comportamento esatto.
+
+Abbiamo scelto una via di mezzo pragmatica: traduzione conservativa con Swift idiomatico dove sensato. Questo si traduce in tre pilastri fondamentali che guidano ogni decisione architett urale.
 
 \subsection{Fedeltà Semantica}
+
+Questa è la nostra stella polare. Se CLIPS produce un certo output, SLIPS deve produrre lo stesso output. Sembra semplice, ma le implicazioni sono profonde.
 
 \begin{definizione}[Equivalenza Comportamentale]
 Per ogni programma CLIPS valido $P$ e input $I$:

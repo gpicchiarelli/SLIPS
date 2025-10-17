@@ -5,13 +5,19 @@
 
 \section{Il Problema del Pattern Matching Efficiente}
 
+Prima di tuffarci nei dettagli tecnici dell'algoritmo RETE, vale la pena soffermarsi sul problema che risolve. Non è un problema teorico da paper accademico — è un ostacolo concreto che ha quasi ucciso i sistemi a produzione sul nascere negli anni '70.
+
+Immaginate di essere un ingegnere che deve costruire un sistema esperto medico. Avete raccolto centinaia di regole diagnostiche da medici esperti, trasformandole in forma if-then. Avete un database di pazienti con i loro sintomi, analisi, storia clinica. Tutto sembra perfetto sulla carta. Poi accendete il sistema e... dopo tre minuti sta ancora processando il primo paziente. Dopo un'ora, siete solo a metà. Proiettate i tempi e realizzate che processare tutti i pazienti richiederebbe giorni.
+
+Questo non è un aneddoto — è esattamente ciò che accadeva con i primi sistemi esperti prima di RETE.
+
 \subsection{Analisi del Problema}
 
-Consideriamo un sistema a produzione con:
+Consideriamo un sistema a produzione realistico con:
 \begin{itemize}
-\item $n$ regole nella production memory
-\item $m$ fatti nella working memory
-\item $k$ condizioni medie per regola
+\item $n$ regole nella production memory (es. 1000 regole diagnostiche)
+\item $m$ fatti nella working memory (es. 10000 fatti su pazienti e sintomi)
+\item $k$ condizioni medie per regola (es. 3 sintomi da verificare)
 \end{itemize}
 
 \subsubsection{Approccio Naïve}
@@ -62,14 +68,20 @@ A 1 GHz (1 confronto/ns), servirebbero:
 
 \subsection{L'Intuizione di Forgy}
 
-Charles Forgy osservò due invarianti critici:
+La storia racconta che Charles Forgy ebbe la sua illuminazione osservando il comportamento reale dei sistemi a produzione. Invece di concentrarsi sulla teoria astratta, guardò cosa accadeva effettivamente, ciclo dopo ciclo, in un sistema in funzione. E notò qualcosa di apparentemente banale ma profondamente importante.
+
+Quando un sistema esperto medico analizza un paziente e conclude "somministrare antibiotico", cosa cambia nella base di conoscenza? Un fatto, forse due. Il paziente ora ha una prescrizione, forse uno stato di trattamento. Ma i suoi 50 sintomi registrati? Immutati. Le sue 20 analisi del sangue? Le stesse. Le 1000 regole nel sistema? Identiche. Eppure, l'approccio naïve ricominciava da zero, verificando tutte le 1000 regole contro tutti i fatti, anche se il 99% era rimasto uguale al ciclo precedente.
+
+Era come se ogni volta che aggiungi una parola a un documento Word, il programma riscannasse l'intero documento da capo per verificare l'ortografia. Ovviamente inefficiente, ma era esattamente ciò che facevano i primi sistemi esperti.
+
+Forgy identificò due invarianti critici, osservazioni empiriche che si rivelavano vere nella stragrande maggioranza dei casi reali:
 
 \begin{osservazione}[Continuità Temporale]
 Tra un ciclo recognize-act e il successivo:
 \begin{itemize}
-\item La maggior parte dei fatti rimane invariata
-\item Solo pochi fatti vengono asseriti o ritratti
-\item Molti match parziali rimangono validi
+\item La maggior parte dei fatti rimane invariata (tipicamente > 95\%)
+\item Solo pochi fatti vengono asseriti o ritratti (1-5\% della WM)
+\item Molti match parziali rimangono validi e potrebbero essere riutilizzati
 \end{itemize}
 
 Formalmente, se $WM_t$ è la working memory al ciclo $t$:
@@ -77,7 +89,7 @@ Formalmente, se $WM_t$ è la working memory al ciclo $t$:
 \frac{|WM_{t+1} \Delta WM_t|}{|WM_t|} \ll 1
 \end{equation}
 
-dove $\Delta$ denota differenza simmetrica.
+dove $\Delta$ denota differenza simmetrica. In pratica, questo rapporto è tipicamente nell'ordine di 0.01-0.05.
 \end{osservazione}
 
 \begin{osservazione}[Similarità Strutturale]

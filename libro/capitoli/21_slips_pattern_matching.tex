@@ -225,7 +225,7 @@ class TestNode: ReteNode {
   (value ?v&:(numberp ?v)&:(> ?v 10)&:(< ?v 100))
   =>
   ...)
-\end{lstlisting>
+\end{lstlisting}
 
 \begin{lstlisting}[language=Swift]
 typealias PredicateFunction = (Value, [String: Value]) -> Bool
@@ -256,7 +256,7 @@ let constraint = Constraint.conjunction([
   (exists (order (status pending)))
   =>
   (printout t "Has pending orders" crlf))
-\end{lstlisting>
+\end{lstlisting}
 
 \begin{lstlisting}[language=Swift]
 class ExistsNode: ReteNode {
@@ -330,7 +330,7 @@ class PatternOptimizer {
         return Pattern(template: pattern.template, constraints: sorted)
     }
 }
-\end{lstlisting>
+\end{lstlisting}
 
 \section{Conclusioni del Capitolo}
 

@@ -7,6 +7,10 @@
 
 La rete alpha è la prima componente dell'algoritmo RETE, responsabile della \textit{discriminazione} dei fatti: determinare quali fatti soddisfano i test intra-elemento dei pattern.
 
+Se RETE fosse un'azienda, la rete alpha sarebbe il reparto che fa la prima scrematura delle candidature. Ricevete mille CV per una posizione, ma solo 50 hanno i requisiti minimi (laurea giusta, anni di esperienza, competenze tecniche). La rete alpha fa esattamente questo: guarda ogni fatto che entra nel sistema e decide rapidamente "questo fatto potrebbe interessare a quali regole?", filtrando via tutto ciò che sicuramente non serve.
+
+L'eleganza sta nel fatto che questa scrematura viene fatta una volta sola per fatto, e il risultato viene riutilizzato da tutte le regole che potrebbero essere interessate. È come avere un assistente HR che legge ogni CV una volta e poi lo smista automaticamente a tutti i manager che cercano quel profilo — invece di far leggere lo stesso CV a dieci manager diversi.
+
 \subsection{Obiettivi della Rete Alpha}
 
 \begin{infobox}[Funzioni Principali]
