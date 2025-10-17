@@ -360,7 +360,7 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
         // Propaga retract attraverso rete RETE (unico percorso, come in CLIPS C)
         // Ref: NetworkRetract in drive.c
         env.rete.alpha.remove(fact)
-        Propagation.propagateRetract(factID: Int(id), env: &env)
+        Propagation.propagateRetract(factID: Int(id), factName: fact.name, env: &env)
         return .boolean(true)
     }
     return .boolean(false)

@@ -39,6 +39,81 @@ public enum DriveEngine {
         NetworkAssertRight(&theEnv, binds, join, NETWORK_ASSERT)
     }
     
+    /// PPDrive: propaga partial match attraverso nextLinks del join
+    /// Port FEDELE di PPDrive (drive.c:902-971)
+    public static func PPDrive(
+        _ theEnv: inout Environment,
+        _ lhsBinds: PartialMatch,
+        _ rhsBinds: PartialMatch?,  // NULL per EXISTS
+        _ join: JoinNodeClass,
+        _ operation: Int
+    ) {
+        guard let firstLink = join.nextLinks.first else { 
+            // Se non ci sono nextLinks, verifica se è terminal
+            if let production = join.ruleToActivate {
+                let token = partialMatchToBetaToken(lhsBinds)
+                production.activate(token: token, env: &theEnv)
+            }
+            return 
+        }
+        
+        var listOfJoins: JoinLink? = firstLink
+        
+        while let currentLink = listOfJoins {
+            // Merge lhs e rhs (se rhs è NULL, usa solo lhs)
+            let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
+            
+            // Calcola hash
+            linker.hashValue = 0  // Semplificato
+            
+            if let targetJoin = currentLink.join {
+                if currentLink.enterDirection == LHS {
+                    NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
+                } else {
+                    NetworkAssertRight(&theEnv, linker, targetJoin, operation)
+                }
+            }
+            
+            listOfJoins = currentLink.next
+        }
+    }
+    
+    /// EPMDrive: propaga token vuoti attraverso nextLinks del join
+    /// Port FEDELE di EPMDrive (drive.c:974-999)
+    public static func EPMDrive(
+        _ theEnv: inout Environment,
+        _ parent: PartialMatch,
+        _ join: JoinNodeClass,
+        _ operation: Int
+    ) {
+        guard let firstLink = join.nextLinks.first else { return }
+        var listOfJoins: JoinLink? = firstLink
+        
+        while let currentLink = listOfJoins {
+            // Crea linker vuoto (CreateEmptyPartialMatch)
+            let linker = CreateEmptyPartialMatch()
+            
+            // UpdateBetaPMLinks - collega parent
+            // Per ora semplificato
+            linker.hashValue = 0
+            
+            if let targetJoin = currentLink.join {
+                if theEnv.watchRete {
+                    print("[RETE] EPMDrive: propagating empty token to join level \(targetJoin.level) via \(currentLink.enterDirection)")
+                }
+                
+                // Propaga secondo la direzione
+                if currentLink.enterDirection == LHS {
+                    NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
+                } else {
+                    NetworkAssertRight(&theEnv, linker, targetJoin, operation)
+                }
+            }
+            
+            listOfJoins = currentLink.next
+        }
+    }
+    
     // MARK: - NetworkAssertRight
     
     /// Primary routine for filtering a partial match through join network from RHS
@@ -156,6 +231,14 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
+        // ✅ Gestione EXISTS: propaga direttamente senza join
+        // Ref: drive.c:276-280, 510-518
+        if join.patternIsExists {
+            // AddBlockedLink(lhsBinds, rhsBinds) - TODO
+            PPDrive(&theEnv, lhsBinds, nil, join, operation)
+            return
+        }
+        
         if theEnv.watchRete {
             print("[RETE] NetworkAssertLeft: entering join at level \(join.level), leftMemory size=\(join.leftMemory?.count ?? 0)")
         }

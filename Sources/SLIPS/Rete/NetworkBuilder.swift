@@ -29,7 +29,7 @@ public enum NetworkBuilder {
         
         var currentLevel = 0
         var currentNode: ReteNode? = nil
-        var firstJoinCreated = false  // Track if we've created the first join
+        var firstJoinNode: JoinNodeClass? = nil  // Track first join for initialization
         var lastJoinNode: JoinNodeClass? = nil  // Track last join for nextLinks
         
         // Per ogni pattern, costruisci la catena di nodi
@@ -66,7 +66,7 @@ public enum NetworkBuilder {
                 // ✅ Se primo pattern, marca firstJoin per EmptyDrive
                 if index == 0 {
                     notJoin.firstJoin = true
-                    firstJoinCreated = true
+                    firstJoinNode = notJoin  // Track for initialization
                     if env.watchRete {
                         print("[RETE Build]     *** NOT first pattern, firstJoin=true for rule '\(rule.name)'")
                     }
@@ -116,7 +116,7 @@ public enum NetworkBuilder {
                 
                 if index == 0 {
                     innerNot.firstJoin = true
-                    firstJoinCreated = true
+                    firstJoinNode = innerNot  // Track for initialization
                 }
                 alphaNode.rightJoinListeners.append(innerNot)
                 
@@ -176,7 +176,7 @@ public enum NetworkBuilder {
                     if index == 0 {
                         // VERO first join: primo pattern della regola
                         joinNode.firstJoin = true
-                        firstJoinCreated = true
+                        firstJoinNode = joinNode  // Track for initialization
                         if env.watchRete {
                             print("[RETE Build]     *** FIRST JOIN marked for rule '\(rule.name)'")
                         }
@@ -271,6 +271,30 @@ public enum NetworkBuilder {
         
         if env.watchRete {
             print("[RETE Build] Network for '\(rule.name)' complete: \(currentLevel + 1) levels")
+        }
+        
+        // ✅ INIZIALIZZAZIONE per NOT/EXISTS come primo pattern
+        // Ref: incrrset.c:245-257, PrimeJoinFromLeftMemory
+        if let firstJoin = firstJoinNode, firstJoin.firstJoin && firstJoin.patternIsNegated {
+            // Primo join è NOT: inizializza con parent vuoto
+            if firstJoin.leftMemory == nil {
+                firstJoin.leftMemory = BetaMemoryHash(initialSize: 17)
+            }
+            let notParent = CreateEmptyPartialMatch()
+            notParent.hashValue = 0
+            firstJoin.leftMemory?.beta[0] = notParent
+            
+            // Verifica se alpha ha fatti
+            if let rightAlpha = firstJoin.rightInput {
+                let alphaHasFacts = !rightAlpha.memory.isEmpty
+                
+                if !alphaHasFacts {
+                    // Alpha vuota: NOT è vera, propaga token vuoto
+                    // Ref: incrrset.c:335 - EPMDrive(notParent, joinPtr, NETWORK_ASSERT)
+                    DriveEngine.EPMDrive(&env, notParent, firstJoin, DriveEngine.NETWORK_ASSERT)
+                }
+                // Se alpha ha fatti: NOT è falsa, non propagare
+            }
         }
         
         return productionNode

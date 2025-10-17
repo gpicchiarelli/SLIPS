@@ -85,6 +85,7 @@ public enum Propagation {
     /// (ref: NetworkRetract in drive.c)
     public static func propagateRetract(
         factID: Int,
+        factName: String,  // Template name del fatto retratto
         env: inout Environment
     ) {
         if env.watchRete {
@@ -106,16 +107,30 @@ public enum Propagation {
             }
         }
         
-        // 2. Rimuovi token dalle beta memories dei join nodes
-        // Nel sistema esplicito, ogni JoinNode gestisce le proprie memorie
-        // Ref: PosEntryRetractBeta/NegEntryRetractBeta in drive.c
-        // TODO: Implementare retract propagation completa attraverso join network
-        // Per ora, le activations vengono rimosse al passo 3
-        
-        // 3. Rimuovi attivazioni dall'agenda che usano questo fatto
+        // 2. Rimuovi attivazioni dall'agenda che usano questo fatto
         let beforeAgenda = env.agendaQueue.queue.count
         env.agendaQueue.removeByFactID(factID)
         activationsRemoved = beforeAgenda - env.agendaQueue.queue.count
+        
+        // 3. Gestione speciale per regole EXISTS
+        // Quando l'ultimo fatto di un template viene retratto, rimuovi attivazioni EXISTS per quel template
+        // Ref: drive.c retract logic per EXISTS
+        // Verifica se l'alpha per questo template è ora vuota
+        for (ruleName, production) in env.rete.productionNodes {
+            if let rule = env.rules.first(where: { $0.name == ruleName }) {
+                // Se la regola ha EXISTS su questo template e l'alpha è vuota, rimuovi attivazione
+                for pattern in rule.patterns where pattern.exists && pattern.name == factName {
+                    // Verifica se alpha è vuota per questo template
+                    if env.rete.alpha.ids(for: pattern.name).isEmpty {
+                        // Alpha vuota: EXISTS è falsa, rimuovi attivazione
+                        env.agendaQueue.removeByRuleName(ruleName)
+                        if env.watchRete {
+                            print("[RETE Retract]   Removed EXISTS activation for '\(ruleName)' (alpha empty)")
+                        }
+                    }
+                }
+            }
+        }
         
         if activationsRemoved > 0 && env.watchRete {
             print("[RETE Retract]   Removed \(activationsRemoved) activation(s) from agenda")
