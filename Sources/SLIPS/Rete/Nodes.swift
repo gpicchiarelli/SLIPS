@@ -434,7 +434,7 @@ public final class BetaMemoryNode: ReteNode {
     /// Attiva: memorizza token se nuovo e propaga
     /// (ref: UpdateBetaMemory in drive.c)
     public func activate(token: BetaToken, env: inout Environment) {
-        let hash = BetaEngine.tokenKeyHash64(token)
+        let hash = tokenKeyHash64(token)
         
         // Deduplica: aggiungi solo se non già presente
         if !memory.keyIndex.contains(hash) {
@@ -585,97 +585,8 @@ public final class NotNodeClass: ReteNode {
 /// Nodo EXISTS per conditional elements esistenziali
 /// Propaga token se EXISTS condition è vera (almeno un fatto matcha)
 /// (ref: struct joinNode con exists flag in network.h)
-public final class ExistsNodeClass: ReteNode {
-    public let id: UUID
-    public let level: Int
-    public let pattern: Pattern
-    /// Alpha node per trovare fatti candidati
-    public let alphaNode: AlphaNodeClass
-    public var successors: [ReteNode] = []
-    
-    public init(
-        pattern: Pattern,
-        alphaNode: AlphaNodeClass,
-        level: Int
-    ) {
-        self.id = UUID()
-        self.level = level
-        self.pattern = pattern
-        self.alphaNode = alphaNode
-    }
-    
-    /// Attiva: propaga token se EXISTS condition è vera
-    /// (ref: EvaluateSecondaryNetworkTest in drive.c)
-    public func activate(token: BetaToken, env: inout Environment) {
-        if env.watchRete {
-            print("[RETE] ExistsNode activate: level=\(level), checking \(alphaNode.memory.count) facts")
-        }
-        
-        // Cerca almeno un fatto che matcha
-        var foundMatch = false
-        
-        for factID in alphaNode.memory {
-            guard let fact = env.facts[factID] else { continue }
-            
-            // Per EXISTS unario senza vincoli, basta che esista un fatto del template
-            if pattern.slots.isEmpty {
-                foundMatch = true
-                break
-            }
-            
-            // Altrimenti verifica match con binding
-            if matchesPattern(fact: fact, bindings: token.bindings, env: &env) {
-                foundMatch = true
-                break
-            }
-        }
-        
-        // Propaga solo se EXISTS trovato
-        if foundMatch {
-            for successor in successors {
-                successor.activate(token: token, env: &env)
-            }
-        }
-    }
-    
-    private func matchesPattern(
-        fact: Environment.FactRec,
-        bindings: [String: Value],
-        env: inout Environment
-    ) -> Bool {
-        guard fact.name == pattern.name else { return false }
-        
-        for (slot, test) in pattern.slots {
-            guard let factValue = fact.slots[slot] else { return false }
-            
-            switch test.kind {
-            case .constant(let v):
-                if v != factValue { return false }
-            case .variable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .mfVariable(let name):
-                if let existing = bindings[name], existing != factValue { return false }
-            case .predicate(let exprNode):
-                let old = env.localBindings
-                env.localBindings = bindings
-                let res = Evaluator.EvaluateExpression(&env, exprNode)
-                env.localBindings = old
-                switch res {
-                case .boolean(let b):
-                    if !b { return false }
-                case .int(let i):
-                    if i == 0 { return false }
-                default:
-                    break
-                }
-            case .sequence:
-                break
-            }
-        }
-        
-        return true
-    }
-}
+// ExistsNodeClass rimosso: EXISTS viene trasformato in NOT(NOT) dal parser
+// Ref: rulelhs.c:827-843 in CLIPS C
 
 /// Nodo produzione terminale che genera attivazioni
 /// Quando un token completo arriva qui, crea un'attivazione nell'agenda

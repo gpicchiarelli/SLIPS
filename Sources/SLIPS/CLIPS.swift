@@ -215,20 +215,10 @@ public enum CLIPS {
 
     @discardableResult
     public static func run(limit: Int? = nil) -> Int {
-        guard let env0 = currentEnv else { return 0 }
-        var env = env0
-        // Se l'agenda è vuota, ricostruisci da stato attuale per catturare CE come 'exists'
-        if env.agendaQueue.isEmpty {
-            RuleEngine.rebuildAgenda(&env)
-        }
+        guard var env = currentEnv else { return 0 }
+        // Nel sistema esplicito, le attivazioni sono create dalla rete RETE durante propagation
+        // Non serve rebuild agenda - tutto è gestito da NetworkAssert/ProductionNode.activate
         let fired = RuleEngine.run(&env, limit: limit)
-        // Se il join-check o l'attivazione via rete sono attivi, riallinea le memorie beta
-        if env.experimentalJoinCheck || env.experimentalJoinActivate || !env.joinActivateWhitelist.isEmpty {
-            let facts = Array(env.facts.values)
-            for (rname, cr) in env.rete.rules {
-                _ = BetaEngine.updateGraphOnAssert(&env, ruleName: rname, compiled: cr, facts: facts)
-            }
-        }
         currentEnv = env
         return fired
     }
@@ -247,24 +237,9 @@ public enum CLIPS {
         } else {
             form = "(assert \(trimmed))"
         }
-        let ret = eval(expr: form)
-        // Fallback: se esistono regole con EXISTS, ricostruisci l'agenda per attivarle correttamente
-        if var env = currentEnv, env.rules.contains(where: { $0.patterns.contains(where: { $0.exists }) }) {
-            // Ricostruzione generale per allineare le regole con exists
-            RuleEngine.rebuildAgenda(&env)
-            // Aggiunta diretta per regole solo-EXISTS sul template appena asserito (garantisce agenda non vuota)
-            if case .int(let id64) = ret, let f = env.facts[Int(id64)] {
-                for r in env.rules where r.patterns.count == 1 && r.patterns[0].exists && r.patterns[0].name == f.name {
-                    var act = Activation(priority: r.salience, ruleName: r.name, bindings: [:])
-                    act.factIDs = []
-                    act.moduleName = r.moduleName // FASE 3: Assegna modulo alla attivazione
-                    act.displayName = r.displayName  // ✅ Per deduplica disjuncts
-                    if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
-                }
-            }
-            currentEnv = env
-        }
-        // env è una reference; eval ha già aggiornato currentEnv
+        _ = eval(expr: form)
+        // Nel sistema esplicito, EXISTS è gestito come NOT(NOT) dalla rete
+        // Le attivazioni vengono create automaticamente durante propagation attraverso ProductionNode
     }
 
     public static func retract(id: Int) {

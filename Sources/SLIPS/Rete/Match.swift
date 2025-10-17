@@ -116,6 +116,75 @@ public final class JoinLink {
     public init() {}
 }
 
+// MARK: - Beta Token (Helper Structure)
+
+/// Token semplificato per beta network
+/// Versione semplificata di PartialMatch per uso interno
+public struct BetaToken {
+    public var bindings: [String: Value]
+    public var usedFacts: Set<Int>
+    
+    public init(bindings: [String: Value], usedFacts: Set<Int>) {
+        self.bindings = bindings
+        self.usedFacts = usedFacts
+    }
+}
+
+// MARK: - Beta Memory
+
+/// Beta memory per join nodes
+/// Port fedele di struct betaMemory (network.h linee 92-98)
+public final class BetaMemory {
+    public var size: UInt = 17  // Initial size
+    public var count: UInt = 0
+    // In C: struct partialMatch **beta (array di bucket)
+    // In Swift: usiamo dictionary per bucket hash
+    public var beta: [UInt: PartialMatch?] = [:]
+    public var last: [UInt: PartialMatch?] = [:]
+    
+    // Helper structures (non nel C, per efficienza Swift)
+    public var tokens: [BetaToken] = []
+    public var keyIndex: Set<UInt> = []
+    public var hashBuckets: [UInt: [Int]] = [:]
+    
+    public init() {
+        // Inizializza buckets
+        for i in 0..<size {
+            beta[i] = nil
+            last[i] = nil
+        }
+    }
+}
+
+// MARK: - Hash Functions
+
+/// Calcola hash per BetaToken (per deduplicazione)
+public func tokenKeyHash64(_ token: BetaToken) -> UInt {
+    var hasher = Hasher()
+    for key in token.bindings.keys.sorted() {
+        hasher.combine(key)
+        hashValue(&hasher, token.bindings[key]!)
+    }
+    for fid in token.usedFacts.sorted() {
+        hasher.combine(fid)
+    }
+    return UInt(bitPattern: hasher.finalize())
+}
+
+private func hashValue(_ hasher: inout Hasher, _ value: Value) {
+    switch value {
+    case .int(let i): hasher.combine(0); hasher.combine(i)
+    case .float(let d): hasher.combine(1); hasher.combine(d)
+    case .string(let s): hasher.combine(2); hasher.combine(s)
+    case .symbol(let s): hasher.combine(3); hasher.combine(s)
+    case .boolean(let b): hasher.combine(4); hasher.combine(b)
+    case .multifield(let arr): 
+        hasher.combine(5)
+        for v in arr { hashValue(&hasher, v) }
+    case .none: hasher.combine(6)
+    }
+}
+
 // MARK: - Helper Extensions
 
 extension PartialMatch {

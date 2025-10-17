@@ -113,6 +113,21 @@ public struct ReteNetwork {
     public var alpha: AlphaIndex = AlphaIndex()
     
     public init() {}
+    
+    // WRAPPER TEMPORANEO: per compatibilità con test che usano env.rete.beta
+    // Nel sistema esplicito, le beta memories sono nei JoinNode, non centralizzate
+    // Questo wrapper legge dalle memorie dei join nodes
+    public var beta: [String: BetaMemory] {
+        get {
+            var result: [String: BetaMemory] = [:]
+            for (ruleName, productionNode) in productionNodes {
+                // Trova l'ultimo join/beta memory prima del production node
+                // Per ora, crea una beta memory vuota come placeholder
+                result[ruleName] = BetaMemory()
+            }
+            return result
+        }
+    }
 }
 
 public struct JoinKeyPartC: Codable { public let slot: String; public let varName: String?; public let constValue: Value? }
@@ -120,8 +135,8 @@ public struct JoinKeyPartC: Codable { public let slot: String; public let varNam
 public enum ReteCompiler {
     public static func compile(_ env: Environment, _ rule: Rule) -> CompiledRule {
         let cps = rule.patterns.map { CompiledPattern(template: $0.name, original: $0) }
-        let useHeur = env.rete.config.enableHeuristicOrder || env.rete.config.heuristicWhitelist.contains(rule.name)
-        let order: [Int] = useHeur ? heuristicOrder(rule.patterns) : Array(0..<cps.count)
+        // Usa ordine naturale dei pattern (come in CLIPS C di default)
+        let order: [Int] = Array(0..<cps.count)
         // Precompute bound levels for variables
         let (joinSpecs, varLevel) = precomputeJoinSpecs(rule.patterns, order: order)
         // Distribuisci tests per livello

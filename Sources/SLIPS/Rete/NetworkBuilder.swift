@@ -58,22 +58,10 @@ public enum NetworkBuilder {
                 currentLevel += 1
                 
             } else if pattern.exists {
-                // EXISTS CE: crea ExistsNodeClass
-                if env.watchRete {
-                    print("[RETE Build]   Level \(currentLevel + 1): EXISTS pattern \(pattern.name)")
-                }
-                
-                let existsNode = ExistsNodeClass(
-                    pattern: pattern,
-                    alphaNode: alphaNode,
-                    level: currentLevel + 1
-                )
-                
-                if let prev = currentNode {
-                    linkNodes(from: prev, to: existsNode)
-                }
-                currentNode = existsNode
-                currentLevel += 1
+                // EXISTS viene trasformato in NOT(NOT) dal parser (evaluator.swift)
+                // Quindi non raggiungiamo mai questo branch
+                // Se lo raggiungiamo, è un errore
+                fatalError("[RETE Build] EXISTS pattern dovrebbe essere trasformato in NOT(NOT) dal parser")
                 
             } else {
                 // Pattern positivo: crea JoinNodeClass
@@ -378,9 +366,8 @@ public enum NetworkBuilder {
             betaMemory.successors.append(to)
         } else if let notNode = from as? NotNodeClass {
             notNode.successors.append(to)
-        } else if let existsNode = from as? ExistsNodeClass {
-            existsNode.successors.append(to)
         }
+        // ExistsNodeClass rimosso: EXISTS trasformato in NOT(NOT)
     }
 }
 

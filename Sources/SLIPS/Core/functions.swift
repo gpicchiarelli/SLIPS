@@ -60,13 +60,6 @@ public enum Functions {
         env.functionTable["get-join-activate"] = FunctionDefinitionSwift(name: "get-join-activate", impl: builtin_get_join_activate)
         env.functionTable["set-join-default"] = FunctionDefinitionSwift(name: "set-join-default", impl: builtin_set_join_default)
         env.functionTable["get-join-default"] = FunctionDefinitionSwift(name: "get-join-default", impl: builtin_get_join_default)
-        env.functionTable["set-join-heuristic"] = FunctionDefinitionSwift(name: "set-join-heuristic", impl: builtin_set_join_heuristic)
-        env.functionTable["get-join-heuristic"] = FunctionDefinitionSwift(name: "get-join-heuristic", impl: builtin_get_join_heuristic)
-        env.functionTable["add-join-heuristic-rule"] = FunctionDefinitionSwift(name: "add-join-heuristic-rule", impl: builtin_add_join_heuristic_rule)
-        env.functionTable["remove-join-heuristic-rule"] = FunctionDefinitionSwift(name: "remove-join-heuristic-rule", impl: builtin_remove_join_heuristic_rule)
-        env.functionTable["get-join-heuristic-rules"] = FunctionDefinitionSwift(name: "get-join-heuristic-rules", impl: builtin_get_join_heuristic_rules)
-        env.functionTable["clear-join-heuristic-rules"] = FunctionDefinitionSwift(name: "clear-join-heuristic-rules", impl: builtin_clear_join_heuristic_rules)
-        env.functionTable["reset-join-heuristic"] = FunctionDefinitionSwift(name: "reset-join-heuristic", impl: builtin_reset_join_heuristic)
         env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
@@ -660,48 +653,7 @@ private func builtin_get_join_naive_fallback(_ env: inout Environment, _ args: [
     return .boolean(env.joinNaiveFallback)
 }
 
-private func builtin_set_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
-    switch s {
-    case "true", "on", "1": env.rete.config.enableHeuristicOrder = true; return .boolean(true)
-    case "false", "off", "0": env.rete.config.enableHeuristicOrder = false; return .boolean(true)
-    default: return .boolean(false)
-    }
-}
-
-private func builtin_get_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    return .boolean(env.rete.config.enableHeuristicOrder)
-}
-
-private func builtin_add_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    guard let name = args.first?.stringValue else { return .boolean(false) }
-    env.rete.config.heuristicWhitelist.insert(name)
-    return .boolean(true)
-}
-
-private func builtin_remove_join_heuristic_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    guard let name = args.first?.stringValue else { return .boolean(false) }
-    env.rete.config.heuristicWhitelist.remove(name)
-    return .boolean(true)
-}
-
-private func builtin_get_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    let arr = env.rete.config.heuristicWhitelist.sorted().map { Value.symbol($0) }
-    return .multifield(arr)
-}
-
-private func builtin_clear_join_heuristic_rules(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    env.rete.config.heuristicWhitelist.removeAll()
-    return .boolean(true)
-}
-
-private func builtin_reset_join_heuristic(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    env.rete.config.enableHeuristicOrder = false
-    env.rete.config.heuristicWhitelist.removeAll()
-    return .boolean(true)
-}
-
-// Whitelist helpers
+// Whitelist helpers (per experimentalJoinCheck/JoinActivate)
 private func builtin_add_join_activate_rule(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let name = args.first?.stringValue else { return .boolean(false) }
     env.joinActivateWhitelist.insert(name)

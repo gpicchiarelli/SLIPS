@@ -106,20 +106,11 @@ public enum Propagation {
             }
         }
         
-        // 2. Trova e rimuovi tutti i token che usano questo fatto
-        for (ruleName, productionNode) in env.rete.productionNodes {
-            let removed = removeTokensWithFact(
-                factID: factID,
-                fromProduction: productionNode,
-                ruleName: ruleName,
-                env: &env
-            )
-            tokensRemoved += removed
-            
-            if removed > 0 && env.watchRete {
-                print("[RETE Retract]   Removed \(removed) token(s) from rule '\(ruleName)'")
-            }
-        }
+        // 2. Rimuovi token dalle beta memories dei join nodes
+        // Nel sistema esplicito, ogni JoinNode gestisce le proprie memorie
+        // Ref: PosEntryRetractBeta/NegEntryRetractBeta in drive.c
+        // TODO: Implementare retract propagation completa attraverso join network
+        // Per ora, le activations vengono rimosse al passo 3
         
         // 3. Rimuovi attivazioni dall'agenda che usano questo fatto
         let beforeAgenda = env.agendaQueue.queue.count
