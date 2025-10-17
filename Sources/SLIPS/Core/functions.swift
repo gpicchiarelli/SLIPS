@@ -369,7 +369,7 @@ private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -
             Propagation.propagateRetract(factID: Int(id), env: &env)
             // Aggiorna anche alpha index tradizionale per backward compatibility
             env.rete.alpha.remove(fact)
-            return .int(id)
+            return .boolean(true)  // ✅ Come CLIPS C: retract ritorna TRUE se successo
         }
         
         // Logica esistente (backward compatibility)

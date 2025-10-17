@@ -19,6 +19,10 @@ public struct Activation: Codable, Equatable {
     /// Modulo a cui appartiene la regola (FASE 3 - Module-aware agenda)
     /// Ref: agenda.c in CLIPS con focus stack
     public var moduleName: String? = nil
+    /// DisplayName per deduplicare disjuncts (OR CE)
+    /// In CLIPS C, i disjuncts condividono lo stesso nome logico
+    /// Ref: ruledef.h - disjunct linking
+    public var displayName: String? = nil
 }
 
 public struct Agenda: Codable, Equatable {
@@ -44,11 +48,21 @@ public struct Agenda: Codable, Equatable {
 
     public func contains(_ a: Activation) -> Bool {
         return queue.contains { existing in
-            existing.priority == a.priority &&
-            existing.ruleName == a.ruleName &&
-            existing.bindings == a.bindings &&
-            existing.factIDs == a.factIDs &&
-            existing.moduleName == a.moduleName
+            // Per i disjuncts (OR CE), deduplica usando displayName
+            // Questo riflette il comportamento CLIPS C dove i disjuncts
+            // sono linkati e solo UNO dovrebbe attivarsi per evento
+            let nameMatch: Bool
+            if let dispName = a.displayName, let existingDispName = existing.displayName {
+                nameMatch = existingDispName == dispName
+            } else {
+                nameMatch = existing.ruleName == a.ruleName
+            }
+            
+            return existing.priority == a.priority &&
+                nameMatch &&
+                existing.bindings == a.bindings &&
+                existing.factIDs == a.factIDs &&
+                existing.moduleName == a.moduleName
         }
     }
 

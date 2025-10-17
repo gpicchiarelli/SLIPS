@@ -86,12 +86,13 @@ public enum RuleEngine {
             let hasNeg = rule.patterns.contains { $0.negated }
             let hasExists = rule.patterns.contains { $0.exists }
             // Fast path: regola solo EXISTS unario senza vincoli → se l'anchor ha lo stesso template, attiva
-            if hasExists, !hasNeg, rule.patterns.count == 1 {
+                if hasExists, !hasNeg, rule.patterns.count == 1 {
                 let p0 = rule.patterns[0]
                 if p0.exists, p0.name == fact.name, p0.slots.isEmpty {
                     var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
                     act.factIDs = []
                     act.moduleName = rule.moduleName // FASE 3: Assegna modulo alla attivazione
+                    act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                     if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
                     // Continua comunque per allineare rete/memorie, ma evita duplicati grazie a contains
                 }
@@ -160,6 +161,7 @@ public enum RuleEngine {
                         var act = Activation(priority: rule.salience, ruleName: rule.displayName, bindings: t.bindings)
                         act.factIDs = t.usedFacts
                         act.moduleName = rule.moduleName // FASE 3
+                        act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                         if !env.agendaQueue.contains(act) {
                             env.agendaQueue.add(act)
                             if env.watchRules { Router.Writeln(&env, "==> Activation \(rule.displayName)") }
@@ -174,6 +176,7 @@ public enum RuleEngine {
                         var act = Activation(priority: rule.salience, ruleName: rule.displayName, bindings: m.bindings)
                         act.factIDs = m.usedFacts
                         act.moduleName = rule.moduleName // FASE 3
+                        act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                         if !env.agendaQueue.contains(act) {
                             env.agendaQueue.add(act)
                             if env.watchRules {
@@ -209,6 +212,7 @@ public enum RuleEngine {
                     var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                     act.factIDs = m.usedFacts
                     act.moduleName = rule.moduleName // FASE 3
+                    act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                     if !env.agendaQueue.contains(act) {
                         env.agendaQueue.add(act)
                         if env.watchRules {
@@ -286,6 +290,7 @@ public enum RuleEngine {
                     var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: [:])
                     act.factIDs = []
                     act.moduleName = rule.moduleName // FASE 3
+                    act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                     if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
                     continue
                 }
@@ -295,6 +300,7 @@ public enum RuleEngine {
                 var act = Activation(priority: rule.salience, ruleName: rule.name, bindings: m.bindings)
                 act.factIDs = m.usedFacts
                 act.moduleName = rule.moduleName // FASE 3
+                act.displayName = rule.displayName  // ✅ Per deduplica disjuncts
                 if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
             }
         }

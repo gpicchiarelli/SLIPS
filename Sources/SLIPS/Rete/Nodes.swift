@@ -145,11 +145,39 @@ public final class JoinNodeClass: ReteNode {
     }
     
     /// Attiva join: combina token con fatti dalla memoria alpha
-    /// (ref: PerformJoin in drive.c)
+    /// (ref: PerformJoin in drive.c, NetworkAssertLeft in drive.c)
     public func activate(token: BetaToken, env: inout Environment) {
         if env.watchRete {
             let memCount = rightInput?.memory.count ?? 0
-            print("[RETE] JoinNode activate: level=\(level), rightAlpha=\(memCount) facts")
+            print("[RETE] JoinNode activate (from LEFT): level=\(level), rightAlpha=\(memCount) facts")
+        }
+        
+        // ✅ CRITICO: Aggiungi token alla leftMemory (ref: NetworkAssertLeft in drive.c)
+        // Quando un token arriva dal lato SINISTRO (da BetaMemory predecessore),
+        // va salvato nella leftMemory per futuri join con fatti dal lato destro
+        let pm = PartialMatchBridge.createPartialMatch(from: token, env: env)
+        
+        // ✅ CRITICO: Ricalcola hash usando joinKeys
+        // Ref: drive.c:940 - hashValue = BetaMemoryHashValue(..., join->leftHash, ...)
+        // L'hash deve basarsi sulle variabili COMUNI (joinKeys) non su tutti i fact IDs
+        // SEMPLIFICAZIONE: Se joinKeys è vuoto, usa hash 0 (tutti nello stesso bucket)
+        var hasher = Hasher()
+        for key in joinKeys.sorted() {
+            if let value = token.bindings[key] {
+                switch value {
+                case .int(let i): hasher.combine(i)
+                case .float(let f): hasher.combine(f)
+                case .string(let s), .symbol(let s): hasher.combine(s)
+                case .boolean(let b): hasher.combine(b)
+                default: break
+                }
+            }
+        }
+        pm.hashValue = joinKeys.isEmpty ? 0 : UInt(bitPattern: hasher.finalize())
+        
+        ReteUtil.AddToLeftMemory(self, pm)
+        if env.watchRete {
+            print("[RETE] JoinNode: added token to leftMemory (size=\(leftMemory?.count ?? 0), hash=\(pm.hashValue))")
         }
         
         let startTime = env.watchReteProfile ? Date() : nil
@@ -279,15 +307,46 @@ public final class JoinNodeClass: ReteNode {
     /// NUOVO: Usa hash lookup O(1) come in CLIPS C (con fallback durante transizione)
     /// (ref: NetworkAssertRight in drive.c con GetLeftBetaMemory)
     public func activateFromRight(fact: Environment.FactRec, env: inout Environment) {
-        // Crea PartialMatch dal fatto per hash value
-        let factToken = BetaToken(bindings: [:], usedFacts: [fact.id])
+        // Estrai bindings dal fatto secondo il pattern
+        var bindings: [String: Value] = [:]
+        if let rightAlpha = rightInput {
+            for (slot, test) in rightAlpha.pattern.slots {
+                if let value = fact.slots[slot] {
+                    switch test.kind {
+                    case .variable(let name), .mfVariable(let name):
+                        bindings[name] = value
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+        
+        // Crea PartialMatch dal fatto
+        let factToken = BetaToken(bindings: bindings, usedFacts: [fact.id])
         let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
+        
+        // ✅ CRITICO: Calcola hash usando rightHash expression o joinKeys
+        // Ref: drive.c:947 - hashValue = BetaMemoryHashValue(..., join->rightHash, ...)
+        var hasher = Hasher()
+        for key in joinKeys.sorted() {
+            if let value = bindings[key] {
+                switch value {
+                case .int(let i): hasher.combine(i)
+                case .float(let f): hasher.combine(f)
+                case .string(let s), .symbol(let s): hasher.combine(s)
+                case .boolean(let b): hasher.combine(b)
+                default: break
+                }
+            }
+        }
+        rhsPM.hashValue = joinKeys.isEmpty ? 0 : UInt(bitPattern: hasher.finalize())
         
         // CRITICO: Aggiungi fatto a rightMemory PRIMA di propagare (come in CLIPS C)
         if !self.firstJoin {
             ReteUtil.AddToRightMemory(self, rhsPM)
             if env.watchRete {
-                print("[RETE] JoinNodeClass.activateFromRight: added to rightMemory at level \(self.level), size=\(self.rightMemory?.count ?? 0)")
+                print("[RETE] JoinNodeClass.activateFromRight: added to rightMemory (level=\(self.level), size=\(self.rightMemory?.count ?? 0), hash=\(rhsPM.hashValue))")
             }
         }
         
@@ -644,26 +703,91 @@ public final class ProductionNode: ReteNode {
     /// Attiva: crea attivazione e aggiunge all'agenda
     /// (ref: AddActivation in agenda.c)
     public func activate(token: BetaToken, env: inout Environment) {
+        if env.watchRete {
+            print("[RETE] ProductionNode.activate called for '\(ruleName)'")
+            print("[RETE]   Token bindings: \(token.bindings)")
+            print("[RETE]   Token facts: \(token.usedFacts)")
+        }
+        
+        // ✅ CRITICO: Valuta test terminali PRIMA di creare l'attivazione
+        // In CLIPS C, i test sono integrati come networkTest nell'ultimo JoinNode
+        // o valutati prima di aggiungere all'agenda
+        // Ref: EvaluateJoinExpression in drive.c
+        if let rule = env.rules.first(where: { $0.name == ruleName || $0.displayName == ruleName }),
+           !rule.tests.isEmpty {
+            let oldBindings = env.localBindings
+            env.localBindings = token.bindings
+            
+            for testExpr in rule.tests {
+                let exprToEval: ExpressionNode
+                if testExpr.type == .fcall, (testExpr.value?.value as? String) == "test",
+                   let arg = testExpr.argList {
+                    exprToEval = arg
+                } else {
+                    exprToEval = testExpr
+                }
+                
+                let result = try? Evaluator.eval(&env, exprToEval)
+                
+                switch result {
+                case .boolean(let b):
+                    if !b {
+                        env.localBindings = oldBindings
+                        if env.watchRete {
+                            print("[RETE] ProductionNode: REJECTED by test (boolean false)")
+                        }
+                        return  // ← Test fallito, NON creare attivazione
+                    }
+                case .int(let i):
+                    if i == 0 {
+                        env.localBindings = oldBindings
+                        if env.watchRete {
+                            print("[RETE] ProductionNode: REJECTED by test (int 0)")
+                        }
+                        return
+                    }
+                default:
+                    env.localBindings = oldBindings
+                    if env.watchRete {
+                        print("[RETE] ProductionNode: REJECTED by test (eval failed)")
+                    }
+                    return
+                }
+            }
+            
+            env.localBindings = oldBindings
+        }
+        
         var activation = Activation(
             priority: salience,
             ruleName: ruleName,
             bindings: token.bindings
         )
         activation.factIDs = token.usedFacts
-        // FASE 3: Assegna modulo alla attivazione (prendi dalla regola in env)
+        // FASE 3: Assegna modulo e displayName alla attivazione (prendi dalla regola in env)
         if let rule = env.rules.first(where: { $0.name == ruleName || $0.displayName == ruleName }) {
             activation.moduleName = rule.moduleName
+            activation.displayName = rule.displayName  // ✅ Per deduplica disjuncts
         }
         
         // Aggiungi solo se non già presente (deduplica)
-        if !env.agendaQueue.contains(activation) {
+        let alreadyExists = env.agendaQueue.contains(activation)
+        if env.watchRete {
+            print("[RETE]   Already in agenda: \(alreadyExists)")
+        }
+        
+        if !alreadyExists {
             env.agendaQueue.add(activation)
             
             if env.watchRules {
                 print("==> Activation \(ruleName) : salience \(salience)")
             }
             if env.watchRete {
-                print("[RETE] ProductionNode: created activation for \(ruleName)")
+                print("[RETE] ProductionNode: ADDED activation for \(ruleName)")
+            }
+        } else {
+            if env.watchRete {
+                print("[RETE] ProductionNode: SKIPPED duplicate activation for \(ruleName)")
             }
         }
     }

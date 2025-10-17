@@ -100,8 +100,12 @@ public enum NetworkBuilder {
                         level: currentLevel + 1
                     )
                     
-                    // CRITICO: Marca il primo join della regola (per EmptyDrive in drive.c)
-                    if !firstJoinCreated {
+                    // ✅ CORRETTO: firstJoin = true SOLO se NON c'è predecessore (leftMemory)
+                    // In CLIPS C (drive.c), firstJoin significa "entra nella rete dall'alpha network"
+                    // senza partial match precedenti da combinare
+                    // Ref: drive.c:102 - if (join->firstJoin) { EmptyDrive(...); return; }
+                    if index == 0 {
+                        // VERO first join: primo pattern della regola
                         joinNode.firstJoin = true
                         firstJoinCreated = true
                         if env.watchRete {
@@ -338,9 +342,17 @@ public enum NetworkBuilder {
         patternsUpTo: Int,
         patterns: [Pattern]
     ) -> [ExpressionNode] {
-        // Per ora ritorna array vuoto - i test sono gestiti nei JoinNode stessi
-        // Implementazione futura potrebbe distribuire test per livello come in ReteCompiler
-        return []
+        // ✅ CORRETTO: I test (test CE) sono applicabili solo DOPO che tutte le variabili
+        // referenziate sono bound. Determinare quali variabili sono bound al livello corrente
+        // e ritornare solo i test che usano quelle variabili.
+        // 
+        // SEMPLIFICAZIONE: Per ora ritorniamo TUTTI i test a ogni livello.
+        // Il JoinNode controllerà se le variabili sono disponibili.
+        // In produzione, dovremmo analizzare le variabili in ogni test e distribuirli
+        // al primo livello dove tutte le variabili sono disponibili.
+        //
+        // Ref: ConstructJoins in rulebld.c - distribution dei network tests per livello
+        return allTests
     }
     
     /// Estrae test terminali (applicabili solo dopo tutti i pattern)

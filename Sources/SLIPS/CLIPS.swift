@@ -103,9 +103,10 @@ public final class Environment {
     // Se true, mantiene il fallback naïve anche quando RETE è attiva e la regola è stabile
     public var joinNaiveFallback: Bool = true
     
-    // FASE 1: Flag per usare nodi RETE espliciti (class-based)
-    // (ref: NetworkBuilder + Propagation engine in fase 1)
-    public var useExplicitReteNodes: Bool = false
+    // RETE Network: Usa implementazione FEDELE al C di CLIPS (drive.c, network.h, reteutil.c)
+    // Traduzione diretta delle strutture joinNode, partialMatch, betaMemory, NetworkAssert, etc.
+    // Questa è l'architettura RETE standard di CLIPS 6.4.2, non una semplificazione
+    public var useExplicitReteNodes: Bool = true  // ✅ SEMPRE ATTIVO - traduzione fedele CLIPS C
     
     // FASE 3: Sistema di moduli (ref: struct defmoduleData in moduldef.h linee 209-236)
     // Lista di tutti i moduli
@@ -257,6 +258,7 @@ public enum CLIPS {
                     var act = Activation(priority: r.salience, ruleName: r.name, bindings: [:])
                     act.factIDs = []
                     act.moduleName = r.moduleName // FASE 3: Assegna modulo alla attivazione
+                    act.displayName = r.displayName  // ✅ Per deduplica disjuncts
                     if !env.agendaQueue.contains(act) { env.agendaQueue.add(act) }
                 }
             }

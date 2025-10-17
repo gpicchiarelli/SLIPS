@@ -464,16 +464,27 @@ public enum Evaluator {
             }
             do { return try def.impl(&env, argsVals) } catch { throw EvalError.runtime(String(describing: error)) }
         case .variable:
-            let name = (node.value?.value as? String) ?? ""
+            var name = (node.value?.value as? String) ?? ""
+            // ✅ Rimuovi "?" dal nome per compatibilità con bindings (salvati senza "?")
+            if name.hasPrefix("?") { name = String(name.dropFirst()) }
             return env.localBindings[name] ?? env.globalBindings[name] ?? .none
         case .mfVariable:
-            let name = (node.value?.value as? String) ?? ""
+            var name = (node.value?.value as? String) ?? ""
+            // ✅ Rimuovi "$?" dal nome
+            if name.hasPrefix("$?") { name = String(name.dropFirst(2)) }
+            else if name.hasPrefix("?") { name = String(name.dropFirst()) }
             return env.localBindings[name] ?? .none
         case .gblVariable:
-            let name = (node.value?.value as? String) ?? ""
+            var name = (node.value?.value as? String) ?? ""
+            // ✅ Rimuovi "?*" e "*" dal nome
+            if name.hasPrefix("?*") { name = String(name.dropFirst(2)) }
+            if name.hasSuffix("*") { name = String(name.dropLast()) }
             return env.globalBindings[name] ?? .none
         case .mfGblVariable:
-            let name = (node.value?.value as? String) ?? ""
+            var name = (node.value?.value as? String) ?? ""
+            // ✅ Rimuovi "$?*" e "*" dal nome
+            if name.hasPrefix("$?*") { name = String(name.dropFirst(3)) }
+            if name.hasSuffix("*") { name = String(name.dropLast()) }
             return env.globalBindings[name] ?? .none
         case .instanceName:
             return .symbol((node.value?.value as? String) ?? "")

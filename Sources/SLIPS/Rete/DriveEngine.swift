@@ -58,8 +58,14 @@ public enum DriveEngine {
         // Get partial matches from left beta memory usando HASH VALUE ✅
         var lhsBinds = ReteUtil.GetLeftBetaMemory(join, hashValue: rhsBinds.hashValue)
         
-        if theEnv.watchRete && lhsBinds != nil {
-            print("[RETE] NetworkAssertRight: found left matches in bucket for hash \(rhsBinds.hashValue)")
+        if theEnv.watchRete {
+            let leftCount = join.leftMemory?.count ?? 0
+            print("[RETE] NetworkAssertRight: leftMemory size=\(leftCount), hash=\(rhsBinds.hashValue)")
+            if lhsBinds != nil {
+                print("[RETE] NetworkAssertRight: found matches in bucket")
+            } else {
+                print("[RETE] NetworkAssertRight: NO matches in bucket")
+            }
         }
         
         // Scan solo token nel bucket (O(bucket size) invece di O(n))
@@ -121,12 +127,12 @@ public enum DriveEngine {
                 }
                 newPM.hashValue = hashValue
                 
-                // Aggiungi a beta memory appropriata
+                // Aggiungi a beta memory appropriata e propaga
                 if let targetJoin = listOfJoins?.join {
                     if listOfJoins?.enterDirection == LHS {
+                        // ✅ CRITICO: Aggiungi E propaga (come in CLIPS C)
                         ReteUtil.AddToLeftMemory(targetJoin, newPM)
-                        // Ricorsione: NetworkAssertLeft
-                        // (NetworkAssertLeft chiama EmptyDrive o altro)
+                        NetworkAssertLeft(&theEnv, newPM, targetJoin, operation)
                     } else {
                         ReteUtil.AddToRightMemory(targetJoin, newPM)
                         NetworkAssertRight(&theEnv, newPM, targetJoin, operation)
