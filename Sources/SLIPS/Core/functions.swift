@@ -107,6 +107,9 @@ public enum Functions {
         
         // FASE 4: Defglobal (ref: globldef.c, globlbsc.c)
         GlobalsFunctions.registerAll(&env)
+        
+        // FASE 5: Sort functions (ref: sortfun.c)
+        env.functionTable["sort"] = FunctionDefinitionSwift(name: "sort", impl: builtin_sort)
     }
 
     public static func find(_ env: Environment, _ name: String) -> FunctionDefinitionSwift? {
