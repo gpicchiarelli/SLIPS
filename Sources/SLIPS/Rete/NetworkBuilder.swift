@@ -73,13 +73,13 @@ public enum NetworkBuilder {
                 }
                 
                 // Registra come listener dell'alpha
-                alphaNode.rightJoinListeners.append(notJoin)
+                alphaNode.rightJoinListeners.append(WeakJoinNode(notJoin))
                 
                 if let prevJoin = lastJoinNode {
                     let link = JoinLink()
                     link.join = notJoin
                     link.enterDirection = "l"
-                    prevJoin.nextLinks.append(link)
+                    prevJoin.nextLinks.append(WeakJoinLink(link))
                 }
                 lastJoinNode = notJoin
                 
@@ -118,7 +118,7 @@ public enum NetworkBuilder {
                     innerNot.firstJoin = true
                     firstJoinNode = innerNot  // Track for initialization
                 }
-                alphaNode.rightJoinListeners.append(innerNot)
+                alphaNode.rightJoinListeners.append(WeakJoinNode(innerNot))
                 
                 // "NOT" esterno (secondo livello) - in realtà è un join EXISTS
                 // ✅ Ref: rulebld.c:1182-1186 - se existsRHS, patternIsNegated=FALSE!
@@ -136,7 +136,7 @@ public enum NetworkBuilder {
                 let link = JoinLink()
                 link.join = outerJoin
                 link.enterDirection = "l"
-                innerNot.nextLinks.append(link)
+                innerNot.nextLinks.append(WeakJoinLink(link))
                 lastJoinNode = outerJoin
                 
                 linkNodes(from: innerNot, to: outerJoin)
@@ -187,7 +187,7 @@ public enum NetworkBuilder {
                         let link = JoinLink()
                         link.join = joinNode
                         link.enterDirection = "l"  // Left entry (LHS) - match proviene dalla catena precedente
-                        prevJoin.nextLinks.append(link)
+                        prevJoin.nextLinks.append(WeakJoinLink(link))
                         
                         if env.watchRete {
                             print("[RETE Build]     *** Added nextLink LHS from join level \(prevJoin.level) to \(joinNode.level)")
@@ -197,7 +197,7 @@ public enum NetworkBuilder {
                     
                     // IMPORTANTE: Registra questo join node come listener dell'alpha destro
                     // Quando l'alpha riceve un fatto, notificherà questo join
-                    alphaNode.rightJoinListeners.append(joinNode)
+                    alphaNode.rightJoinListeners.append(WeakJoinNode(joinNode))
                     
                     linkNodes(from: prev, to: joinNode)
                     currentNode = joinNode
@@ -211,10 +211,11 @@ public enum NetworkBuilder {
                     
                     // Crea beta memory iniziale per il primo pattern
                     let betaMemory = BetaMemoryNode(level: currentLevel + 1)
+                    env.rete.betaMemoryNodes.append(betaMemory)
                     
                     // IMPORTANTE: Collega alpha node al beta memory per propagazione iniziale
                     // Quando un fatto matcha l'alpha, attiverà il beta memory
-                    alphaNode.successors.append(betaMemory)
+                    alphaNode.successors.append(WeakReteNode(betaMemory))
                     
                     currentNode = betaMemory
                     currentLevel += 1
@@ -224,6 +225,7 @@ public enum NetworkBuilder {
                 // (solo per pattern intermedi, non per l'ultimo)
                 if index < rule.patterns.count - 1 {
                     let betaMemory = BetaMemoryNode(level: currentLevel)
+                    env.rete.betaMemoryNodes.append(betaMemory)
                     if let prev = currentNode {
                         linkNodes(from: prev, to: betaMemory)
                     }
@@ -463,14 +465,13 @@ public enum NetworkBuilder {
         // Gestisce il collegamento basandosi sul tipo del nodo sorgente
         if let alphaNode = from as? AlphaNodeClass {
             if let joinNode = to as? JoinNodeClass {
-                alphaNode.successors.append(joinNode)
+                alphaNode.successors.append(WeakReteNode(joinNode))
             }
         } else if let joinNode = from as? JoinNodeClass {
-            joinNode.successors.append(to)
+            joinNode.successors.append(WeakReteNode(to))
         } else if let betaMemory = from as? BetaMemoryNode {
-            betaMemory.successors.append(to)
+            betaMemory.successors.append(WeakReteNode(to))
         }
         // NOT/EXISTS sono JoinNodeClass con flag, non classi separate
     }
 }
-

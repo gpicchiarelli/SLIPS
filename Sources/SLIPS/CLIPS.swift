@@ -140,7 +140,8 @@ public final class Environment {
         // Esegui cleanup functions registrate
         var current = listOfCleanupEnvironmentFunctions
         while let node = current {
-            node.funcPtr(&self)
+            var envRef = self
+            node.funcPtr(&envRef)
             current = node.next
         }
     }

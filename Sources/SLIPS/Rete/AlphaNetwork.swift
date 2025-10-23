@@ -108,6 +108,10 @@ public struct ReteNetwork {
     /// Ref: struct defrule *ruleToActivate in network.h joinNode
     public var productionNodes: [String: ProductionNode] = [:]
     
+    /// Collezione di beta memory nodes per cleanup e statistiche
+    /// Ref: struct betaMemory in network.h (memorizzata esplicitamente)
+    public var betaMemoryNodes: [BetaMemoryNode] = []
+    
     /// Alpha index (per ricerca rapida fatti per template)
     /// Ref: factmngr.c - hash table per template lookups
     public var alpha: AlphaIndex = AlphaIndex()

@@ -130,6 +130,17 @@ public enum Propagation {
             }
         }
         
+        // ✅ Ripulisci i beta memory nodes intermedi
+        for node in env.rete.betaMemoryNodes {
+            let removed = node.removeTokens(containing: factID)
+            if removed > 0 {
+                tokensRemoved += removed
+                if env.watchRete {
+                    print("[RETE Retract]   Purged \(removed) token(s) from beta memory level \(node.level)")
+                }
+            }
+        }
+        
         // 3. Gestione speciale per regole EXISTS
         // Quando l'ultimo fatto di un template viene retratto, rimuovi attivazioni EXISTS per quel template
         // Ref: drive.c retract logic per EXISTS
@@ -448,4 +459,3 @@ public enum Propagation {
         }
     }
 }
-

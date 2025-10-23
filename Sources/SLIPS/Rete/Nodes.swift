@@ -571,6 +571,24 @@ public final class BetaMemoryNode: ReteNode {
         }
     }
     
+    /// Rimuove tutti i token che fanno riferimento al fact indicato
+    /// e ricostruisce gli indici interni.
+    @discardableResult
+    public func removeTokens(containing factID: Int) -> Int {
+        let before = memory.tokens.count
+        guard before > 0 else { return 0 }
+        
+        memory.tokens.removeAll { token in
+            token.usedFacts.contains(factID)
+        }
+        
+        let removed = before - memory.tokens.count
+        if removed > 0 {
+            rebuildIndices()
+        }
+        return removed
+    }
+    
     /// Computa hash per join bucket (basato su variabili comuni)
     private func computeJoinHash(_ token: BetaToken) -> UInt {
         var hasher = Hasher()
@@ -596,6 +614,20 @@ public final class BetaMemoryNode: ReteNode {
             hasher.combine(5); hasher.combine(arr.count)
             for v in arr { hashValue(&hasher, v) }
         case .none: hasher.combine(6)
+        }
+    }
+    
+    /// Ricostruisce keyIndex e hashBuckets dopo una mutazione massiva
+    private func rebuildIndices() {
+        memory.keyIndex.removeAll(keepingCapacity: true)
+        memory.hashBuckets.removeAll(keepingCapacity: true)
+        
+        for (index, token) in memory.tokens.enumerated() {
+            let keyHash = tokenKeyHash64(token)
+            memory.keyIndex.insert(keyHash)
+            
+            let joinHash = computeJoinHash(token)
+            memory.hashBuckets[joinHash, default: []].append(index)
         }
     }
 }
@@ -631,7 +663,8 @@ public final class NotNodeClass: ReteNode {
     /// (ref: EvaluateSecondaryNetworkTest in drive.c)
     public func activate(token: BetaToken, env: inout Environment) {
         if env.watchRete {
-            print("[RETE] NotNode activate: level=\(level), checking \(alphaNode.memory.count) facts")
+            let factCount = alphaNode?.memory.count ?? 0
+            print("[RETE] NotNode activate: level=\(level), checking \(factCount) facts")
         }
         
         // Cerca fatti che matchano con i binding correnti

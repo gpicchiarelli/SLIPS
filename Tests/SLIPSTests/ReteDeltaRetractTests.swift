@@ -36,5 +36,27 @@ final class ReteDeltaRetractTests: XCTestCase {
         let after = env2.rete.beta["r"]?.tokens.count ?? 0
         XCTAssertEqual(after, 1)
     }
+    
+    func testRetractPurgesBetaMemoryTokens() {
+        var env = CLIPS.createEnvironment()
+        _ = CLIPS.eval(expr: "(deftemplate item (slot id))")
+        _ = CLIPS.eval(expr: "(defrule r (item id ?i) => (printout t ?i))")
+        
+        let factValue = CLIPS.eval(expr: "(assert item id 1)")
+        guard case .int(let factID) = factValue else {
+            XCTFail("Expected fact id from assert")
+            return
+        }
+        
+        guard let betaNode = env.rete.betaMemoryNodes.first else {
+            XCTFail("Missing beta memory node for rule")
+            return
+        }
+        XCTAssertEqual(betaNode.memory.tokens.count, 1, "Expected token stored after assert")
+        
+        CLIPS.retract(id: Int(factID))
+        
+        XCTAssertTrue(betaNode.memory.tokens.isEmpty, "Retract should purge beta memory tokens")
+        XCTAssertTrue(betaNode.memory.keyIndex.isEmpty, "Key index must be rebuilt after purge")
+    }
 }
-
