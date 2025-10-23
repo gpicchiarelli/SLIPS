@@ -36,6 +36,11 @@ public final class BetaMemoryHash {
         self.last = Array(repeating: nil, count: initialSize)
     }
     
+    /// Cleanup method per prevenire memory leaks
+    deinit {
+        flush()
+    }
+    
     /// Ottiene la lista di partial match in un bucket specifico
     /// Port fedele di GetLeftBetaMemory (reteutil.c linee 1071-1080)
     public func getMatches(hashValue: UInt) -> PartialMatch? {

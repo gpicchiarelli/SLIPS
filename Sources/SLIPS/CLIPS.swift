@@ -88,7 +88,7 @@ public final class Environment {
     public var rete: ReteNetwork = ReteNetwork()
     // Flag sperimentale: confronta join vs matcher corrente senza influenzare attivazioni
     public var experimentalJoinCheck: Bool = false
-    // File aperti per I/O
+    // File aperti per I/O - gestiti con cleanup automatico
     public var openFiles: [String: FileHandle] = [:]
     // Utility functions state
     public var gensymCounter: Int = 0
@@ -127,6 +127,22 @@ public final class Environment {
     public init() {
         self.theData = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
         self.cleanupFunctions = Array(repeating: nil, count: Environment.MAXIMUM_ENVIRONMENT_POSITIONS)
+    }
+    
+    /// Cleanup method per liberare risorse e prevenire memory leaks
+    deinit {
+        // Chiudi tutti i file aperti
+        for (_, fileHandle) in openFiles {
+            try? fileHandle.close()
+        }
+        openFiles.removeAll()
+        
+        // Esegui cleanup functions registrate
+        var current = listOfCleanupEnvironmentFunctions
+        while let node = current {
+            node.funcPtr(&self)
+            current = node.next
+        }
     }
 }
 

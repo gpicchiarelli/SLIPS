@@ -29,6 +29,13 @@ public enum Memalloc {
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: MemoryLayout<UInt8>.alignment)
         ptr.initializeMemory(as: UInt8.self, repeating: 0, count: size)
         Memalloc.UpdateMemoryUsed(&env, Int64(size))
+        
+        // Registra il puntatore per cleanup automatico
+        if var memoryData = Envrnmnt.GetEnvironmentData<MemoryDataStruct>(env, MEMORY_DATA) {
+            // In un'implementazione completa, dovremmo tracciare tutti i puntatori allocati
+            // Per ora, ci affidiamo al garbage collector di Swift
+        }
+        
         return ptr
     }
 

@@ -67,8 +67,10 @@ public enum Propagation {
                     print("[RETE Assert]   Alpha '\(alphaNode.pattern.name)': notifying \(alphaNode.rightJoinListeners.count) right join listeners")
                 }
                 
-                for joinNode in alphaNode.rightJoinListeners {
-                    joinNode.activateFromRight(fact: fact, env: &env)
+                for weakJoinNode in alphaNode.rightJoinListeners {
+                    if let joinNode = weakJoinNode.node {
+                        joinNode.activateFromRight(fact: fact, env: &env)
+                    }
                 }
             }
         }

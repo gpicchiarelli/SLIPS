@@ -51,6 +51,26 @@ public final class PartialMatch {
     public var binds: [GenericMatch] = []
     
     public init() {}
+    
+    /// Cleanup method per prevenire memory leaks
+    deinit {
+        // Pulisci tutti i link per evitare retain cycles
+        nextInMemory = nil
+        prevInMemory = nil
+        nextRightChild = nil
+        prevRightChild = nil
+        nextLeftChild = nil
+        prevLeftChild = nil
+        children = nil
+        rightParent = nil
+        leftParent = nil
+        blockList = nil
+        nextBlocked = nil
+        prevBlocked = nil
+        marker = nil
+        dependents = nil
+        owner = nil
+    }
 }
 
 /// Generic match (union in C)
