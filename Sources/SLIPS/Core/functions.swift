@@ -62,6 +62,8 @@ public enum Functions {
         env.functionTable["get-join-default"] = FunctionDefinitionSwift(name: "get-join-default", impl: builtin_get_join_default)
         env.functionTable["add-join-activate-rule"] = FunctionDefinitionSwift(name: "add-join-activate-rule", impl: builtin_add_join_activate_rule)
         env.functionTable["remove-join-activate-rule"] = FunctionDefinitionSwift(name: "remove-join-activate-rule", impl: builtin_remove_join_activate_rule)
+        env.functionTable["set-salience-evaluation"] = FunctionDefinitionSwift(name: "set-salience-evaluation", impl: builtin_set_salience_evaluation)
+        env.functionTable["get-salience-evaluation"] = FunctionDefinitionSwift(name: "get-salience-evaluation", impl: builtin_get_salience_evaluation)
         env.functionTable["get-join-activate-rules"] = FunctionDefinitionSwift(name: "get-join-activate-rules", impl: builtin_get_join_activate_rules)
         env.functionTable["get-join-stable"] = FunctionDefinitionSwift(name: "get-join-stable", impl: builtin_get_join_stable)
         env.functionTable["set-join-naive-fallback"] = FunctionDefinitionSwift(name: "set-join-naive-fallback", impl: builtin_set_join_naive_fallback)
@@ -651,6 +653,28 @@ private func builtin_set_join_naive_fallback(_ env: inout Environment, _ args: [
 
 private func builtin_get_join_naive_fallback(_ env: inout Environment, _ args: [Value]) throws -> Value {
     return .boolean(env.joinNaiveFallback)
+}
+
+private func builtin_set_salience_evaluation(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let first = args.first else {
+        return .symbol(env.salienceEvaluation.rawValue)
+    }
+    let raw: String?
+    switch first {
+    case .symbol(let s): raw = s.lowercased()
+    case .string(let s): raw = s.lowercased()
+    default: raw = nil
+    }
+    if let key = raw, let eval = Environment.SalienceEvaluation(rawValue: key) {
+        env.salienceEvaluation = eval
+        return .symbol(eval.rawValue)
+    }
+    // Valore non riconosciuto: non modificare e ritorna valore corrente
+    return .symbol(env.salienceEvaluation.rawValue)
+}
+
+private func builtin_get_salience_evaluation(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    return .symbol(env.salienceEvaluation.rawValue)
 }
 
 // Whitelist helpers (per experimentalJoinCheck/JoinActivate)

@@ -102,6 +102,12 @@ public final class Environment {
     public var joinActivateDefaultOnStable: Bool = false
     // Se true, mantiene il fallback naïve anche quando RETE è attiva e la regola è stabile
     public var joinNaiveFallback: Bool = true
+    // Strategia di valutazione della salienza (when-defined / when-activated)
+    public enum SalienceEvaluation: String {
+        case whenDefined = "when-defined"
+        case whenActivated = "when-activated"
+    }
+    public var salienceEvaluation: SalienceEvaluation = .whenDefined
     
     // RETE Network: Usa implementazione FEDELE al C di CLIPS (drive.c, network.h, reteutil.c)
     // Traduzione diretta delle strutture joinNode, partialMatch, betaMemory, NetworkAssert, etc.
