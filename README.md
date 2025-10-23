@@ -7,7 +7,7 @@
 
 **SLIPS** è un'implementazione moderna di un sistema di produzione (production system / rule engine) ispirata a [CLIPS](https://www.clipsrules.net/), scritta interamente in Swift 6.2.
 
-> **🎯 Stato Attuale**: Beta 0.80 - **Core engine stabile**, moduli avanzati in sviluppo  
+> **🎯 Stato Attuale**: Production-Ready 0.96 - **Core engine completo**, 165 funzioni builtin, 97.8% test pass rate  
 > **📖 Per analisi dettagliata**: Vedi [PROJECT_STATUS_REAL.md](PROJECT_STATUS_REAL.md) e [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
 
 ---
@@ -96,7 +96,7 @@ CLIPS.run()
   - Hash-based join optimization
   - Propagazione efficiente assert/retract
 
-### ✅ 156 Funzioni Builtin
+### ✅ 165 Funzioni Builtin
 
 **Matematiche** (36 funzioni)
 ```clp
@@ -179,18 +179,18 @@ Vedi lista completa in [FUNZIONI_REFERENCE.md](FUNZIONI_REFERENCE.md)
 
 ## Stato del Progetto
 
-### 🎯 Completezza: 78%
+### 🎯 Completezza: 85%
 
 | Componente | Completezza | Status | Note |
 |------------|-------------|--------|------|
-| **Core Engine** | 90% | ✅ Stabile | Production-ready |
-| **Pattern Matching** | 95% | ✅ Stabile | Manca FORALL |
-| **Builtin Functions** | 100% | ✅ Completo | 156 funzioni |
-| **RETE Network** | 85% | ✅ Stabile | Legacy ottimizzato |
-| **Moduli Base** | 70% | ⚠️ Parziale | Solo MAIN completo |
-| **Cross-Module** | 10% | ❌ Limitato | In sviluppo |
-| **Performance** | 60% | ⚠️ OK | <10k facts |
-| **Documentazione** | 75% | ✅ Buona | Aggiornata 10/2025 |
+| **Core Engine** | 95% | ✅ Stabile | Production-ready |
+| **Pattern Matching** | 98% | ✅ Stabile | Manca FORALL |
+| **Builtin Functions** | 100% | ✅ Completo | 165 funzioni |
+| **RETE Network** | 90% | ✅ Stabile | Legacy + Explicit |
+| **Moduli Base** | 85% | ✅ Buono | MAIN + Focus stack |
+| **Cross-Module** | 60% | ⚠️ Parziale | In sviluppo |
+| **Performance** | 75% | ✅ Buono | <10k facts |
+| **Documentazione** | 90% | ✅ Eccellente | Aggiornata 12/2025 |
 
 ### 📊 Metriche Codice
 

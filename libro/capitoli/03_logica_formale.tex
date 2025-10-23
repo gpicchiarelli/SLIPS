@@ -501,7 +501,7 @@ La risoluzione è completa per la refutazione: \\
 $\Gamma \models \varphi$ se e solo se $\Gamma \cup \{\neg \varphi\}$ deriva la clausola vuota $\square$ per risoluzione.
 \end{teorema}
 
-\section{Connessione con CLIPS}
+\section{Connessione con CLIPS e SLIPS}
 
 \subsection{Pattern come Formule}
 
@@ -514,6 +514,26 @@ corrisponde alla formula FOL:
 \begin{equation}
 \exists n, e. \text{Persona}(n, e) \land e > 18
 \end{equation}
+
+\subsection{SLIPS: Preservazione Semantica}
+
+SLIPS mantiene la stessa semantica logica di CLIPS:
+
+\begin{lstlisting}[language=Swift]
+// Pattern matching in SLIPS
+let pattern = Pattern(
+    name: "persona",
+    slots: [
+        "nome": .variable("n"),
+        "eta": .constrainedVariable("e", constraint: .greaterThan(18))
+    ]
+)
+
+// Equivale alla stessa formula FOL
+// ∃n,e. Persona(n,e) ∧ e > 18
+\end{lstlisting}
+
+\textbf{Invariante}: Per ogni pattern CLIPS $P$ e fatto $F$, il matching in SLIPS produce lo stesso risultato del matching in CLIPS C.
 
 \subsection{Regole come Clausole di Horn}
 
@@ -542,6 +562,43 @@ CLIPS non supporta nativamente:
 
 Queste limitazioni garantiscono decidibilità e efficienza.
 
+\section{SLIPS: Estensioni e Innovazioni}
+
+\subsection{Type Safety come Garanzia Logica}
+
+Swift 6.2 fornisce garanzie che C non può offrire:
+
+\begin{definizione}[Type Safety in Pattern Matching]
+In SLIPS, il type system garantisce che:
+\begin{itemize}
+\item Ogni variabile abbia tipo ben definito
+\item Le operazioni siano type-safe
+\item Gli errori di tipo siano catturati a compile-time
+\end{itemize}
+\end{definizione}
+
+\subsection{Memory Safety e Correttezza}
+
+\begin{lstlisting}[language=Swift]
+// SLIPS: Garanzie di sicurezza
+func unify(_ pattern: Pattern, _ fact: Fact) -> Substitution? {
+    // ARC garantisce no memory leaks
+    // Optional types prevengono null pointer
+    // Bounds checking previene buffer overflow
+    return performUnification(pattern, fact)
+}
+\end{lstlisting}
+
+\subsection{Concurrency e Logica Temporale}
+
+SLIPS prepara il terreno per estensioni future:
+
+\begin{itemize}
+\item \textbf{Actors}: Isolamento di stato per thread safety
+\item \textbf{Async/await}: Ragionamento asincrono
+\item \textbf{Structured concurrency}: Controllo del ciclo di vita
+\end{itemize}
+
 \section{Conclusioni del Capitolo}
 
 \subsection{Punti Chiave}
@@ -552,6 +609,7 @@ Queste limitazioni garantiscono decidibilità e efficienza.
 \item La \textbf{risoluzione} offre un metodo di inferenza completo
 \item I sistemi reali richiedono estensioni della logica classica
 \item CLIPS usa un sottoinsieme decidibile ed efficiente di FOL
+\item SLIPS preserva la semantica logica aggiungendo garanzie di sicurezza
 \end{enumerate}
 
 \subsection{Implicazioni per SLIPS}
