@@ -48,7 +48,7 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
-        guard let firstLink = join.nextLinks.first else { 
+        guard let firstLink = join.nextLinks.first?.link else { 
             // Se non ci sono nextLinks, verifica se è terminal
             if let production = join.ruleToActivate {
                 let token = partialMatchToBetaToken(lhsBinds)
@@ -86,7 +86,7 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
-        guard let firstLink = join.nextLinks.first else { return }
+        guard let firstLink = join.nextLinks.first?.link else { return }
         var listOfJoins: JoinLink? = firstLink
         
         while let currentLink = listOfJoins {
@@ -184,7 +184,7 @@ public enum DriveEngine {
             }
             
             // JOIN RIUSCITO: propaga attraverso nextLinks
-            var listOfJoins = join.nextLinks.first
+            var listOfJoins = join.nextLinks.first?.link
             while listOfJoins != nil {
                 // Crea nuovo partial match combinando LHS + RHS
                 let newPM = mergePartialMatches(currentLHS, rhsBinds)
@@ -277,8 +277,8 @@ public enum DriveEngine {
                 }
                 
                 // Propaga attraverso nextLinks
-                for link in join.nextLinks {
-                    if let targetJoin = link.join {
+                for weakLink in join.nextLinks {
+                    if let link = weakLink.link, let targetJoin = link.join {
                         if theEnv.watchRete {
                             print("[RETE] NetworkAssertLeft: propagating to level \(targetJoin.level) via \(link.enterDirection == LHS ? "LHS" : "RHS")")
                         }
@@ -409,7 +409,7 @@ public enum DriveEngine {
         }
         
         // Propaga attraverso nextLinks
-        var listOfJoins = join.nextLinks.first
+        var listOfJoins = join.nextLinks.first?.link
         
         if theEnv.watchRete {
             print("[RETE] EmptyDrive: join level \(join.level) has \(join.nextLinks.count) nextLinks")

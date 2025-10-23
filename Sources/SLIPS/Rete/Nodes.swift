@@ -19,6 +19,47 @@ public protocol ReteNode: AnyObject {
     func activate(token: BetaToken, env: inout Environment)
 }
 
+// MARK: - Weak Reference Wrappers per evitare retain cycles
+
+/// Wrapper per weak reference a ReteNode
+public struct WeakReteNode {
+    private weak var _node: ReteNode?
+    
+    public init(_ node: ReteNode?) {
+        self._node = node
+    }
+    
+    public var node: ReteNode? {
+        return _node
+    }
+}
+
+/// Wrapper per weak reference a JoinLink
+public struct WeakJoinLink {
+    private weak var _link: JoinLink?
+    
+    public init(_ link: JoinLink?) {
+        self._link = link
+    }
+    
+    public var link: JoinLink? {
+        return _link
+    }
+}
+
+/// Wrapper per weak reference a JoinNodeClass
+public struct WeakJoinNode {
+    private weak var _node: JoinNodeClass?
+    
+    public init(_ node: JoinNodeClass?) {
+        self._node = node
+    }
+    
+    public var node: JoinNodeClass? {
+        return _node
+    }
+}
+
 // MARK: - Alpha Network Nodes
 
 /// Nodo alpha per pattern matching su singolo template
@@ -30,11 +71,11 @@ public final class AlphaNodeClass: ReteNode {
     public let pattern: Pattern
     /// Memoria alpha: IDs di fatti che matchano questo pattern
     public var memory: Set<Int> = []
-    /// Nodi successori nella catena principale (per primo pattern)
-    public var successors: [ReteNode] = []
-    /// Join nodes che usano questo alpha come rightInput
+    /// Nodi successori nella catena principale (per primo pattern) - WEAK REFERENCES
+    public var successors: [WeakReteNode] = []
+    /// Join nodes che usano questo alpha come rightInput - WEAK REFERENCES
     /// Quando un fatto viene aggiunto, questi join vengono notificati
-    public var rightJoinListeners: [JoinNodeClass] = []
+    public var rightJoinListeners: [WeakJoinNode] = []
     
     public init(pattern: Pattern, level: Int = 0) {
         self.id = UUID()
@@ -48,8 +89,10 @@ public final class AlphaNodeClass: ReteNode {
         if env.watchRete {
             print("[RETE] AlphaNode activate: pattern=\(pattern.name), successors=\(successors.count)")
         }
-        for successor in successors {
-            successor.activate(token: token, env: &env)
+        for weakSuccessor in successors {
+            if let successor = weakSuccessor.node {
+                successor.activate(token: token, env: &env)
+            }
         }
     }
 }
@@ -95,21 +138,21 @@ public final class JoinNodeClass: ReteNode {
     /// Port di: void *rightSideEntryStructure
     public var rightSideEntryStructure: AnyObject? = nil
     
-    /// Collegamenti successori (nextLinks in C)
+    /// Collegamenti successori (nextLinks in C) - WEAK REFERENCES per evitare retain cycles
     /// Port di: struct joinLink *nextLinks
-    public var nextLinks: [JoinLink] = []
+    public var nextLinks: [WeakJoinLink] = []
     
-    /// Last level join (predecessore)
+    /// Last level join (predecessore) - WEAK REFERENCE
     /// Port di: struct joinNode *lastLevel
-    public var lastLevel: JoinNodeClass? = nil
+    public weak var lastLevel: JoinNodeClass? = nil
     
-    /// Right match node (per join from right)
+    /// Right match node (per join from right) - WEAK REFERENCE
     /// Port di: struct joinNode *rightMatchNode
-    public var rightMatchNode: JoinNodeClass? = nil
+    public weak var rightMatchNode: JoinNodeClass? = nil
     
-    /// Regola da attivare (production terminal)
+    /// Regola da attivare (production terminal) - WEAK REFERENCE
     /// Port di: Defrule *ruleToActivate
-    public var ruleToActivate: ProductionNode? = nil
+    public weak var ruleToActivate: ProductionNode? = nil
     
     /// Statistics (per profiling)
     public var memoryLeftAdds: Int64 = 0
@@ -119,11 +162,11 @@ public final class JoinNodeClass: ReteNode {
     public var memoryCompares: Int64 = 0
     
     // BACKWARD COMPATIBILITY (da rimuovere gradualmente)
-    public let leftInput: ReteNode?
-    public let rightInput: AlphaNodeClass?
+    public weak var leftInput: ReteNode? = nil
+    public weak var rightInput: AlphaNodeClass? = nil
     public let joinKeys: Set<String>
     public let tests: [ExpressionNode]
-    public var successors: [ReteNode] = []
+    public var successors: [WeakReteNode] = []
     
     public init(
         left: ReteNode? = nil,
@@ -175,8 +218,10 @@ public final class JoinNodeClass: ReteNode {
                 if env.watchRete {
                     print("[RETE] JoinNode NOT: no match found, propagating token")
                 }
-                for successor in successors {
-                    successor.activate(token: token, env: &env)
+                for weakSuccessor in successors {
+                    if let successor = weakSuccessor.node {
+                        successor.activate(token: token, env: &env)
+                    }
                 }
             } else {
                 if env.watchRete {
@@ -228,8 +273,10 @@ public final class JoinNodeClass: ReteNode {
             ) {
                 joinCount += 1
                 // Propaga nuovo token ai successori
-                for successor in successors {
-                    successor.activate(token: newToken, env: &env)
+                for weakSuccessor in successors {
+                    if let successor = weakSuccessor.node {
+                        successor.activate(token: newToken, env: &env)
+                    }
                 }
             }
         }
@@ -487,8 +534,8 @@ public final class BetaMemoryNode: ReteNode {
     public let level: Int
     /// Riferimento alla memoria beta condivisa (può essere riutilizzata da altre regole)
     public let memory: BetaMemory
-    /// Nodi successori
-    public var successors: [ReteNode] = []
+    /// Nodi successori - WEAK REFERENCES
+    public var successors: [WeakReteNode] = []
     
     public init(level: Int, memory: BetaMemory = BetaMemory()) {
         self.id = UUID()
@@ -516,8 +563,10 @@ public final class BetaMemoryNode: ReteNode {
             
             // Propaga ai successori
             // NOTA: leftMemory viene popolata da DriveEngine, non qui (Fase 1.5)
-            for successor in successors {
-                successor.activate(token: token, env: &env)
+            for weakSuccessor in successors {
+                if let successor = weakSuccessor.node {
+                    successor.activate(token: token, env: &env)
+                }
             }
         }
     }
@@ -561,9 +610,9 @@ public final class NotNodeClass: ReteNode {
     public let level: Int
     public let pattern: Pattern
     public let joinKeys: Set<String>
-    /// Alpha node per trovare fatti candidati
-    public let alphaNode: AlphaNodeClass
-    public var successors: [ReteNode] = []
+    /// Alpha node per trovare fatti candidati - WEAK REFERENCE
+    public weak var alphaNode: AlphaNodeClass?
+    public var successors: [WeakReteNode] = []
     
     public init(
         pattern: Pattern,
@@ -588,20 +637,24 @@ public final class NotNodeClass: ReteNode {
         // Cerca fatti che matchano con i binding correnti
         var foundMatch = false
         
-        for factID in alphaNode.memory {
-            guard let fact = env.facts[factID] else { continue }
-            
-            // Verifica se il fatto matcha considerando join keys
-            if matchesWithBindings(fact: fact, bindings: token.bindings, env: &env) {
-                foundMatch = true
-                break
+        if let alphaNode = alphaNode {
+            for factID in alphaNode.memory {
+                guard let fact = env.facts[factID] else { continue }
+                
+                // Verifica se il fatto matcha considerando join keys
+                if matchesWithBindings(fact: fact, bindings: token.bindings, env: &env) {
+                    foundMatch = true
+                    break
+                }
             }
         }
         
         // Propaga solo se NON trovato match (NOT condition vera)
         if !foundMatch {
-            for successor in successors {
-                successor.activate(token: token, env: &env)
+            for weakSuccessor in successors {
+                if let successor = weakSuccessor.node {
+                    successor.activate(token: token, env: &env)
+                }
             }
         }
     }
