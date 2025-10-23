@@ -112,6 +112,10 @@ public struct ReteNetwork {
     /// Ref: struct betaMemory in network.h (memorizzata esplicitamente)
     public var betaMemoryNodes: [BetaMemoryNode] = []
     
+    /// Collezione di join nodes per mantenere forti riferimenti e statistiche
+    /// Ref: struct joinNode in network.h
+    public var joinNodes: [JoinNodeClass] = []
+    
     /// Alpha index (per ricerca rapida fatti per template)
     /// Ref: factmngr.c - hash table per template lookups
     public var alpha: AlphaIndex = AlphaIndex()

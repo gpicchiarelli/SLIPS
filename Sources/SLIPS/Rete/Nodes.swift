@@ -141,6 +141,8 @@ public final class JoinNodeClass: ReteNode {
     /// Collegamenti successori (nextLinks in C) - WEAK REFERENCES per evitare retain cycles
     /// Port di: struct joinLink *nextLinks
     public var nextLinks: [WeakJoinLink] = []
+    /// Storage forte per join links, evita che vengano deallocati
+    public var linkStorage: [JoinLink] = []
     
     /// Last level join (predecessore) - WEAK REFERENCE
     /// Port di: struct joinNode *lastLevel

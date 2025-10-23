@@ -217,6 +217,15 @@ public enum DriveEngine {
                 listOfJoins = listOfJoins?.next
             }
             
+            // Se non ci sono nextLinks, siamo al nodo terminale: crea attivazione
+            if join.nextLinks.isEmpty, let production = join.ruleToActivate {
+                if theEnv.watchRete {
+                    print("[RETE] NetworkAssertRight: TERMINAL - creating activation for '\(production.ruleName)'")
+                }
+                let token = partialMatchToBetaToken(mergePartialMatches(currentLHS, rhsBinds))
+                production.activate(token: token, env: &theEnv)
+            }
+            
             lhsBinds = nextBind
         }
     }
@@ -569,4 +578,3 @@ public enum DriveEngine {
         return BetaToken(bindings: bindings, usedFacts: usedFacts)
     }
 }
-

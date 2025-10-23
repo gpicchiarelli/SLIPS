@@ -59,6 +59,7 @@ public enum NetworkBuilder {
                     tests: testsForLevel,
                     level: currentLevel + 1
                 )
+                env.rete.joinNodes.append(notJoin)
                 
                 // ✅ Imposta flag NOT
                 notJoin.patternIsNegated = true
@@ -79,6 +80,7 @@ public enum NetworkBuilder {
                     let link = JoinLink()
                     link.join = notJoin
                     link.enterDirection = "l"
+                    prevJoin.linkStorage.append(link)
                     prevJoin.nextLinks.append(WeakJoinLink(link))
                 }
                 lastJoinNode = notJoin
@@ -113,6 +115,7 @@ public enum NetworkBuilder {
                     level: currentLevel + 1
                 )
                 innerNot.patternIsNegated = true
+                env.rete.joinNodes.append(innerNot)
                 
                 if index == 0 {
                     innerNot.firstJoin = true
@@ -131,11 +134,13 @@ public enum NetworkBuilder {
                 )
                 outerJoin.patternIsNegated = false  // ✅ FALSE per EXISTS!
                 outerJoin.patternIsExists = true  // Marca come EXISTS
+                env.rete.joinNodes.append(outerJoin)
                 
                 // Link
                 let link = JoinLink()
                 link.join = outerJoin
                 link.enterDirection = "l"
+                innerNot.linkStorage.append(link)
                 innerNot.nextLinks.append(WeakJoinLink(link))
                 lastJoinNode = outerJoin
                 
@@ -168,6 +173,7 @@ public enum NetworkBuilder {
                         tests: testsForLevel,
                         level: currentLevel + 1
                     )
+                    env.rete.joinNodes.append(joinNode)
                     
                     // ✅ CORRETTO: firstJoin = true SOLO se NON c'è predecessore (leftMemory)
                     // In CLIPS C (drive.c), firstJoin significa "entra nella rete dall'alpha network"
@@ -187,6 +193,7 @@ public enum NetworkBuilder {
                         let link = JoinLink()
                         link.join = joinNode
                         link.enterDirection = "l"  // Left entry (LHS) - match proviene dalla catena precedente
+                        prevJoin.linkStorage.append(link)
                         prevJoin.nextLinks.append(WeakJoinLink(link))
                         
                         if env.watchRete {
