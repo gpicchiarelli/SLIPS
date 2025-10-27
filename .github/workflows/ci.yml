@@ -90,7 +90,7 @@ jobs:
         .build/release/slips-cli --version || echo "CLI creata con successo"
         
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: slips-cli-macos
         path: .build/release/slips-cli
