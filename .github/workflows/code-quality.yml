@@ -42,7 +42,7 @@ jobs:
         
     - name: Upload report SwiftLint
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: swiftlint-reports
         path: |
@@ -83,7 +83,7 @@ jobs:
         cat dependencies.json
         
     - name: Upload dependencies
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: dependencies-tree
         path: dependencies.json
@@ -137,7 +137,7 @@ jobs:
         
     - name: Upload report complessità
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: complexity-report
         path: lizard-report.html
@@ -161,7 +161,7 @@ jobs:
         tokei Sources Tests --output json > code-stats.json
         
     - name: Upload statistiche
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: code-statistics
         path: code-stats.json

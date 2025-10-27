@@ -50,7 +50,7 @@ jobs:
         echo "⚠️  DocC non disponibile, verrà usata solo documentazione statica"
         
     - name: Upload artifact DocC
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: docc-documentation
         path: docs/api
