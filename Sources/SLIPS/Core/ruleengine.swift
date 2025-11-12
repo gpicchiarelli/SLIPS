@@ -75,9 +75,6 @@ public enum RuleEngine {
         var fired = 0
         let max = limit ?? Int.max
         while fired < max, let act = env.agendaQueue.next() {
-            if env.watchRules {
-                print("[DEBUG] Agenda activation for rule: \(act.ruleName)")
-            }
             guard let rule = env.rules.first(where: { $0.name == act.ruleName || $0.displayName == act.ruleName }) else { continue }
             let oldBindings = env.localBindings
             if let b = act.bindings { 

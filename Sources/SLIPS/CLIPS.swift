@@ -239,7 +239,6 @@ public enum CLIPS {
     @discardableResult
     public static func run(limit: Int? = nil) -> Int {
         guard var env = currentEnv else { return 0 }
-        print("[DEBUG] Agenda size before run:", env.agendaQueue.queue.count)
         // Nel sistema esplicito, le attivazioni sono create dalla rete RETE durante propagation
         // Non serve rebuild agenda - tutto è gestito da NetworkAssert/ProductionNode.activate
         let fired = RuleEngine.run(&env, limit: limit)
