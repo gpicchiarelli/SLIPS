@@ -500,34 +500,16 @@ public enum Evaluator {
         }
     }
 
-    // Parse a simple pattern di forma (entity (slot val) ...)
+    // Parse a simple pattern di forma (entity slot val slot val ...)
     // Also collects predicate expressions found in slot values.
     private static func parseSimplePattern(_ env: inout Environment, _ node: ExpressionNode) -> (Pattern, [ExpressionNode])? {
         guard node.type == .fcall else { return nil }
+        normalizePatternNodeInPlace(node)
         let pname = (node.value?.value as? String) ?? ""
         var slots: [String: PatternTest] = [:]
         var predicates: [ExpressionNode] = []
         var arg = node.argList
         while let snameNode = arg {
-            if snameNode.type == .fcall, let slotName = (snameNode.value?.value as? String) {
-                let isMulti = env.templates[pname]?.slots[slotName]?.isMultifield ?? false
-                if isMulti {
-                    var items: [PatternTest] = []
-                    var valNode = snameNode.argList
-                    while let vn = valNode {
-                        items.append(patternTestFromNode(&env, vn, &predicates))
-                        valNode = vn.nextArg
-                    }
-                    slots[slotName] = PatternTest(kind: .sequence(items))
-                } else if let valNode = snameNode.argList {
-                    slots[slotName] = patternTestFromNode(&env, valNode, &predicates)
-                } else {
-                    slots[slotName] = PatternTest(kind: .constant(.none))
-                }
-                arg = snameNode.nextArg
-                continue
-            }
-            
             guard snameNode.type == .symbol, let sname = (snameNode.value?.value as? String) else { break }
             var cur = snameNode.nextArg
             guard let valNode = cur else { break }
@@ -576,6 +558,41 @@ public enum Evaluator {
             return PatternTest(kind: .predicate(node))
         default:
             return PatternTest(kind: .constant(.none))
+        }
+    }
+
+    private static func normalizePatternNodeInPlace(_ node: ExpressionNode) {
+        var previous: ExpressionNode? = nil
+        var current = node.argList
+        while let arg = current {
+            if arg.type == .fcall, let slotName = arg.value?.value as? String {
+                let symbolNode = Expressions.GenConstant(.symbol, slotName)
+                // Reuse child nodes as value sequence
+                var lastValue: ExpressionNode? = nil
+                var child = arg.argList
+                while let valueNode = child {
+                    let nextChild = valueNode.nextArg
+                    valueNode.nextArg = nil
+                    if symbolNode.argList == nil {
+                        symbolNode.argList = valueNode
+                    } else {
+                        lastValue?.nextArg = valueNode
+                    }
+                    lastValue = valueNode
+                    child = nextChild
+                }
+                symbolNode.nextArg = arg.nextArg
+                if let prev = previous {
+                    prev.nextArg = symbolNode
+                } else {
+                    node.argList = symbolNode
+                }
+                previous = lastValue ?? symbolNode
+                current = symbolNode.nextArg
+                continue
+            }
+            previous = arg
+            current = arg.nextArg
         }
     }
 
