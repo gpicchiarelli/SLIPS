@@ -48,13 +48,16 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
-        guard let firstLink = join.nextLinks.first?.link else { 
-            // Se non ci sono nextLinks, verifica se è terminal
+        guard let firstLink = join.nextLinks.first?.link else {
             if let production = join.ruleToActivate {
-                let token = partialMatchToBetaToken(lhsBinds)
+                let token = partialMatchToBetaToken(
+                    lhsBinds,
+                    env: theEnv,
+                    ruleName: production.ruleName
+                )
                 production.activate(token: token, env: &theEnv)
             }
-            return 
+            return
         }
         
         var listOfJoins: JoinLink? = firstLink
@@ -167,7 +170,7 @@ public enum DriveEngine {
                 }
                 
                 // Evalua test
-                let result = Evaluator.EvaluateExpression(&theEnv, networkTest)
+                let result = evaluateReteTest(&theEnv, networkTest)
                 
                 theEnv.localBindings = oldBindings
                 
@@ -222,7 +225,11 @@ public enum DriveEngine {
                 if theEnv.watchRete {
                     print("[RETE] NetworkAssertRight: TERMINAL - creating activation for '\(production.ruleName)'")
                 }
-                let token = partialMatchToBetaToken(mergePartialMatches(currentLHS, rhsBinds))
+                let token = partialMatchToBetaToken(
+                    mergePartialMatches(currentLHS, rhsBinds),
+                    env: theEnv,
+                    ruleName: production.ruleName
+                )
                 production.activate(token: token, env: &theEnv)
             }
             
@@ -304,7 +311,11 @@ public enum DriveEngine {
                     if theEnv.watchRete {
                         print("[RETE] NetworkAssertLeft: TERMINAL - creating activation for '\(production.ruleName)'")
                     }
-                    let token = partialMatchToBetaToken(newPM)
+                    let token = partialMatchToBetaToken(
+                        newPM,
+                        env: theEnv,
+                        ruleName: production.ruleName
+                    )
                     production.activate(token: token, env: &theEnv)
                 }
             }
@@ -339,7 +350,7 @@ public enum DriveEngine {
             // Setup per evaluation (GlobalRHSBinds = rhsBinds in C)
             // Estrai binding da rhsBinds e metti in localBindings
             
-            let result = Evaluator.EvaluateExpression(&theEnv, networkTest)
+            let result = evaluateReteTest(&theEnv, networkTest)
             theEnv.localBindings = oldBindings
             
             var joinExpr: Bool
@@ -355,7 +366,7 @@ public enum DriveEngine {
         // Secondary network test
         if let secondaryTest = join.secondaryNetworkTest {
             let oldBindings = theEnv.localBindings
-            let result = Evaluator.EvaluateExpression(&theEnv, secondaryTest)
+            let result = evaluateReteTest(&theEnv, secondaryTest)
             theEnv.localBindings = oldBindings
             
             var joinExpr: Bool
@@ -435,7 +446,11 @@ public enum DriveEngine {
                     print("[RETE] EmptyDrive: CREATING ACTIVATION for rule '\(production.ruleName)'")
                 }
                 // Converti rhsBinds in BetaToken per attivazione
-                let token = partialMatchToBetaToken(rhsBinds)
+                let token = partialMatchToBetaToken(
+                    rhsBinds,
+                    env: theEnv,
+                    ruleName: production.ruleName
+                )
                 production.activate(token: token, env: &theEnv)
             } else {
                 if theEnv.watchRete {
@@ -550,31 +565,31 @@ public enum DriveEngine {
     }
     
     /// Converte PartialMatch in BetaToken (bridge tra C-style e Swift-style)
-    private static func partialMatchToBetaToken(_ pm: PartialMatch) -> BetaToken {
-        var bindings: [String: Value] = [:]
-        var usedFacts: Set<Int> = []
+    private static func partialMatchToBetaToken(
+        _ pm: PartialMatch,
+        env: Environment,
+        ruleName: String?
+    ) -> BetaToken {
+        if let ruleName = ruleName,
+           let rule = env.rules.first(where: { $0.name == ruleName || $0.displayName == ruleName }) {
+            let bindings = PartialMatchBridge.extractBindings(from: pm, rule: rule, env: env)
+            return PartialMatchBridge.createBetaToken(from: pm, bindings: bindings)
+        }
         
-        // Estrai fact IDs da binds[]
+        // Fallback: binding per nome slot (meno preciso ma evita crash)
+        var fallbackBindings: [String: Value] = [:]
+        var usedFacts: Set<Int> = []
         for i in 0..<Int(pm.bcount) {
             if let alphaMatch = pm.binds[i].theMatch,
                let entity = alphaMatch.matchingItem {
                 usedFacts.insert(entity.factID)
-                
-                // Se entity è FactPatternEntity, estrai slot come bindings
                 if let factEntity = entity as? FactPatternEntity {
-                    let fact = factEntity.fact
-                    
-                    // Per ogni slot del fatto, crea binding con nome slot
-                    // (questo è semplificato - idealmente servirebbe il pattern per nomi variabili)
-                    for (slotName, value) in fact.slots {
-                        // Usa nome slot come chiave (approssimazione)
-                        // In regole reali, il pattern map slotName → varName
-                        bindings[slotName] = value
+                    for (slotName, value) in factEntity.fact.slots {
+                        fallbackBindings[slotName] = value
                     }
                 }
             }
         }
-        
-        return BetaToken(bindings: bindings, usedFacts: usedFacts)
+        return BetaToken(bindings: fallbackBindings, usedFacts: usedFacts)
     }
 }

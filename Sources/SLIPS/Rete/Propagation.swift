@@ -227,17 +227,17 @@ public enum Propagation {
             
             switch test.kind {
             case .variable(let name):
-                // Single-field variable: bind direttamente
-                bindings[name] = value
+                bindings[cleanVariableName(name)] = value
                 
             case .mfVariable(let name):
                 // Multifield variable: bind come multifield
                 // Se il valore è già multifield, usa quello
                 // Altrimenti wrappa in multifield
+                let cleanName = cleanVariableName(name)
                 if case .multifield = value {
-                    bindings[name] = value
+                    bindings[cleanName] = value
                 } else {
-                    bindings[name] = .multifield([value])
+                    bindings[cleanName] = .multifield([value])
                 }
                 
             case .sequence(let items):
@@ -322,7 +322,7 @@ public enum Propagation {
             // che possono bindare a lista vuota
             for i in itemIndex..<items.count {
                 if case .mfVariable(let name) = items[i].kind {
-                    bindings[name] = .multifield([])
+                    bindings[cleanVariableName(name)] = .multifield([])
                 } else {
                     return false
                 }
@@ -353,8 +353,9 @@ public enum Propagation {
             guard valueIndex < values.count else {
                 return false
             }
-            let oldBinding = bindings[name]
-            bindings[name] = values[valueIndex]
+            let cleanName = cleanVariableName(name)
+            let oldBinding = bindings[cleanName]
+            bindings[cleanName] = values[valueIndex]
             
             if backtrack(
                 itemIndex: itemIndex + 1,
@@ -369,9 +370,9 @@ public enum Propagation {
             
             // Backtrack: ripristina binding
             if let old = oldBinding {
-                bindings[name] = old
+                bindings[cleanName] = old
             } else {
-                bindings.removeValue(forKey: name)
+                bindings.removeValue(forKey: cleanName)
             }
             return false
             
@@ -395,9 +396,10 @@ public enum Propagation {
             
             // Prova da lunghezza massima a 0 (greedy first)
             for length in stride(from: maxCanTake, through: 0, by: -1) {
-                let oldBinding = bindings[name]
+                let cleanName = cleanVariableName(name)
+                let oldBinding = bindings[cleanName]
                 let taken = Array(values[valueIndex..<(valueIndex + length)])
-                bindings[name] = .multifield(taken)
+                bindings[cleanName] = .multifield(taken)
                 
                 if backtrack(
                     itemIndex: itemIndex + 1,
@@ -412,9 +414,9 @@ public enum Propagation {
                 
                 // Backtrack
                 if let old = oldBinding {
-                    bindings[name] = old
+                    bindings[cleanName] = old
                 } else {
-                    bindings.removeValue(forKey: name)
+                    bindings.removeValue(forKey: cleanName)
                 }
             }
             return false
@@ -438,6 +440,17 @@ public enum Propagation {
         if env.watchRete {
             print("[RETE Retract]   NOT node propagation: alpha memories updated")
         }
+    }
+    
+    private static func cleanVariableName(_ name: String) -> String {
+        var cleaned = name
+        if cleaned.hasPrefix("$?") {
+            cleaned.removeFirst(2)
+        }
+        if cleaned.hasPrefix("?") {
+            cleaned.removeFirst()
+        }
+        return cleaned
     }
     
     /// Converte slot di un fatto in stringa per debug

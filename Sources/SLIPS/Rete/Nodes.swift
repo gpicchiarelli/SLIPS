@@ -19,6 +19,18 @@ public protocol ReteNode: AnyObject {
     func activate(token: BetaToken, env: inout Environment)
 }
 
+@inline(__always)
+func evaluateReteTest(_ env: inout Environment, _ node: ExpressionNode) -> Value {
+    let exprToEval: ExpressionNode
+    if node.type == .fcall, (node.value?.value as? String) == "test",
+       let arg = node.argList {
+        exprToEval = arg
+    } else {
+        exprToEval = node
+    }
+    return Evaluator.EvaluateExpression(&env, exprToEval)
+}
+
 // MARK: - Weak Reference Wrappers per evitare retain cycles
 
 /// Wrapper per weak reference a ReteNode
@@ -382,7 +394,7 @@ public final class JoinNodeClass: ReteNode {
                 env.localBindings = newBindings
                 env.localBindings[slot] = factValue // Binding implicito per slot
                 
-                let result = Evaluator.EvaluateExpression(&env, exprNode)
+                let result = evaluateReteTest(&env, exprNode)
                 env.localBindings = oldBindings
                 
                 switch result {
@@ -405,7 +417,7 @@ public final class JoinNodeClass: ReteNode {
             let oldBindings = env.localBindings
             env.localBindings = newBindings
             
-            let result = Evaluator.EvaluateExpression(&env, test)
+            let result = evaluateReteTest(&env, test)
             env.localBindings = oldBindings
             
             switch result {
@@ -787,15 +799,7 @@ public final class ProductionNode: ReteNode {
             env.localBindings = token.bindings
             
             for testExpr in rule.tests {
-                let exprToEval: ExpressionNode
-                if testExpr.type == .fcall, (testExpr.value?.value as? String) == "test",
-                   let arg = testExpr.argList {
-                    exprToEval = arg
-                } else {
-                    exprToEval = testExpr
-                }
-                
-                let result = try? Evaluator.eval(&env, exprToEval)
+                let result = evaluateReteTest(&env, testExpr)
                 
                 switch result {
                 case .boolean(let b):
