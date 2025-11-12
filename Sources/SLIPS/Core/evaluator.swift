@@ -331,21 +331,26 @@ public enum Evaluator {
                     // Formato 1: (assert (fact-name (slot value)...))
                     assertArgs.append(.symbol(factName))
                     
-                    // Parse slot-value pairs
                     var slotNode = firstArg.argList
                     while let sn = slotNode {
-                        if let slotName = sn.value?.value as? String {
-                            assertArgs.append(.symbol(slotName))
-                            // Valuta il valore dello slot
-                            if let valNode = sn.nextArg {
-                                let val = try eval(&env, valNode)
-                                assertArgs.append(val)
-                                slotNode = valNode.nextArg
-                            } else {
-                                slotNode = sn.nextArg
+                        defer { slotNode = sn.nextArg }
+                        guard let slotName = sn.value?.value as? String else { continue }
+                        assertArgs.append(.symbol(slotName))
+                        
+                        let isMultifield = env.templates[factName]?.slots[slotName]?.isMultifield ?? false
+                        if isMultifield {
+                            var values: [Value] = []
+                            var valueNode = sn.argList
+                            while let vn = valueNode {
+                                values.append(try eval(&env, vn))
+                                valueNode = vn.nextArg
                             }
+                            assertArgs.append(.multifield(values))
+                        } else if let valueNode = sn.argList {
+                            let val = try eval(&env, valueNode)
+                            assertArgs.append(val)
                         } else {
-                            slotNode = sn.nextArg
+                            assertArgs.append(.none)
                         }
                     }
                 } else {
@@ -495,7 +500,7 @@ public enum Evaluator {
         }
     }
 
-    // Parse a simple pattern of form (entity slot val slot val ...)
+    // Parse a simple pattern di forma (entity (slot val) ...)
     // Also collects predicate expressions found in slot values.
     private static func parseSimplePattern(_ env: inout Environment, _ node: ExpressionNode) -> (Pattern, [ExpressionNode])? {
         guard node.type == .fcall else { return nil }
@@ -504,6 +509,25 @@ public enum Evaluator {
         var predicates: [ExpressionNode] = []
         var arg = node.argList
         while let snameNode = arg {
+            if snameNode.type == .fcall, let slotName = (snameNode.value?.value as? String) {
+                let isMulti = env.templates[pname]?.slots[slotName]?.isMultifield ?? false
+                if isMulti {
+                    var items: [PatternTest] = []
+                    var valNode = snameNode.argList
+                    while let vn = valNode {
+                        items.append(patternTestFromNode(&env, vn, &predicates))
+                        valNode = vn.nextArg
+                    }
+                    slots[slotName] = PatternTest(kind: .sequence(items))
+                } else if let valNode = snameNode.argList {
+                    slots[slotName] = patternTestFromNode(&env, valNode, &predicates)
+                } else {
+                    slots[slotName] = PatternTest(kind: .constant(.none))
+                }
+                arg = snameNode.nextArg
+                continue
+            }
+            
             guard snameNode.type == .symbol, let sname = (snameNode.value?.value as? String) else { break }
             var cur = snameNode.nextArg
             guard let valNode = cur else { break }
@@ -517,19 +541,7 @@ public enum Evaluator {
                     if vn.type == .symbol, let sym = (vn.value?.value as? String), items.count > 0, slotNames.contains(sym) {
                         break
                     }
-                    switch vn.type {
-                    case .integer, .float, .string, .symbol:
-                        items.append(PatternTest(kind: .constant((try? eval(&env, vn)) ?? .none)))
-                    case .variable:
-                        items.append(PatternTest(kind: .variable((vn.value?.value as? String) ?? "")))
-                    case .mfVariable:
-                        items.append(PatternTest(kind: .mfVariable((vn.value?.value as? String) ?? "")))
-                    case .fcall:
-                        // Predicati dello slot: promossi a predicate esterno
-                        predicates.append(vn)
-                    default:
-                        break
-                    }
+                    items.append(patternTestFromNode(&env, vn, &predicates))
                     last = vn
                     cur = vn.nextArg
                     if cur == nil { run = false }
@@ -538,25 +550,33 @@ public enum Evaluator {
                 slots[sname] = test
                 arg = (last?.nextArg) ?? cur
             } else {
-                let test: PatternTest
-                switch valNode.type {
-                case .integer: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-                case .float: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-                case .string: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-                case .symbol: test = PatternTest(kind: .constant(try! eval(&env, valNode)))
-                case .variable: test = PatternTest(kind: .variable((valNode.value?.value as? String) ?? ""))
-                case .mfVariable: test = PatternTest(kind: .mfVariable((valNode.value?.value as? String) ?? ""))
-                case .fcall:
-                    test = PatternTest(kind: .predicate(valNode))
-                    predicates.append(valNode)
-                default:
-                    test = PatternTest(kind: .constant(.none))
-                }
+                let test = patternTestFromNode(&env, valNode, &predicates)
                 slots[sname] = test
                 arg = valNode.nextArg
             }
         }
         return (Pattern(name: pname, slots: slots, negated: false, exists: false), predicates)
+    }
+
+    private static func patternTestFromNode(
+        _ env: inout Environment,
+        _ node: ExpressionNode,
+        _ predicates: inout [ExpressionNode]
+    ) -> PatternTest {
+        switch node.type {
+        case .integer, .float, .string, .symbol:
+            let val = (try? eval(&env, node)) ?? .none
+            return PatternTest(kind: .constant(val))
+        case .variable:
+            return PatternTest(kind: .variable((node.value?.value as? String) ?? ""))
+        case .mfVariable:
+            return PatternTest(kind: .mfVariable((node.value?.value as? String) ?? ""))
+        case .fcall:
+            predicates.append(node)
+            return PatternTest(kind: .predicate(node))
+        default:
+            return PatternTest(kind: .constant(.none))
+        }
     }
 
     private static func sexpString(_ node: ExpressionNode) -> String {

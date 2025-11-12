@@ -6,8 +6,9 @@
             "args": [],
             "cwd": "${workspaceFolder:SLIPS}",
             "name": "Debug slips-cli",
-            "program": "${workspaceFolder:SLIPS}/.build/debug/slips-cli",
-            "preLaunchTask": "swift: Build Debug slips-cli"
+            "preLaunchTask": "swift: Build Debug slips-cli",
+            "target": "slips-cli",
+            "configuration": "debug"
         },
         {
             "type": "swift",
@@ -15,8 +16,9 @@
             "args": [],
             "cwd": "${workspaceFolder:SLIPS}",
             "name": "Release slips-cli",
-            "program": "${workspaceFolder:SLIPS}/.build/release/slips-cli",
-            "preLaunchTask": "swift: Build Release slips-cli"
+            "preLaunchTask": "swift: Build Release slips-cli",
+            "target": "slips-cli",
+            "configuration": "release"
         }
     ]
 }
