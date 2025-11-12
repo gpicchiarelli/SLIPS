@@ -30,7 +30,9 @@ final class RetePredicateFilterTests: XCTestCase {
         XCTAssertTrue(env.agendaQueue.queue.allSatisfy { $0.ruleName == "r" }, "Le attivazioni devono riferirsi alla regola r")
         // Run and verify only x=2 and x=3 fire
         let fired = CLIPS.run(limit: nil)
+        print("DEBUG fired:", fired)
         XCTAssertEqual(fired, 2)
+        XCTAssertTrue(env === CLIPS.currentEnvironment)
         // Check beta terminal tokens equal 2 as well (post-filter)
         XCTAssertEqual(env.facts.count, 6, "Aspettavamo 6 fatti asseriti da A/B")
         XCTAssertTrue(env.agendaQueue.queue.isEmpty, "Dopo run l'agenda deve essere vuota")
