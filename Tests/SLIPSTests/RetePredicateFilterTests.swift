@@ -20,6 +20,11 @@ final class RetePredicateFilterTests: XCTestCase {
         guard let env = CLIPS.currentEnvironment else { XCTFail(); return }
         XCTAssertEqual(env.rules.count, 1)
         XCTAssertEqual(env.rules.first?.patterns.count, 2)
+        if case let .variable(name)? = env.rules.first?.patterns.first?.slots["v"]?.kind {
+            XCTAssertEqual(name, "?x")
+        } else {
+            XCTFail("Il pattern di A.v non è stato interpretato come variabile")
+        }
         XCTAssertEqual(env.rete.alphaNodes.count, 2)
 
         XCTAssertEqual(env.facts.count, 6)
