@@ -25,6 +25,7 @@ final class RetePredicateFilterTests: XCTestCase {
         XCTAssertEqual(env.rules.first?.name, "r")
         XCTAssertEqual(env.rete.alphaNodes.count, 2, "La rete dovrebbe avere due alpha nodes per A e B")
         XCTAssertTrue(env.watchRete, "Il comando (watch rete) dovrebbe attivare il tracing")
+        XCTAssertTrue(env.watchRules, "Il comando (watch rules) dovrebbe attivare il tracing delle regole")
         XCTAssertEqual(env.agendaQueue.queue.count, 2, "Prima di run, ci aspettiamo due attivazioni in agenda")
         XCTAssertTrue(env.agendaQueue.queue.allSatisfy { $0.ruleName == "r" }, "Le attivazioni devono riferirsi alla regola r")
         // Run and verify only x=2 and x=3 fire
