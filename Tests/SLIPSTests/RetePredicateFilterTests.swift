@@ -17,6 +17,9 @@ final class RetePredicateFilterTests: XCTestCase {
         _ = CLIPS.eval(expr: "(assert A v 3)")
         _ = CLIPS.eval(expr: "(assert B v 3)")
 
+        guard let envBefore = CLIPS.currentEnvironment else { XCTFail(); return }
+        XCTAssertEqual(envBefore.agendaQueue.queue.count, 2, "L'agenda RETE dovrebbe contenere due attivazioni")
+
         let fired = CLIPS.run(limit: nil)
         XCTAssertEqual(fired, 2)
         guard let env = CLIPS.currentEnvironment else { XCTFail(); return }

@@ -567,33 +567,41 @@ public enum Evaluator {
         while let arg = current {
             if arg.type == .fcall, let slotName = arg.value?.value as? String {
                 let symbolNode = Expressions.GenConstant(.symbol, slotName)
-                // Reuse child nodes as value sequence
-                var lastValue: ExpressionNode? = nil
+                var last: ExpressionNode? = symbolNode
                 var child = arg.argList
                 while let valueNode = child {
-                    let nextChild = valueNode.nextArg
-                    valueNode.nextArg = nil
-                    if symbolNode.argList == nil {
-                        symbolNode.argList = valueNode
-                    } else {
-                        lastValue?.nextArg = valueNode
-                    }
-                    lastValue = valueNode
-                    child = nextChild
+                    let clonedValue = cloneExpressionNode(valueNode)
+                    last?.nextArg = clonedValue
+                    last = clonedValue
+                    child = valueNode.nextArg
                 }
-                symbolNode.nextArg = arg.nextArg
+                last?.nextArg = arg.nextArg
                 if let prev = previous {
                     prev.nextArg = symbolNode
                 } else {
                     node.argList = symbolNode
                 }
-                previous = lastValue ?? symbolNode
-                current = symbolNode.nextArg
+                previous = last
+                current = last?.nextArg
                 continue
             }
             previous = arg
             current = arg.nextArg
         }
+    }
+
+    private static func cloneExpressionNode(_ node: ExpressionNode) -> ExpressionNode {
+        let copy = ExpressionNode(type: node.type, value: node.value)
+        if let argHead = node.argList {
+            var clonedArgs: [ExpressionNode] = []
+            var current: ExpressionNode? = argHead
+            while let n = current {
+                clonedArgs.append(cloneExpressionNode(n))
+                current = n.nextArg
+            }
+            Expressions.linkArgs(copy, clonedArgs)
+        }
+        return copy
     }
 
     private static func sexpString(_ node: ExpressionNode) -> String {
