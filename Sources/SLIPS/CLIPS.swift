@@ -274,6 +274,11 @@ public enum CLIPS {
     @discardableResult
     public static func eval(expr: String) -> Value {
         guard var env = currentEnv else { return .none }
+        if ProcessInfo.processInfo.environment["SLIPS_DEBUG_EVAL"] == "1" {
+            if let data = "[CLIPS.eval] \(expr)\n".data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
+        }
         // Usa fast router come in CLIPS per valutare stringhe
         let router = "***EVAL***"
         let r = RouterEnvData.ensure(&env)
