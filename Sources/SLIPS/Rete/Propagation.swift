@@ -227,13 +227,13 @@ public enum Propagation {
             
             switch test.kind {
             case .variable(let name):
-                bindings[cleanVariableName(name)] = value
+                bindings[PatternBindingHelper.cleanVariableName(name)] = value
                 
             case .mfVariable(let name):
                 // Multifield variable: bind come multifield
                 // Se il valore è già multifield, usa quello
                 // Altrimenti wrappa in multifield
-                let cleanName = cleanVariableName(name)
+                let cleanName = PatternBindingHelper.cleanVariableName(name)
                 if case .multifield = value {
                     bindings[cleanName] = value
                 } else {
@@ -244,15 +244,11 @@ public enum Propagation {
                 // Pattern di sequenza complesso: richiede matching avanzato
                 // Ref: VariablePatternMatch in factrete.c
                 if case .multifield(let values) = value {
-                    // Tenta di matchare la sequenza con backtracking
-                    if let seqBindings = matchSequence(items: items, values: values) {
+                    if let seqBindings = PatternBindingHelper.matchSequence(items: items, values: values) {
                         bindings.merge(seqBindings) { _, new in new }
                     }
-                } else {
-                    // Valore singolo: tratta come sequenza di un elemento
-                    if let seqBindings = matchSequence(items: items, values: [value]) {
-                        bindings.merge(seqBindings) { _, new in new }
-                    }
+                } else if let seqBindings = PatternBindingHelper.matchSequence(items: items, values: [value]) {
+                    bindings.merge(seqBindings) { _, new in new }
                 }
                 
             default:
@@ -261,169 +257,6 @@ public enum Propagation {
         }
         
         return bindings
-    }
-    
-    /// Match sequenza con backtracking per pattern complessi
-    /// Gestisce pattern come: a $?x b $?y c
-    /// Ref: VariablePatternMatch in factrete.c (CLIPS 6.4.2)
-    private static func matchSequence(
-        items: [PatternTest],
-        values: [Value]
-    ) -> [String: Value]? {
-        var bindings: [String: Value] = [:]
-        
-        // Conta variabili multifield e calcola minimo required
-        var mfVarCount = 0
-        var minRequired = 0
-        for item in items {
-            if case .mfVariable = item.kind {
-                mfVarCount += 1
-            } else {
-                minRequired += 1
-            }
-        }
-        
-        // Verifica se ci sono abbastanza valori
-        guard values.count >= minRequired else {
-            return nil
-        }
-        
-        // Algoritmo di backtracking per matchare sequenza
-        // Ref: factrete.c:VariablePatternMatch
-        return backtrack(
-            itemIndex: 0,
-            valueIndex: 0,
-            items: items,
-            values: values,
-            bindings: &bindings,
-            minRequired: minRequired
-        ) ? bindings : nil
-    }
-    
-    /// Backtracking ricorsivo per sequence matching
-    /// Ref: factrete.c logic
-    private static func backtrack(
-        itemIndex: Int,
-        valueIndex: Int,
-        items: [PatternTest],
-        values: [Value],
-        bindings: inout [String: Value],
-        minRequired: Int
-    ) -> Bool {
-        // Caso base: tutti gli item processati
-        if itemIndex >= items.count {
-            // Success se abbiamo consumato tutti i valori
-            return valueIndex >= values.count
-        }
-        
-        // Caso base: valori esauriti ma item rimanenti
-        if valueIndex >= values.count {
-            // Success solo se tutti gli item rimanenti sono mfVariable
-            // che possono bindare a lista vuota
-            for i in itemIndex..<items.count {
-                if case .mfVariable(let name) = items[i].kind {
-                    bindings[cleanVariableName(name)] = .multifield([])
-                } else {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        let currentItem = items[itemIndex]
-        
-        switch currentItem.kind {
-        case .constant(let expectedValue):
-            // Costante: deve matchare esattamente
-            guard valueIndex < values.count,
-                  values[valueIndex] == expectedValue else {
-                return false
-            }
-            return backtrack(
-                itemIndex: itemIndex + 1,
-                valueIndex: valueIndex + 1,
-                items: items,
-                values: values,
-                bindings: &bindings,
-                minRequired: minRequired
-            )
-            
-        case .variable(let name):
-            // Variabile single-field: bind un valore
-            guard valueIndex < values.count else {
-                return false
-            }
-            let cleanName = cleanVariableName(name)
-            let oldBinding = bindings[cleanName]
-            bindings[cleanName] = values[valueIndex]
-            
-            if backtrack(
-                itemIndex: itemIndex + 1,
-                valueIndex: valueIndex + 1,
-                items: items,
-                values: values,
-                bindings: &bindings,
-                minRequired: minRequired
-            ) {
-                return true
-            }
-            
-            // Backtrack: ripristina binding
-            if let old = oldBinding {
-                bindings[cleanName] = old
-            } else {
-                bindings.removeValue(forKey: cleanName)
-            }
-            return false
-            
-        case .mfVariable(let name):
-            // Variabile multifield: prova tutte le lunghezze possibili
-            // Ref: factrete.c - greedy matching con backtracking
-            
-            // Calcola costanti rimanenti (minimo da lasciare)
-            var minToLeave = 0
-            for i in (itemIndex + 1)..<items.count {
-                if case .mfVariable = items[i].kind {
-                    // Altra mfVar, può bindare a 0
-                } else {
-                    minToLeave += 1
-                }
-            }
-            
-            // Massimo che questa mfVar può prendere
-            let valuesRemaining = values.count - valueIndex
-            let maxCanTake = valuesRemaining - minToLeave
-            
-            // Prova da lunghezza massima a 0 (greedy first)
-            for length in stride(from: maxCanTake, through: 0, by: -1) {
-                let cleanName = cleanVariableName(name)
-                let oldBinding = bindings[cleanName]
-                let taken = Array(values[valueIndex..<(valueIndex + length)])
-                bindings[cleanName] = .multifield(taken)
-                
-                if backtrack(
-                    itemIndex: itemIndex + 1,
-                    valueIndex: valueIndex + length,
-                    items: items,
-                    values: values,
-                    bindings: &bindings,
-                    minRequired: minRequired
-                ) {
-                    return true
-                }
-                
-                // Backtrack
-                if let old = oldBinding {
-                    bindings[cleanName] = old
-                } else {
-                    bindings.removeValue(forKey: cleanName)
-                }
-            }
-            return false
-            
-        default:
-            return false
-        }
     }
     
     /// Gestisce propagazione retract per NOT nodes
@@ -440,17 +273,6 @@ public enum Propagation {
         if env.watchRete {
             print("[RETE Retract]   NOT node propagation: alpha memories updated")
         }
-    }
-    
-    private static func cleanVariableName(_ name: String) -> String {
-        var cleaned = name
-        if cleaned.hasPrefix("$?") {
-            cleaned.removeFirst(2)
-        }
-        if cleaned.hasPrefix("?") {
-            cleaned.removeFirst()
-        }
-        return cleaned
     }
     
     /// Converte slot di un fatto in stringa per debug
