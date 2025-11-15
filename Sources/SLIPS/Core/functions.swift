@@ -696,8 +696,16 @@ private func builtin_get_join_activate_rules(_ env: inout Environment, _ args: [
 }
 
 private func builtin_get_join_stable(_ env: inout Environment, _ args: [Value]) throws -> Value {
-    guard let name = args.first?.stringValue else { return .boolean(false) }
-    return .boolean(env.joinStableRules.contains(name))
+    guard let requestedName = args.first?.stringValue else { return .boolean(false) }
+    guard let rule = env.rules.first(where: { $0.name == requestedName || $0.displayName == requestedName }) else {
+        return .boolean(false)
+    }
+    if env.experimentalJoinCheck {
+        let stable = JoinChecker.recomputeStability(for: rule, env: &env)
+        return .boolean(stable)
+    } else {
+        return .boolean(env.joinStableRules.contains(rule.name))
+    }
 }
 
 // Agenda listing
