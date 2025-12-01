@@ -22,7 +22,7 @@ jobs:
         
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       
     - name: Verifica versione Swift
       run: swift --version
@@ -69,7 +69,7 @@ jobs:
     
     steps:
     - name: Checkout codice
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       
     - name: Cache Swift packages
       uses: actions/cache@v4
