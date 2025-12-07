@@ -449,9 +449,62 @@ public final class JoinNodeClass: ReteNode {
         var bindings: [String: Value] = [:]
         if let rightAlpha = rightInput {
             bindings = Propagation.extractBindings(fact: fact, pattern: rightAlpha.pattern)
+            
+            // ✅ CRITICO: Valuta test slot interni (predicate) PRIMA di propagare
+            // I test slot interni usano variabili bound nello stesso pattern
+            // Ref: factmch.c - VariablePatternMatch valuta predicate durante matching
+            for (slot, test) in rightAlpha.pattern.slots {
+                if case .predicate(let exprNode) = test.kind {
+                    if env.watchRete {
+                        print("[RETE] JoinNodeClass.activateFromRight: evaluating slot test for slot '\(slot)' with bindings: \(bindings)")
+                    }
+                    
+                    let oldBindings = env.localBindings
+                    var evalBindings = bindings
+                    // Aggiungi anche il valore dello slot al binding per il test
+                    if let slotValue = fact.slots[slot] {
+                        evalBindings[slot] = slotValue
+                    }
+                    env.localBindings = evalBindings
+                    
+                    let result = Evaluator.EvaluateExpression(&env, exprNode)
+                    env.localBindings = oldBindings
+                    
+                    if env.watchRete {
+                        print("[RETE] JoinNodeClass.activateFromRight: slot test result for '\(slot)': \(result)")
+                    }
+                    
+                    // Se il test fallisce, NON propagare il fatto
+                    switch result {
+                    case .boolean(let b):
+                        if !b {
+                            if env.watchRete {
+                                print("[RETE] JoinNodeClass.activateFromRight: slot test FAILED for slot '\(slot)' (predicate returned false)")
+                            }
+                            return
+                        }
+                    case .int(let i):
+                        if i == 0 {
+                            if env.watchRete {
+                                print("[RETE] JoinNodeClass.activateFromRight: slot test FAILED for slot '\(slot)' (predicate returned 0)")
+                            }
+                            return
+                        }
+                    default:
+                        if env.watchRete {
+                            print("[RETE] JoinNodeClass.activateFromRight: slot test FAILED for slot '\(slot)' (predicate returned non-boolean: \(result))")
+                        }
+                        return
+                    }
+                    
+                    if env.watchRete {
+                        print("[RETE] JoinNodeClass.activateFromRight: slot test PASSED for slot '\(slot)'")
+                    }
+                }
+            }
         }
         
-        // Crea PartialMatch dal fatto
+        // Crea PartialMatch dal fatto (solo se tutti i test slot interni sono passati)
         let factToken = BetaToken(bindings: bindings, usedFacts: [fact.id])
         var envVar = env  // Necessario perché createPartialMatch ora modifica env
         let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: &envVar)
