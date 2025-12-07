@@ -539,9 +539,36 @@ public enum DriveEngine {
         _ operation: Int
     ) {
         // If this is first join, use EmptyDrive
+        // IMPORTANTE: EmptyDrive gestisce già i join terminali, quindi NON creare attivazione qui
         if join.firstJoin {
             EmptyDrive(&theEnv, join, rhsBinds, operation)
             return
+        }
+        
+        // ✅ CRITICO: Se è l'ultimo join (ha ruleToActivate), ma NON è firstJoin,
+        // dobbiamo fare il join con leftMemory PRIMA di creare l'attivazione
+        // Ref: drive.c linee 351-355 (come in NetworkAssertLeft), agenda.c:187 - binds->marker = newActivation
+        // IMPORTANTE: NetworkAssertRight deve avere la stessa logica di NetworkAssertLeft per i join terminali
+        // MA solo DOPO aver fatto il join con leftMemory (se presente)
+        if let production = join.ruleToActivate {
+            // Se NON c'è leftMemory, crea attivazione direttamente da rhsBinds
+            // Questo può accadere per regole con un solo pattern o quando leftMemory è vuoto
+            let leftCount = join.leftMemory?.count ?? 0
+            if leftCount == 0 {
+                if theEnv.watchRete {
+                    print("[RETE] NetworkAssertRight: TERMINAL join (no leftMemory), creating activation for '\(production.ruleName)'")
+                }
+                let token = partialMatchToBetaToken(rhsBinds, env: theEnv, ruleName: production.ruleName)
+                
+                // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+                let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                theEnv.activationToPartialMatch[activationKey] = rhsBinds
+                
+                production.activate(token: token, env: &theEnv)
+                return
+            }
+            // Altrimenti, continua con il join normale - l'attivazione verrà creata da PPDrive/NetworkAssertLeft
         }
         
         // Get partial matches from left beta memory usando HASH VALUE ✅
@@ -579,6 +606,37 @@ public enum DriveEngine {
             }
             
             if !joinExpr {
+                lhsBinds = nextBind
+                continue
+            }
+            
+            // JOIN RIUSCITO: se il join è terminale, crea attivazione direttamente
+            // Ref: drive.c linee 274-292 - PPDrive viene chiamato, ma se il join è terminale,
+            // NetworkAssertLeft verrà chiamato e creerà l'attivazione
+            if let production = join.ruleToActivate {
+                // Join terminale: merge e crea attivazione
+                let linker = join.patternIsExists ? currentLHS.copy() : mergePartialMatches(currentLHS, rhsBinds)
+                
+                // Crea token dal linker combinato
+                let token: BetaToken
+                if join.patternIsExists {
+                    // Token vuoto per EXISTS (no bindings, no usedFacts)
+                    token = BetaToken(bindings: [:], usedFacts: [])
+                } else {
+                    // Pattern normale: usa linker combinato
+                    token = partialMatchToBetaToken(linker, env: theEnv, ruleName: production.ruleName)
+                }
+                
+                if theEnv.watchRete {
+                    print("[RETE] NetworkAssertRight: TERMINAL join after successful match, creating activation for '\(production.ruleName)'")
+                }
+                
+                // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+                let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                theEnv.activationToPartialMatch[activationKey] = linker
+                
+                production.activate(token: token, env: &theEnv)
                 lhsBinds = nextBind
                 continue
             }
