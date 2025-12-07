@@ -107,6 +107,8 @@ public enum NetworkBuilder {
                 )
                 
                 // NOT interno (primo livello)
+                // Per EXISTS come primo pattern, innerNot NON è firstJoin
+                // perché firstJoin è outerJoin (che viene notificato direttamente)
                 let innerNot = JoinNodeClass(
                     left: currentNode,
                     right: alphaNode,
@@ -117,10 +119,9 @@ public enum NetworkBuilder {
                 innerNot.patternIsNegated = true
                 env.rete.joinNodes.append(innerNot)
                 
-                if index == 0 {
-                    innerNot.firstJoin = true
-                    firstJoinNode = innerNot  // Track for initialization
-                }
+                // ✅ CRITICO: innerNot NON è firstJoin per EXISTS come primo pattern
+                // Per EXISTS, outerJoin viene notificato direttamente dall'alpha
+                // innerNot viene usato solo internamente
                 alphaNode.rightJoinListeners.append(WeakJoinNode(innerNot))
                 
                 // "NOT" esterno (secondo livello) - in realtà è un join EXISTS
@@ -136,7 +137,20 @@ public enum NetworkBuilder {
                 outerJoin.patternIsExists = true  // Marca come EXISTS
                 env.rete.joinNodes.append(outerJoin)
                 
-                // Link
+                // ✅ CRITICO: Per EXISTS come primo pattern, outerJoin è firstJoin
+                if index == 0 {
+                    outerJoin.firstJoin = true
+                    firstJoinNode = outerJoin  // Track for initialization
+                    if env.watchRete {
+                        print("[RETE Build]     *** EXISTS outerJoin marked as FIRST JOIN for rule '\(rule.name)'")
+                    }
+                }
+                
+                // ✅ CRITICO: outerJoin viene notificato direttamente dall'alpha
+                // Quando un fatto matcha, outerJoin riceve la notifica e chiama EmptyDrive
+                alphaNode.rightJoinListeners.append(WeakJoinNode(outerJoin))
+                
+                // Link innerNot -> outerJoin (per propagazione interna)
                 let link = JoinLink()
                 link.join = outerJoin
                 link.enterDirection = "l"
@@ -293,7 +307,8 @@ public enum NetworkBuilder {
             notParent.hashValue = 0
             firstJoin.leftMemory?.beta[0] = notParent
             
-            // Verifica se alpha ha fatti
+            // Verifica se alpha ha fatti che MATCHANO COMPLETAMENTE il pattern
+            // Ref: incrrset.c:314-335 - controlla hash nodes per fatti che matchano
             if let rightAlpha = firstJoin.rightInput {
                 let alphaHasFacts = !rightAlpha.memory.isEmpty
                 
@@ -301,8 +316,39 @@ public enum NetworkBuilder {
                     // Alpha vuota: NOT è vera, propaga token vuoto
                     // Ref: incrrset.c:335 - EPMDrive(notParent, joinPtr, NETWORK_ASSERT)
                     DriveEngine.EPMDrive(&env, notParent, firstJoin, DriveEngine.NETWORK_ASSERT)
+                } else {
+                    // Alpha ha fatti: verifica se almeno uno matcha COMPLETAMENTE il pattern
+                    // Se nessuno matcha completamente, NOT è vera e propaghiamo
+                    var foundCompleteMatch = false
+                    
+                    // Verifica ogni fatto nell'alpha per vedere se matcha il pattern completo
+                    // Questo include sequenze, variabili bound, etc.
+                    for factID in rightAlpha.memory {
+                        guard let fact = env.facts[factID] else { continue }
+                        
+                        // Estrai bindings dal pattern (include sequenze)
+                        let factBindings = Propagation.extractBindings(fact: fact, pattern: rightAlpha.pattern)
+                        
+                        // Verifica se il pattern matcha completamente usando EvaluateJoinExpression
+                        // Se networkTest/secondaryNetworkTest passano, il pattern matcha
+                        // Per semplicità, usiamo extractBindings come proxy: se estrae bindings,
+                        // significa che matcha il pattern strutturale (slot names, sequenze, etc.)
+                        // TODO: Usare EvaluateJoinExpression per verifica completa
+                        if !factBindings.isEmpty {
+                            // Verifica che tutti i binding necessari siano presenti
+                            // Per pattern con sequenze, estraiBindings dovrebbe estrarre correttamente
+                            foundCompleteMatch = true
+                            break
+                        }
+                    }
+                    
+                    if !foundCompleteMatch {
+                        // Nessun fatto matcha completamente: NOT è vera, propaga
+                        // Ref: incrrset.c:335 - EPMDrive(notParent, joinPtr, NETWORK_ASSERT)
+                        DriveEngine.EPMDrive(&env, notParent, firstJoin, DriveEngine.NETWORK_ASSERT)
+                    }
+                    // Se foundCompleteMatch=true, NOT è falsa, non propagare
                 }
-                // Se alpha ha fatti: NOT è falsa, non propagare
             }
         }
         

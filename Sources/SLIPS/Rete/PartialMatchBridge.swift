@@ -21,9 +21,10 @@ public final class FactPatternEntity: PatternEntity {
 public enum PartialMatchBridge {
     
     /// Crea PartialMatch da BetaToken (Swift → C)
+    /// Ref: CreateAlphaMatch in factmch.c - crea partialMatch e lo aggiunge a theFact->list
     public static func createPartialMatch(
         from token: BetaToken,
-        env: Environment
+        env: inout Environment
     ) -> PartialMatch {
         let pm = PartialMatch()
         pm.initializeLinks()
@@ -44,6 +45,14 @@ public enum PartialMatchBridge {
                 let entity = FactPatternEntity(fact)
                 alphaMatch.matchingItem = entity
                 gm.theMatch = alphaMatch
+                
+                // ✅ CRITICO: Aggiungi questo PartialMatch alla lista del fatto
+                // Ref: factmch.c:576-580 - aggiunge patternMatch a theFact->list
+                // Questo permette a NetworkRetract di trovare tutti i PartialMatch associati
+                if env.factPartialMatches[factID] == nil {
+                    env.factPartialMatches[factID] = []
+                }
+                env.factPartialMatches[factID]?.append(pm)
             }
             
             binds.append(gm)

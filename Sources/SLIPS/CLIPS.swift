@@ -83,6 +83,11 @@ public final class Environment {
     public struct FactRec { public let id: Int; public let name: String; public let slots: [String: Value] }
     public var facts: [Int: FactRec] = [:]
     public var nextFactId: Int = 1
+    // Tracking PartialMatch associati ai fatti (equivalente a theFact->list in CLIPS C)
+    // Ref: factmngr.h line 161 - void *list (patternMatch list)
+    // Quando un PartialMatch viene creato da un fatto, viene aggiunto a questa lista
+    // per permettere a NetworkRetract di trovare tutti i PartialMatch da rimuovere
+    public var factPartialMatches: [Int: [PartialMatch]] = [:]
     public var rules: [Rule] = []
     public var agendaQueue: Agenda = Agenda()
     public var rete: ReteNetwork = ReteNetwork()

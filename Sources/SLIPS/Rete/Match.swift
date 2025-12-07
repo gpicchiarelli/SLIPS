@@ -25,7 +25,9 @@ public final class PartialMatch {
     
     // Owner e markers
     public var owner: AnyObject? = nil  // Join node o pattern node owner
-    public var marker: MultifieldMarker? = nil
+    // marker può essere MultifieldMarker (per multifield matching) o PartialMatch (per blocking NOT/EXISTS)
+    // In C: void *marker (union di usi diversi)
+    public var marker: AnyObject? = nil  // MultifieldMarker o PartialMatch per blocking
     public var dependents: AnyObject? = nil  // Logical dependencies
     
     // Memory chain (linked list in bucket)

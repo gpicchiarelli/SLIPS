@@ -66,7 +66,7 @@ public enum ReteUtil {
     }
     
     /// Aggiunge partial match a left memory
-    /// (ref: AddToken logic in drive.c)
+    /// (ref: UpdateBetaPMLinks in reteutil.c linee 209-261)
     @discardableResult
     public static func AddToLeftMemory(
         _ theJoin: JoinNodeClass,
@@ -76,13 +76,17 @@ public enum ReteUtil {
             theJoin.leftMemory = BetaMemoryHash(initialSize: 17)
         }
         
+        // ✅ CRITICO: Imposta owner e rhsMemory flag (come in CLIPS C linea 219, 261)
+        match.owner = theJoin
+        match.rhsMemory = false
+        
         let inserted = theJoin.leftMemory?.addMatch(match) ?? false
         if inserted { theJoin.memoryLeftAdds += 1 }
         return inserted
     }
     
     /// Aggiunge partial match a right memory
-    /// (ref: AddToken logic in drive.c)
+    /// (ref: UpdateBetaPMLinks in reteutil.c linee 209-261)
     @discardableResult
     public static func AddToRightMemory(
         _ theJoin: JoinNodeClass,
@@ -91,6 +95,10 @@ public enum ReteUtil {
         if theJoin.rightMemory == nil {
             theJoin.rightMemory = BetaMemoryHash(initialSize: 17)
         }
+        
+        // ✅ CRITICO: Imposta owner e rhsMemory flag (come in CLIPS C linea 224, 261)
+        match.owner = theJoin
+        match.rhsMemory = true
         
         let inserted = theJoin.rightMemory?.addMatch(match) ?? false
         if inserted { theJoin.memoryRightAdds += 1 }
@@ -113,5 +121,43 @@ public enum ReteUtil {
     ) {
         theJoin.rightMemory?.removeMatch(match)
         theJoin.memoryRightDeletes += 1
+    }
+    
+    /// Aggiunge link di blocking tra partial match (per NOT/EXISTS)
+    /// Port FEDELE di AddBlockedLink (reteutil.c linee 304-313)
+    public static func AddBlockedLink(
+        _ thePM: PartialMatch,
+        _ rhsBinds: PartialMatch
+    ) {
+        // Imposta marker per indicare che è blocked
+        // In C: thePM->marker = rhsBinds (void* cast)
+        thePM.marker = rhsBinds
+        
+        // Aggiungi alla blockList di rhsBinds
+        thePM.nextBlocked = rhsBinds.blockList
+        if let prevBlocked = rhsBinds.blockList {
+            prevBlocked.prevBlocked = thePM
+        }
+        rhsBinds.blockList = thePM
+    }
+    
+    /// Rimuove link di blocking
+    /// Port FEDELE di RemoveBlockedLink (reteutil.c linee 322-341)
+    public static func RemoveBlockedLink(_ thePM: PartialMatch) {
+        guard let blocker = thePM.marker as? PartialMatch else { return }
+        
+        if thePM.prevBlocked == nil {
+            blocker.blockList = thePM.nextBlocked
+        } else {
+            thePM.prevBlocked?.nextBlocked = thePM.nextBlocked
+        }
+        
+        if let next = thePM.nextBlocked {
+            next.prevBlocked = thePM.prevBlocked
+        }
+        
+        thePM.nextBlocked = nil
+        thePM.prevBlocked = nil
+        thePM.marker = nil
     }
 }

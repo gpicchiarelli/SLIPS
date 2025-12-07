@@ -247,7 +247,9 @@ public final class JoinNodeClass: ReteNode {
         
         // ✅ JOIN NORMALE (pattern positivo)
         // ✅ CRITICO: Aggiungi token alla leftMemory (ref: NetworkAssertLeft in drive.c)
-        let pm = PartialMatchBridge.createPartialMatch(from: token, env: env)
+        var envVar = env  // Necessario perché createPartialMatch ora modifica env
+        let pm = PartialMatchBridge.createPartialMatch(from: token, env: &envVar)
+        env = envVar  // Aggiorna env con il tracking
         
         // ✅ CRITICO: Ricalcola hash usando joinKeys
         var hasher = Hasher()
@@ -451,7 +453,9 @@ public final class JoinNodeClass: ReteNode {
         
         // Crea PartialMatch dal fatto
         let factToken = BetaToken(bindings: bindings, usedFacts: [fact.id])
-        let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
+        var envVar = env  // Necessario perché createPartialMatch ora modifica env
+        let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: &envVar)
+        env = envVar  // Aggiorna env con il tracking
         
         // ✅ CRITICO: Calcola hash usando rightHash expression (come in CLIPS C)
         // Ref: drive.c:947 - hashValue = BetaMemoryHashValue(..., join->rightHash, ...)

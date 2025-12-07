@@ -109,13 +109,25 @@ public enum Propagation {
             }
         }
         
-        // 2. Rimuovi attivazioni dall'agenda che usano questo fatto
+        // 2. Rimuovi attivazioni dall'agenda che usano questo fatto PRIMA di NetworkRetract
+        // Questo assicura che anche se NetworkRetract non trova i PartialMatch,
+        // le attivazioni vengono comunque rimosse
         let beforeAgenda = env.agendaQueue.queue.count
         env.agendaQueue.removeByFactID(factID)
         activationsRemoved = beforeAgenda - env.agendaQueue.queue.count
         
-        // ✅ Rimuovi token dal beta storage che usano questo fatto
-        // Ref: Retract logic in CLIPS C drive.c
+        // 3. Propaga retract attraverso la rete usando DriveEngine.NetworkRetract
+        // Questo rimuove PartialMatch dalla beta memory e attivazioni aggiuntive
+        // Ref: retract.c:690 - NetworkRetract viene chiamato per ogni patternMatch
+        DriveEngine.NetworkRetract(&env, factID)
+        
+        // 4. Doppio controllo: rimuovi di nuovo le attivazioni (nel caso NetworkRetract ne abbia create di nuove)
+        let afterAgenda = env.agendaQueue.queue.count
+        env.agendaQueue.removeByFactID(factID)
+        activationsRemoved += afterAgenda - env.agendaQueue.queue.count
+        
+        // ✅ NetworkRetract già gestisce la rimozione dai beta memory
+        // Rimuoviamo solo dal beta storage legacy per compatibilità
         for (ruleName, betaMem) in env.rete.beta {
             let before = betaMem.tokens.count
             env.rete.beta[ruleName]?.tokens.removeAll { token in
@@ -130,7 +142,7 @@ public enum Propagation {
             }
         }
         
-        // ✅ Ripulisci i beta memory nodes intermedi
+        // ✅ Ripulisci i beta memory nodes intermedi (legacy)
         for node in env.rete.betaMemoryNodes {
             let removed = node.removeTokens(containing: factID)
             if removed > 0 {

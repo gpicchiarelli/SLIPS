@@ -20,6 +20,248 @@ public enum DriveEngine {
     public static let NETWORK_ASSERT = 1
     public static let NETWORK_RETRACT = 2
     
+    // MARK: - NetworkRetract
+    
+    /// Primary routine for processing retraction of a fact through the join network
+    /// Port FEDELE di NetworkRetract (retract.c linee 90-121)
+    /// Viene chiamato per ogni patternMatch che usa il fatto retratto
+    public static func NetworkRetract(
+        _ theEnv: inout Environment,
+        _ factID: Int
+    ) {
+        if theEnv.watchRete {
+            print("[RETE] NetworkRetract: processing retract for fact \(factID)")
+        }
+        
+        // ✅ CRITICO: Trova tutti i PartialMatch che usano questo fatto
+        // Ref: retract.c:690 - NetworkRetract viene chiamato con patternMatch list dal fatto
+        // Nel nostro caso, cerchiamo in tutte le beta memory (leftMemory e rightMemory) di tutti i join nodes
+        // perché i PartialMatch possono essere creati in vari punti della rete
+        var matchesToRetract: [PartialMatch] = []
+        
+        // Cerca in tutti i join nodes, sia leftMemory che rightMemory
+        for join in theEnv.rete.joinNodes {
+            // Cerca in rightMemory
+            if let rightMem = join.rightMemory {
+                for i in 0..<rightMem.size {
+                    var pm = rightMem.beta[i]
+                    while let currentPM = pm {
+                        let nextPM = currentPM.nextInMemory
+                        
+                        // Verifica se questo PartialMatch usa il fatto retratto
+                        for j in 0..<Int(currentPM.bcount) {
+                            if let alphaMatch = currentPM.binds[j].theMatch,
+                               let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                                if entity.factID == factID {
+                                    matchesToRetract.append(currentPM)
+                                    break
+                                }
+                            }
+                        }
+                        
+                        pm = nextPM
+                    }
+                }
+            }
+            
+            // Cerca in leftMemory
+            if let leftMem = join.leftMemory {
+                for i in 0..<leftMem.size {
+                    var pm = leftMem.beta[i]
+                    while let currentPM = pm {
+                        let nextPM = currentPM.nextInMemory
+                        
+                        // Verifica se questo PartialMatch usa il fatto retratto
+                        for j in 0..<Int(currentPM.bcount) {
+                            if let alphaMatch = currentPM.binds[j].theMatch,
+                               let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                                if entity.factID == factID {
+                                    matchesToRetract.append(currentPM)
+                                    break
+                                }
+                            }
+                        }
+                        
+                        pm = nextPM
+                    }
+                }
+            }
+        }
+        
+        if theEnv.watchRete {
+            print("[RETE] NetworkRetract: found \(matchesToRetract.count) PartialMatch(es) using fact \(factID)")
+        }
+        
+        // Propaga retract per ogni PartialMatch trovato
+        // Ref: retract.c:96-120 - itera attraverso patternMatch e chiama PosEntryRetractAlpha/NegEntryRetractAlpha
+        for alphaMatch in matchesToRetract {
+            // Verifica se è già stato processato o se è deleting
+            if alphaMatch.deleting { continue }
+            
+            alphaMatch.deleting = true
+            
+            // ✅ CRITICO: Se questo PartialMatch è in un join terminale, rimuovi attivazione direttamente
+            // Trova il join node che possiede questo PartialMatch
+            if let joinOwner = alphaMatch.owner as? JoinNodeClass,
+               let production = joinOwner.ruleToActivate {
+                // Estrai fact IDs dal PartialMatch
+                var factIDs: Set<Int> = []
+                for i in 0..<Int(alphaMatch.bcount) {
+                    if let alphaMatch = alphaMatch.binds[i].theMatch,
+                       let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                        factIDs.insert(entity.factID)
+                    }
+                }
+                
+                // Rimuovi attivazioni che usano questi fatti
+                for fid in factIDs {
+                    theEnv.agendaQueue.removeByFactID(fid)
+                }
+                
+                if theEnv.watchRete {
+                    print("[RETE] NetworkRetract: removed terminal activation for '\(production.ruleName)'")
+                }
+            }
+            
+            // Propaga attraverso children (beta matches)
+            if alphaMatch.children != nil {
+                PosEntryRetractAlpha(&theEnv, alphaMatch, NETWORK_RETRACT)
+            }
+            
+            // Gestione NOT/EXISTS (blockList)
+            if alphaMatch.blockList != nil {
+                // TODO: Implementare NegEntryRetractAlpha
+                // Per ora, gestiamo solo positivi
+            }
+        }
+        
+        // Pulisci il tracking (se presente)
+        theEnv.factPartialMatches.removeValue(forKey: factID)
+    }
+    
+    /// Propaga retract attraverso join nodes per partial match positivo
+    /// Port FEDELE di PosEntryRetractAlpha (retract.c linee 126-162)
+    private static func PosEntryRetractAlpha(
+        _ theEnv: inout Environment,
+        _ alphaMatch: PartialMatch,
+        _ operation: Int
+    ) {
+        var betaMatch = alphaMatch.children
+        
+        while let currentBeta = betaMatch {
+            guard let joinPtr = currentBeta.owner as? JoinNodeClass else {
+                betaMatch = currentBeta.nextLeftChild ?? currentBeta.nextRightChild
+                continue
+            }
+            
+            // Propaga retract ai children
+            if currentBeta.children != nil {
+                PosEntryRetractBeta(&theEnv, currentBeta, currentBeta.children!, operation)
+            }
+            
+            // Gestione NOT/EXISTS (blockList)
+            if currentBeta.blockList != nil {
+                // TODO: Implementare NegEntryRetractAlpha
+                // Per ora, gestiamo solo positivi
+            }
+            
+            // Rimuovi attivazione se questo è un terminal join
+            // Estrai fact IDs e rimuovi attivazioni che li usano
+            if let production = joinPtr.ruleToActivate {
+                // Estrai fact IDs dal PartialMatch
+                var factIDs: Set<Int> = []
+                for i in 0..<Int(currentBeta.bcount) {
+                    if let alphaMatch = currentBeta.binds[i].theMatch,
+                       let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                        factIDs.insert(entity.factID)
+                    }
+                }
+                
+                // Rimuovi attivazioni che usano questi fatti (usa removeByFactID per ogni factID)
+                for fid in factIDs {
+                    theEnv.agendaQueue.removeByFactID(fid)
+                }
+                
+                if theEnv.watchRete {
+                    print("[RETE] PosEntryRetractAlpha: removed activation(s) for '\(production.ruleName)'")
+                }
+            }
+            
+            // Salva next prima di unlink
+            let tempMatch = currentBeta.nextRightChild ?? currentBeta.nextLeftChild
+            
+            // Rimuovi dalla beta memory
+            if currentBeta.rhsMemory {
+                ReteUtil.RemoveFromRightMemory(joinPtr, currentBeta)
+            } else {
+                ReteUtil.RemoveFromLeftMemory(joinPtr, currentBeta)
+            }
+            
+            betaMatch = tempMatch
+        }
+    }
+    
+    /// Propaga retract attraverso join nodes per partial match beta
+    /// Port FEDELE di PosEntryRetractBeta (retract.c linee 194-256)
+    private static func PosEntryRetractBeta(
+        _ theEnv: inout Environment,
+        _ parentPM: PartialMatch,
+        _ childPM: PartialMatch?,
+        _ operation: Int
+    ) {
+        var currentChild = childPM
+        
+        while let child = currentChild {
+            guard let joinPtr = child.owner as? JoinNodeClass else {
+                currentChild = child.nextLeftChild ?? child.nextRightChild
+                continue
+            }
+            
+            // Propaga ricorsivamente
+            if child.children != nil {
+                PosEntryRetractBeta(&theEnv, child, child.children!, operation)
+            }
+            
+            // Gestione NOT/EXISTS
+            if child.blockList != nil {
+                // TODO: Implementare NegEntryRetractBeta
+            }
+            
+            // Rimuovi attivazione se terminal
+            if let production = joinPtr.ruleToActivate {
+                // Estrai fact IDs dal PartialMatch
+                var factIDs: Set<Int> = []
+                for i in 0..<Int(child.bcount) {
+                    if let alphaMatch = child.binds[i].theMatch,
+                       let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                        factIDs.insert(entity.factID)
+                    }
+                }
+                
+                // Rimuovi attivazioni che usano questi fatti
+                for fid in factIDs {
+                    theEnv.agendaQueue.removeByFactID(fid)
+                }
+                
+                if theEnv.watchRete {
+                    print("[RETE] PosEntryRetractBeta: removed activation(s) for '\(production.ruleName)'")
+                }
+            }
+            
+            // Salva next
+            let tempChild = child.nextLeftChild ?? child.nextRightChild
+            
+            // Rimuovi dalla beta memory
+            if child.rhsMemory {
+                ReteUtil.RemoveFromRightMemory(joinPtr, child)
+            } else {
+                ReteUtil.RemoveFromLeftMemory(joinPtr, child)
+            }
+            
+            currentChild = tempChild
+        }
+    }
+    
     // MARK: - NetworkAssert
     
     /// Primary routine for filtering a partial match through the join network
@@ -207,6 +449,17 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
+        // ✅ CRITICO: Se è l'ultimo join (ha ruleToActivate), crea attivazione direttamente
+        // Ref: drive.c linee 351-355
+        if let production = join.ruleToActivate {
+            if theEnv.watchRete {
+                print("[RETE] NetworkAssertLeft: TERMINAL join, creating activation for '\(production.ruleName)'")
+            }
+            let token = partialMatchToBetaToken(lhsBinds, env: theEnv, ruleName: production.ruleName)
+            production.activate(token: token, env: &theEnv)
+            return
+        }
+        
         // ✅ Gestione EXISTS: propaga direttamente senza join
         // Ref: drive.c:276-280, 510-518
         if join.patternIsExists {
@@ -281,42 +534,70 @@ public enum DriveEngine {
             print("[RETE] EmptyDrive: nextLinks.count=\(join.nextLinks.count), ruleToActivate=\(join.ruleToActivate?.ruleName ?? "nil")")
         }
         
-        // Evalua network test
-        // Ref: drive.c linee 1026-1047
-        if !EvaluateJoinExpression(&theEnv, join.networkTest, join, nil, rhsBinds) {
-            return
-        }
-        
-        // Secondary network test
-        // Ref: drive.c linee 1049-1069
-        if !EvaluateJoinExpression(&theEnv, join.secondaryNetworkTest, join, nil, rhsBinds) {
-            return
-        }
-        
         // ✅ FEDELE A CLIPS C (drive.c:1075-1106)
+        var existsParent: PartialMatch? = nil
+        
         // Handle negated first pattern
         if join.patternIsNegated && !join.patternIsExists {
-            // NOT semplice (non EXISTS): crea parent, AddBlockedLink, e RETURN senza propagare
+            // NOT semplice (non EXISTS): verifica se il pattern matcha COMPLETAMENTE
             // Ref: drive.c:1075-1090
-            if join.leftMemory == nil {
-                join.leftMemory = BetaMemoryHash(initialSize: 17)
+            // Se networkTest/secondaryNetworkTest passano, il pattern matcha -> blocca
+            // Se falliscono, il pattern NON matcha -> NOT è vera, non bloccare
+            
+            // Evalua network test per verificare se il pattern matcha completamente
+            // Ref: drive.c linee 1026-1047
+            let networkTestPasses = EvaluateJoinExpression(&theEnv, join.networkTest, join, nil, rhsBinds)
+            
+            // Secondary network test
+            // Ref: drive.c linee 1049-1069
+            let secondaryTestPasses = EvaluateJoinExpression(&theEnv, join.secondaryNetworkTest, join, nil, rhsBinds)
+            
+            // Se entrambi i test passano, il pattern matcha completamente -> blocca
+            if networkTestPasses && secondaryTestPasses {
+                if join.leftMemory == nil {
+                    join.leftMemory = BetaMemoryHash(initialSize: 17)
+                }
+                if join.leftMemory?.beta[0] == nil {
+                    let parent = CreateEmptyPartialMatch()
+                    parent.hashValue = 0
+                    join.leftMemory?.beta[0] = parent
+                }
+                
+                guard let notParent = join.leftMemory?.beta[0] else { return }
+                if notParent.marker != nil { return }
+                
+                // AddBlockedLink per indicare che NOT è falsa (pattern matcha)
+                ReteUtil.AddBlockedLink(notParent, rhsBinds)
+                
+                // PosEntryRetractBeta: retract children se esistono
+                if notParent.children != nil {
+                    // TODO: Implementare PosEntryRetractBeta completo
+                    // Per ora, semplicemente non propagare
+                }
+                
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: NOT first pattern, pattern MATCHES, blocked and return")
+                }
+                return  // ✅ NOT falsa (pattern matcha), NON propaga!
+            } else {
+                // Pattern NON matcha completamente -> NOT è vera, continua a propagare
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: NOT first pattern, pattern DOES NOT MATCH completely, continuing propagation")
+                }
+                // NON fare return, continua a propagare (NOT è vera)
             }
-            if join.leftMemory?.beta[0] == nil {
-                let parent = CreateEmptyPartialMatch()
-                parent.hashValue = 0
-                join.leftMemory?.beta[0] = parent
+        } else {
+            // Pattern normale o EXISTS: valuta network test normalmente
+            // Ref: drive.c linee 1026-1047
+            if !EvaluateJoinExpression(&theEnv, join.networkTest, join, nil, rhsBinds) {
+                return
             }
             
-            guard let notParent = join.leftMemory?.beta[0] else { return }
-            if notParent.marker != nil { return }
-            
-            // AddBlockedLink(notParent, rhsBinds)
-            // PosEntryRetractBeta se ha children
-            
-            if theEnv.watchRete {
-                print("[RETE] EmptyDrive: NOT first pattern, blocked and return")
+            // Secondary network test
+            // Ref: drive.c linee 1049-1069
+            if !EvaluateJoinExpression(&theEnv, join.secondaryNetworkTest, join, nil, rhsBinds) {
+                return
             }
-            return  // ✅ NOT semplice NON propaga!
         }
         
         // Handle EXISTS (secondo NOT del NOT(NOT))
@@ -331,15 +612,24 @@ public enum DriveEngine {
                 join.leftMemory?.beta[0] = parent
             }
             
-            guard let existsParent = join.leftMemory?.beta[0] else { return }
-            if existsParent.marker != nil { return }
+            guard let parent = join.leftMemory?.beta[0] else { return }
+            existsParent = parent
             
-            // AddBlockedLink(existsParent, rhsBinds)
+            if parent.marker != nil {
+                // Già soddisfatto, non propagare di nuovo
+                if theEnv.watchRete {
+                    print("[RETE] EmptyDrive: EXISTS already satisfied, skipping")
+                }
+                return
+            }
+            
+            // AddBlockedLink per indicare che EXISTS è soddisfatto
+            ReteUtil.AddBlockedLink(parent, rhsBinds)
             
             if theEnv.watchRete {
                 print("[RETE] EmptyDrive: EXISTS pattern, blocked but CONTINUE")
             }
-            // ✅ NON fa return! Continua a propagare
+            // ✅ NON fa return! Continua a propagare (solo la prima volta)
         }
         
         // Propaga attraverso nextLinks
@@ -360,12 +650,20 @@ public enum DriveEngine {
                 if theEnv.watchRete {
                     print("[RETE] EmptyDrive: CREATING ACTIVATION for rule '\(production.ruleName)'")
                 }
-                // Converti rhsBinds in BetaToken per attivazione
-                let token = partialMatchToBetaToken(
-                    rhsBinds,
-                    env: theEnv,
-                    ruleName: production.ruleName
-                )
+                // Per EXISTS, crea token vuoto (senza binding di fatti)
+                // Ref: drive.c linee 1128-1129 - EXISTS genera empty partial match
+                let token: BetaToken
+                if join.patternIsExists {
+                    // Token vuoto per EXISTS (no bindings, no usedFacts)
+                    token = BetaToken(bindings: [:], usedFacts: [])
+                } else {
+                    // Pattern normale: usa rhsBinds
+                    token = partialMatchToBetaToken(
+                        rhsBinds,
+                        env: theEnv,
+                        ruleName: production.ruleName
+                    )
+                }
                 production.activate(token: token, env: &theEnv)
             } else {
                 if theEnv.watchRete {
@@ -402,13 +700,36 @@ public enum DriveEngine {
             
             // UpdateBetaPMLinks: aggiungi a beta memory PRIMA di propagare
             // Ref: drive.c linea 1162-1164
-            if currentLink.enterDirection == LHS {
-                if ReteUtil.AddToLeftMemory(targetJoin, linker) {
-                    NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
+            if join.patternIsExists, let parent = existsParent {
+                // Per EXISTS, usa existsParent come leftParent
+                if currentLink.enterDirection == LHS {
+                    if ReteUtil.AddToLeftMemory(targetJoin, linker) {
+                        // Collega linker a existsParent
+                        linker.leftParent = parent
+                        if parent.children == nil {
+                            parent.children = linker
+                        } else {
+                            linker.nextLeftChild = parent.children
+                            parent.children?.prevLeftChild = linker
+                            parent.children = linker
+                        }
+                        NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
+                    }
+                } else {
+                    if ReteUtil.AddToRightMemory(targetJoin, linker) {
+                        NetworkAssertRight(&theEnv, linker, targetJoin, operation)
+                    }
                 }
             } else {
-                if ReteUtil.AddToRightMemory(targetJoin, linker) {
-                    NetworkAssertRight(&theEnv, linker, targetJoin, operation)
+                // Pattern normale
+                if currentLink.enterDirection == LHS {
+                    if ReteUtil.AddToLeftMemory(targetJoin, linker) {
+                        NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
+                    }
+                } else {
+                    if ReteUtil.AddToRightMemory(targetJoin, linker) {
+                        NetworkAssertRight(&theEnv, linker, targetJoin, operation)
+                    }
                 }
             }
             
