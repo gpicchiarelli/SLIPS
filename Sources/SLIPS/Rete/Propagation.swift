@@ -130,14 +130,28 @@ public enum Propagation {
         // Rimuoviamo solo dal beta storage legacy per compatibilità
         for (ruleName, betaMem) in env.rete.beta {
             let before = betaMem.tokens.count
+            if env.watchRete && before > 0 {
+                print("[RETE Retract]   beta[\(ruleName)] before: \(before) tokens")
+                for (i, tok) in betaMem.tokens.enumerated() {
+                    print("    Token[\(i)]: factIDs=\(Array(tok.usedFacts).sorted())")
+                }
+            }
+            
             env.rete.beta[ruleName]?.tokens.removeAll { token in
                 token.usedFacts.contains(factID)
             }
-            let removed = before - (env.rete.beta[ruleName]?.tokens.count ?? 0)
+            let after = env.rete.beta[ruleName]?.tokens.count ?? 0
+            let removed = before - after
             if removed > 0 {
                 tokensRemoved += removed
                 if env.watchRete {
-                    print("[RETE Retract]   Removed \(removed) token(s) from beta[\(ruleName)]")
+                    print("[RETE Retract]   Removed \(removed) token(s) from beta[\(ruleName)] (before=\(before), after=\(after))")
+                    if after > 0 {
+                        print("    Remaining tokens:")
+                        for (i, tok) in (env.rete.beta[ruleName]?.tokens ?? []).enumerated() {
+                            print("      Token[\(i)]: factIDs=\(Array(tok.usedFacts).sorted())")
+                        }
+                    }
                 }
             }
         }

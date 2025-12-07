@@ -408,43 +408,27 @@ public enum DriveEngine {
     ) {
         // Ref: drive.c linea 917-918
         // Nel C, PPDrive fa return se listOfJoins == NULL
-        // Il caso terminale viene gestito da NetworkAssertLeft/Right che chiamano PPDrive
+        // IMPORTANTE: PPDrive NON dovrebbe gestire il caso terminale direttamente,
+        // perché NetworkAssertLeft/Right vengono chiamati PRIMA e gestiscono già quel caso.
+        // Se arriviamo qui con un join terminale, significa che è stato chiamato da
+        // NetworkAssertLeft/Right che NON ha gestito il caso terminale (non dovrebbe succedere),
+        // oppure è stato chiamato direttamente da EmptyDrive per EXISTS/NOT.
         guard let firstLink = join.nextLinks.first?.link else {
-            // ✅ GESTIONE CUSTOM: Se il join passato è terminale (ha ruleToActivate) ma non ha nextLinks,
-            // dobbiamo creare l'attivazione. Questo può accadere in casi particolari.
-            if let production = join.ruleToActivate {
-                if theEnv.watchRete {
-                    print("[RETE] PPDrive: no nextLinks, but join is TERMINAL (ruleToActivate=\(production.ruleName))")
+            // ✅ ATTENZIONE: Se il join è terminale, NetworkAssertLeft/Right dovrebbero
+            // aver già gestito questo caso e fatto return. Se arriviamo qui, potrebbe
+            // essere un errore o un caso speciale (EXISTS/NOT chiamato direttamente).
+            // Per sicurezza, gestiamo il caso ma solo se non è già stato gestito.
+            // 
+            // Tuttavia, per evitare duplicazioni, NON creiamo attivazioni qui se
+            // NetworkAssertLeft/Right sono già stati chiamati. Lasciamo che gestiscano
+            // loro il caso terminale.
+            //
+            // REF: Nel codice C, PPDrive semplicemente fa return se nextLinks è NULL.
+            // Il caso terminale viene gestito da NetworkAssertLeft/Right PRIMA di chiamare PPDrive.
+            if theEnv.watchRete {
+                if join.ruleToActivate != nil {
+                    print("[RETE] PPDrive: WARNING - join is TERMINAL but no nextLinks (should have been handled by NetworkAssertLeft/Right)")
                 }
-                
-                // ✅ CRITICO: Gestione EXISTS - come in EmptyDrive (linee 898-908)
-                // Per EXISTS, crea token vuoto (senza binding di fatti)
-                // Ref: drive.c linee 1128-1129 - EXISTS genera empty partial match
-                let token: BetaToken
-                if join.patternIsExists {
-                    // Token vuoto per EXISTS (no bindings, no usedFacts)
-                    token = BetaToken(bindings: [:], usedFacts: [])
-                    if theEnv.watchRete {
-                        print("[RETE] PPDrive: EXISTS pattern, creating empty token")
-                    }
-                } else {
-                    // Pattern normale: Merge lhs e rhs (se rhs è NULL, usa solo lhs)
-                    let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
-                    
-                    // Crea token dal linker combinato
-                    token = partialMatchToBetaToken(linker, env: theEnv, ruleName: production.ruleName)
-                    
-                    if theEnv.watchRete {
-                        print("[RETE] PPDrive: creating activation with factIDs: \(token.usedFacts.sorted())")
-                    }
-                    
-                    // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
-                    let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
-                    let activationKey = "\(production.ruleName):\(factIDsKey)"
-                    theEnv.activationToPartialMatch[activationKey] = linker
-                }
-                
-                production.activate(token: token, env: &theEnv)
             }
             return
         }
