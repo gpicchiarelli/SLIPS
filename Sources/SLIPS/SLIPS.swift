@@ -172,6 +172,8 @@ public enum SLIPS {
     @discardableResult
     public static func createEnvironment() -> Environment {
         var env = Environment()
+        // Ref: envrnbld.c:300 - InitializeMemory deve essere chiamato PER PRIMO
+        Memalloc.InitializeMemory(&env)
         // Inizializza moduli minimi per eval
         Functions.registerBuiltins(&env)
         ExpressionEnv.InitExpressionData(&env)
@@ -321,15 +323,33 @@ public enum SLIPS {
 /// Usate dalle builtin functions che devono operare in contesti sincroni
 enum SLIPSHelpers {
     /// Versione interna che accetta env direttamente (non richiede MainActor)
+    /// Ref: filecom.c:252 - LoadCommand, cstrcpsr.c:108 - Load
     static func loadInternal(_ env: inout Environment, _ path: String) throws {
+        // Ref: filecom.c:267-268 - SetPrintWhileLoading se EvaluatingTopLevelCommand
+        // Per ora assumiamo che loadInternal sia sempre chiamato da top-level
+        let wasPrintWhileLoading = Constrct.GetPrintWhileLoading(env)
+        Constrct.SetPrintWhileLoading(&env, true)
+        Constrct.SetLoadInProgress(&env, true)
+        
+        defer {
+            // Ref: filecom.c:278-279 - Reset PrintWhileLoading dopo load
+            Constrct.SetPrintWhileLoading(&env, wasPrintWhileLoading)
+            Constrct.SetLoadInProgress(&env, false)
+        }
+        
         // In CLIPS: carica un file .clp e ne elabora i costrutti.
         var contents = try String(contentsOfFile: path, encoding: .utf8)
+        // Ref: Tracking memoria per file caricato (approssimativo)
+        MemoryTracking.trackFileLoad(&env, contents)
+        
         // Rimuovi commenti ';' fino a fine riga (semplificato)
         contents = contents.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             if let idx = line.firstIndex(of: ";") { return String(line[..<idx]) } else { return String(line) }
         }.joined(separator: "\n")
+        
         // Estrai S-expression top-level e valuta
         var i = contents.startIndex
+        var constructCount = 0
         while i < contents.endIndex {
             // Skip whitespaces
             while i < contents.endIndex, contents[i].isWhitespace { i = contents.index(after: i) }
@@ -354,12 +374,33 @@ enum SLIPSHelpers {
             }
             if depth == 0 {
                 let sexpr = String(contents[i..<j])
+                // Ref: globlpsr.c:272 - Stampa ":" per ogni construct quando PrintWhileLoading è true
+                // (se non è in modalità compilations watch)
+                // Verifica se è un construct (inizia con deftemplate, defrule, etc.)
+                let trimmed = sexpr.trimmingCharacters(in: .whitespacesAndNewlines)
+                let lowercased = trimmed.lowercased()
+                // Ref: globlpsr.c:272 - Stampa ":" per ogni construct quando PrintWhileLoading è true
+                if lowercased.hasPrefix("(deftemplate") || lowercased.hasPrefix("(defrule") || 
+                   lowercased.hasPrefix("(defglobal") || lowercased.hasPrefix("(deffacts") ||
+                   lowercased.hasPrefix("(defmodule") || lowercased.hasPrefix("(deffunction") ||
+                   lowercased.hasPrefix("(defconstant") {
+                    constructCount += 1
+                    if Constrct.GetPrintWhileLoading(env) {
+                        Router.WriteString(&env, Router.STDOUT, ":")
+                    }
+                }
+                
                 // Usa eval interno che non richiede MainActor
                 _ = evalInternal(&env, expr: sexpr)
                 i = j
             } else {
                 break
             }
+        }
+        
+        // Ref: cstrcpsr.c:418 - Stampa newline alla fine se PrintWhileLoading è true e ci sono stati constructs
+        if Constrct.GetPrintWhileLoading(env) && constructCount > 0 {
+            Router.Writeln(&env, "")
         }
     }
     

@@ -659,6 +659,8 @@ public func builtin_duplicate(_ env: inout Environment, _ args: [Value]) throws 
     
     let newFact = Environment.FactRec(id: newFactId, name: templateName, slots: newSlots)
     env.facts[newFactId] = newFact
+    // Ref: Tracking memoria per fatto
+    MemoryTracking.trackFact(&env, newFact)
     
     // Trigger RETE propagation
     RuleEngine.onAssert(&env, newFact)

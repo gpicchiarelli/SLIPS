@@ -60,6 +60,8 @@ public enum NetworkBuilder {
                     level: currentLevel + 1
                 )
                 env.rete.joinNodes.append(notJoin)
+                // Ref: Tracking memoria per join node (CLIPS usa genalloc)
+                MemoryTracking.trackJoinNode(&env, notJoin)
                 
                 // ✅ Imposta flag NOT
                 notJoin.patternIsNegated = true
@@ -118,6 +120,8 @@ public enum NetworkBuilder {
                 )
                 innerNot.patternIsNegated = true
                 env.rete.joinNodes.append(innerNot)
+                // Ref: Tracking memoria per join node (CLIPS usa genalloc)
+                MemoryTracking.trackJoinNode(&env, innerNot)
                 
                 // ✅ CRITICO: innerNot NON è firstJoin per EXISTS come primo pattern
                 // Per EXISTS, outerJoin viene notificato direttamente dall'alpha
@@ -136,6 +140,8 @@ public enum NetworkBuilder {
                 outerJoin.patternIsNegated = false  // ✅ FALSE per EXISTS!
                 outerJoin.patternIsExists = true  // Marca come EXISTS
                 env.rete.joinNodes.append(outerJoin)
+                // Ref: Tracking memoria per join node (CLIPS usa genalloc)
+                MemoryTracking.trackJoinNode(&env, outerJoin)
                 
                 // ✅ CRITICO: Per EXISTS come primo pattern, outerJoin è firstJoin
                 if index == 0 {
@@ -188,6 +194,8 @@ public enum NetworkBuilder {
                         level: currentLevel + 1
                     )
                     env.rete.joinNodes.append(joinNode)
+                    // Ref: Tracking memoria per join node (CLIPS usa genalloc)
+                    MemoryTracking.trackJoinNode(&env, joinNode)
                     
                     // ✅ CORRETTO: firstJoin = true SOLO se NON c'è predecessore join (lastJoinNode == nil)
                     // In CLIPS C (drive.c), firstJoin significa "entra nella rete dall'alpha network"
@@ -209,6 +217,8 @@ public enum NetworkBuilder {
                         link.enterDirection = "l"  // Left entry (LHS) - match proviene dalla catena precedente
                         prevJoin.linkStorage.append(link)
                         prevJoin.nextLinks.append(WeakJoinLink(link))
+                        // Ref: Tracking memoria per JoinLink (CLIPS usa genalloc)
+                        MemoryTracking.trackJoinLink(&env, link)
                         
                         if env.watchRete {
                             print("[RETE Build]     *** Added nextLink LHS from join level \(prevJoin.level) to \(joinNode.level)")
@@ -233,6 +243,8 @@ public enum NetworkBuilder {
                     // Crea beta memory iniziale per il primo pattern
                     let betaMemory = BetaMemoryNode(level: currentLevel + 1)
                     env.rete.betaMemoryNodes.append(betaMemory)
+                    // Ref: Tracking memoria per beta memory node (CLIPS usa genalloc)
+                    MemoryTracking.trackBetaMemoryNode(&env, betaMemory)
                     
                     // IMPORTANTE: Collega alpha node al beta memory per propagazione iniziale
                     // Quando un fatto matcha l'alpha, attiverà il beta memory
@@ -247,6 +259,8 @@ public enum NetworkBuilder {
                 if index < rule.patterns.count - 1 {
                     let betaMemory = BetaMemoryNode(level: currentLevel)
                     env.rete.betaMemoryNodes.append(betaMemory)
+                    // Ref: Tracking memoria per beta memory node (CLIPS usa genalloc)
+                    MemoryTracking.trackBetaMemoryNode(&env, betaMemory)
                     if let prev = currentNode {
                         linkNodes(from: prev, to: betaMemory)
                     }
@@ -291,6 +305,8 @@ public enum NetworkBuilder {
         
         // 4. Registra production node nell'environment
         env.rete.productionNodes[rule.name] = productionNode
+        // Ref: Tracking memoria per production node (CLIPS usa genalloc)
+        MemoryTracking.trackProductionNode(&env, productionNode)
         
         if env.watchRete {
             print("[RETE Build] Network for '\(rule.name)' complete: \(currentLevel + 1) levels")
@@ -377,6 +393,8 @@ public enum NetworkBuilder {
         // Crea nuovo alpha node
         let alphaNode = AlphaNodeClass(pattern: pattern, level: 0)
         env.rete.alphaNodes[key] = alphaNode
+        // Ref: Tracking memoria per alpha node (CLIPS usa genalloc)
+        MemoryTracking.trackAlphaNode(&env, alphaNode)
         
         if env.watchRete {
             print("[RETE Build]     Created new alpha node for pattern \(pattern.name)")

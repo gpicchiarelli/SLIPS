@@ -30,6 +30,8 @@ public enum PartialMatchBridge {
         pm.initializeLinks()
         pm.betaMemory = true
         pm.busy = false
+        // Ref: Tracking memoria per PartialMatch (CLIPS usa genalloc)
+        MemoryTracking.trackPartialMatch(&env, pm)
         
         // Converti usedFacts in GenericMatch array
         let factIDs = Array(token.usedFacts).sorted()
@@ -45,6 +47,8 @@ public enum PartialMatchBridge {
                 let entity = FactPatternEntity(fact)
                 alphaMatch.matchingItem = entity
                 gm.theMatch = alphaMatch
+                // Ref: Tracking memoria per AlphaMatch (CLIPS usa genalloc)
+                MemoryTracking.trackAlphaMatch(&env, alphaMatch)
                 
                 // ✅ CRITICO: Aggiungi questo PartialMatch alla lista del fatto
                 // Ref: factmch.c:576-580 - aggiunge patternMatch a theFact->list

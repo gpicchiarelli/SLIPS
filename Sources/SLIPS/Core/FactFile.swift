@@ -86,7 +86,8 @@ public enum FactFile {
                         }
                         
                         // Usa evalInternal che non richiede MainActor (no prompt per load-facts)
-                        _ = SLIPSHelpers.evalInternal(&env, expr: assertCmd, printPrompt: false)
+                        // Il tracking memoria per i fatti viene fatto automaticamente in builtin_assert
+                        _ = SLIPSHelpers.evalInternal(&env, expr: assertCmd, printPrompt: false, printResult: false)
                         factCount += 1
                     }
                     i = j

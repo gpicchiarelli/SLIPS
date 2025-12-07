@@ -338,8 +338,11 @@ private func builtin_assert(_ env: inout Environment, _ args: [Value]) throws ->
         }
     }
 
-    env.facts[id] = Environment.FactRec(id: id, name: name, slots: slotMap)
-    RuleEngine.onAssert(&env, env.facts[id]!)
+    let fact = Environment.FactRec(id: id, name: name, slots: slotMap)
+    env.facts[id] = fact
+    // Ref: Tracking memoria per fatto (CLIPS usa genalloc)
+    MemoryTracking.trackFact(&env, fact)
+    RuleEngine.onAssert(&env, fact)
     if env.watchFacts {
         Router.WriteString(&env, Router.STDOUT, "==> (")
         Router.WriteString(&env, Router.STDOUT, name)
@@ -357,6 +360,8 @@ private func builtin_assert(_ env: inout Environment, _ args: [Value]) throws ->
 private func builtin_retract(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let id = args.first?.intValue else { return .none }
     if let fact = env.facts.removeValue(forKey: Int(id)) {
+        // Ref: Rimuovi tracking memoria quando un fatto viene retratto
+        MemoryTracking.untrackFact(&env, fact)
         if env.watchFacts {
             Router.WriteString(&env, Router.STDOUT, "<== (")
             Router.WriteString(&env, Router.STDOUT, fact.name)
@@ -581,8 +586,31 @@ private func builtin_unwatch(_ env: inout Environment, _ args: [Value]) throws -
 }
 
 private func builtin_clear(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    // Ref: Clear deve rimuovere tracking memoria per tutte le strutture eliminate
+    // Rimuovi tracking per tutte le strutture rete
+    for (_, alphaNode) in env.rete.alphaNodes {
+        MemoryTracking.untrackAlphaNode(&env, alphaNode)
+    }
+    for joinNode in env.rete.joinNodes {
+        MemoryTracking.untrackJoinNode(&env, joinNode)
+    }
+    for (_, prodNode) in env.rete.productionNodes {
+        MemoryTracking.untrackProductionNode(&env, prodNode)
+    }
+    for betaNode in env.rete.betaMemoryNodes {
+        MemoryTracking.untrackBetaMemoryNode(&env, betaNode)
+    }
+    // Rimuovi tracking per templates e rules
+    for (_, template) in env.templates {
+        MemoryTracking.untrackTemplate(&env, template)
+    }
+    for rule in env.rules {
+        MemoryTracking.untrackRule(&env, rule)
+    }
+    
     env.localBindings.removeAll(); env.globalBindings.removeAll(); env.templates.removeAll(); env.facts.removeAll(); env.nextFactId = 1; env.deffacts.removeAll(); env.agendaQueue.clear(); env.rete = ReteNetwork()
-    return .boolean(true)
+    // Ref: constrct.c:466 - ClearCommand ritorna void (non imposta returnValue)
+    return .none  // void - non stampa output
 }
 
 private func builtin_set_strategy(_ env: inout Environment, _ args: [Value]) throws -> Value {

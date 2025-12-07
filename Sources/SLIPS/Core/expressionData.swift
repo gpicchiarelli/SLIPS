@@ -65,6 +65,11 @@ public enum ExpressionEnv {
         let hn = ExpressionDataSwift.HashNode(exp: ExprOps.CopyExpression(exp)!, hashval: hv)
         hn.next = data.hashTable[hv]
         data.hashTable[hv] = hn
+        // Ref: Tracking memoria per ExpressionNode (CLIPS usa genalloc)
+        // Track solo la prima volta (count = 1), non quando viene riusato
+        if hn.count == 1 {
+            MemoryTracking.trackExpressionNode(&env, hn.exp)
+        }
         return hn.exp
     }
 

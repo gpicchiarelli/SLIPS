@@ -124,7 +124,10 @@ public enum Evaluator {
                     }
                     cur = n.nextArg
                 }
-                env.templates[tname] = Environment.Template(name: tname, slots: slots)
+                let template = Environment.Template(name: tname, slots: slots)
+                env.templates[tname] = template
+                // Ref: Tracking memoria per template (CLIPS usa genalloc)
+                MemoryTracking.trackTemplate(&env, template)
                 return .symbol(tname)
             }
             if name == "defrule" {

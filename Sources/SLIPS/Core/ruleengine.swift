@@ -43,6 +43,8 @@ public enum RuleEngine {
     /// Ref: AddRule in rulebsc.c, ConstructJoins in rulebld.c
     public static func addRule(_ env: inout Environment, _ rule: Rule) {
         env.rules.append(rule)
+        // Ref: Tracking memoria per regola (CLIPS usa genalloc)
+        MemoryTracking.trackRule(&env, rule)
         
         // Costruisci rete con nodi espliciti (unico percorso, come in CLIPS C)
         _ = NetworkBuilder.buildNetwork(for: rule, env: &env)
