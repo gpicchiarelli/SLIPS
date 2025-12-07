@@ -185,6 +185,37 @@ final class GoldenTests: XCTestCase {
         return capturedOutput
     }
     
+    /// Esegue un file .tst completo (interpreta la sequenza di comandi)
+    /// I file .tst contengono sequenze di comandi CLIPS che vengono eseguiti in ordine
+    func executeTSTFile(_ tstPath: String) throws -> String {
+        var env = CLIPS.createEnvironment()
+        var capturedOutput = ""
+        var inDribble = false
+        
+        // Crea router per catturare tutto l'output
+        _ = RouterRegistry.AddRouter(
+            &env,
+            "golden-capture",
+            100,
+            query: { _, name in name == "t" || name == Router.STDOUT },
+            write: { _, _, str in
+                if inDribble {
+                    capturedOutput += str
+                }
+            }
+        )
+        
+        let content = try String(contentsOfFile: tstPath, encoding: .utf8)
+        let assetsDir = (tstPath as NSString).deletingLastPathComponent
+        
+        // Usa CLIPS.load per eseguire tutti i comandi nel file .tst
+        // CLIPS.load già fa il parsing e l'esecuzione corretta
+        try CLIPS.load(tstPath)
+        
+        RouterRegistry.DeleteRouter(&env, "golden-capture")
+        return capturedOutput
+    }
+    
     /// Test generico che esegue tutti i file .clp trovati e confronta output
     func testAllCLPGoldenTests() throws {
         let clpFiles = findAllCLPFiles()
