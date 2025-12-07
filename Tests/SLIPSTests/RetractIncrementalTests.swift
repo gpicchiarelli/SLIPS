@@ -5,8 +5,14 @@ import XCTest
 final class RetractIncrementalTests: XCTestCase {
     func testRetractRemovesActivationsIncrementally() {
         _ = CLIPS.createEnvironment()
+        guard var env = CLIPS.currentEnvironment else { XCTFail(); return }
+        env.watchRete = true  // DEBUG: Abilita debug output
+        // Aggiorna currentEnv usando eval che aggiorna automaticamente
+        // Per ora, basta che watchRete sia abilitato quando facciamo retract
+        
         _ = CLIPS.eval(expr: "(deftemplate A (slot x))")
         _ = CLIPS.eval(expr: "(deftemplate B (slot y))")
+        
         _ = CLIPS.eval(expr: "(defrule join (A) (B) => (printout t \"GO\" crlf))")
         let aId = CLIPS.eval(expr: "(assert A x 1)")
         _ = CLIPS.eval(expr: "(assert B y 2)")

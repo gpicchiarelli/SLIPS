@@ -90,13 +90,32 @@ public enum DriveEngine {
         
         if theEnv.watchRete {
             print("[RETE] NetworkRetract: found \(matchesToRetract.count) PartialMatch(es) using fact \(factID)")
+            for (i, pm) in matchesToRetract.enumerated() {
+                print("  PM[\(i)]: bcount=\(pm.bcount), hash=\(pm.hashValue), owner=\(pm.owner != nil ? "\(type(of: pm.owner!))" : "nil")")
+                print("    deleting=\(pm.deleting), children=\(pm.children != nil ? "present" : "nil")")
+                for j in 0..<Int(pm.bcount) {
+                    if let alphaMatch = pm.binds[j].theMatch,
+                       let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                        print("    binds[\(j)]: factID=\(entity.factID)")
+                    }
+                }
+            }
         }
         
         // Propaga retract per ogni PartialMatch trovato
         // Ref: retract.c:96-120 - itera attraverso patternMatch e chiama PosEntryRetractAlpha/NegEntryRetractAlpha
-        for alphaMatch in matchesToRetract {
+        for (index, alphaMatch) in matchesToRetract.enumerated() {
             // Verifica se è già stato processato o se è deleting
-            if alphaMatch.deleting { continue }
+            if alphaMatch.deleting {
+                if theEnv.watchRete {
+                    print("[RETE] NetworkRetract: PM[\(index)] already deleting, skipping")
+                }
+                continue
+            }
+            
+            if theEnv.watchRete {
+                print("[RETE] NetworkRetract: processing PM[\(index)]")
+            }
             
             alphaMatch.deleting = true
             
@@ -113,19 +132,44 @@ public enum DriveEngine {
                     }
                 }
                 
-                // Rimuovi attivazioni che usano questi fatti
-                for fid in factIDs {
-                    theEnv.agendaQueue.removeByFactID(fid)
-                }
-                
-                if theEnv.watchRete {
-                    print("[RETE] NetworkRetract: removed terminal activation for '\(production.ruleName)'")
+                // ✅ USA marker per trovare e rimuovere l'attivazione specifica
+                let factIDsKey = Array(factIDs).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                if let _ = theEnv.activationToPartialMatch[activationKey] {
+                    theEnv.agendaQueue.removeByFactID(factIDs.first ?? -1)
+                    theEnv.activationToPartialMatch.removeValue(forKey: activationKey)
+                    
+                    if theEnv.watchRete {
+                        print("[RETE] NetworkRetract: removed terminal activation for '\(production.ruleName)' using marker")
+                    }
+                } else {
+                    // Fallback
+                    for fid in factIDs {
+                        theEnv.agendaQueue.removeByFactID(fid)
+                    }
+                    if theEnv.watchRete {
+                        print("[RETE] NetworkRetract: removed terminal activation for '\(production.ruleName)' (fallback)")
+                    }
                 }
             }
             
             // Propaga attraverso children (beta matches)
-            if alphaMatch.children != nil {
+            if let children = alphaMatch.children {
+                if theEnv.watchRete {
+                    print("[RETE] NetworkRetract: PM[\(index)] has children, calling PosEntryRetractAlpha")
+                    var childCount = 0
+                    var child: PartialMatch? = children
+                    while let currentChild = child {
+                        childCount += 1
+                        child = currentChild.nextLeftChild ?? currentChild.nextRightChild
+                    }
+                    print("  Children count: \(childCount)")
+                }
                 PosEntryRetractAlpha(&theEnv, alphaMatch, NETWORK_RETRACT)
+            } else {
+                if theEnv.watchRete {
+                    print("[RETE] NetworkRetract: PM[\(index)] has NO children")
+                }
             }
             
             // Gestione NOT/EXISTS (blockList)
@@ -146,12 +190,28 @@ public enum DriveEngine {
         _ alphaMatch: PartialMatch,
         _ operation: Int
     ) {
+        if theEnv.watchRete {
+            print("[RETE] PosEntryRetractAlpha: starting with alphaMatch (bcount=\(alphaMatch.bcount))")
+        }
         var betaMatch = alphaMatch.children
+        var betaIndex = 0
         
         while let currentBeta = betaMatch {
+            if theEnv.watchRete {
+                print("[RETE] PosEntryRetractAlpha: processing betaMatch[\(betaIndex)] (bcount=\(currentBeta.bcount), owner=\(currentBeta.owner != nil ? "\(type(of: currentBeta.owner!))" : "nil"))")
+            }
+            
             guard let joinPtr = currentBeta.owner as? JoinNodeClass else {
+                if theEnv.watchRete {
+                    print("[RETE] PosEntryRetractAlpha: betaMatch[\(betaIndex)] owner is not JoinNodeClass, skipping")
+                }
                 betaMatch = currentBeta.nextLeftChild ?? currentBeta.nextRightChild
+                betaIndex += 1
                 continue
+            }
+            
+            if theEnv.watchRete {
+                print("  Join level=\(joinPtr.level), ruleToActivate=\(joinPtr.ruleToActivate?.ruleName ?? "nil")")
             }
             
             // Propaga retract ai children
@@ -166,7 +226,7 @@ public enum DriveEngine {
             }
             
             // Rimuovi attivazione se questo è un terminal join
-            // Estrai fact IDs e rimuovi attivazioni che li usano
+            // Ref: retract.c:147-149 - RemoveActivation se marker != NULL
             if let production = joinPtr.ruleToActivate {
                 // Estrai fact IDs dal PartialMatch
                 var factIDs: Set<Int> = []
@@ -177,18 +237,55 @@ public enum DriveEngine {
                     }
                 }
                 
-                // Rimuovi attivazioni che usano questi fatti (usa removeByFactID per ogni factID)
-                for fid in factIDs {
-                    theEnv.agendaQueue.removeByFactID(fid)
-                }
+                // ✅ USA marker per trovare e rimuovere l'attivazione specifica
+                // Ref: retract.c:147-149 - RemoveActivation(theEnv, (struct activation *) betaMatch->marker, true, true)
+                let factIDsKey = Array(factIDs).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
                 
                 if theEnv.watchRete {
-                    print("[RETE] PosEntryRetractAlpha: removed activation(s) for '\(production.ruleName)'")
+                    print("    Trying to remove activation with key: '\(activationKey)'")
+                    print("    Available keys in activationToPartialMatch:")
+                    for key in theEnv.activationToPartialMatch.keys.sorted() {
+                        print("      - \(key)")
+                    }
+                    print("    Agenda before removal: \(theEnv.agendaQueue.queue.count) activations")
+                    for (i, act) in theEnv.agendaQueue.queue.enumerated() {
+                        print("      Act[\(i)]: rule='\(act.ruleName)', factIDs=\(act.factIDs)")
+                    }
+                }
+                
+                if let _ = theEnv.activationToPartialMatch[activationKey] {
+                    // Rimuovi attivazione usando factIDs
+                    let beforeCount = theEnv.agendaQueue.queue.count
+                    for fid in factIDs {
+                        theEnv.agendaQueue.removeByFactID(fid)
+                    }
+                    let afterCount = theEnv.agendaQueue.queue.count
+                    theEnv.activationToPartialMatch.removeValue(forKey: activationKey)
+                    
+                    if theEnv.watchRete {
+                        print("    ✅ Removed activation using marker: \(beforeCount) -> \(afterCount) activations")
+                    }
+                } else {
+                    // Fallback: rimuovi tutte le attivazioni che usano questi fatti
+                    let beforeCount = theEnv.agendaQueue.queue.count
+                    for fid in factIDs {
+                        theEnv.agendaQueue.removeByFactID(fid)
+                    }
+                    let afterCount = theEnv.agendaQueue.queue.count
+                    
+                    if theEnv.watchRete {
+                        print("    ⚠️  Marker not found, using fallback: \(beforeCount) -> \(afterCount) activations")
+                    }
                 }
             }
             
             // Salva next prima di unlink
             let tempMatch = currentBeta.nextRightChild ?? currentBeta.nextLeftChild
+            
+            if theEnv.watchRete {
+                print("  Removing betaMatch[\(betaIndex)] from beta memory (rhsMemory=\(currentBeta.rhsMemory))")
+            }
             
             // Rimuovi dalla beta memory
             if currentBeta.rhsMemory {
@@ -198,6 +295,11 @@ public enum DriveEngine {
             }
             
             betaMatch = tempMatch
+            betaIndex += 1
+        }
+        
+        if theEnv.watchRete {
+            print("[RETE] PosEntryRetractAlpha: completed, processed \(betaIndex) beta matches")
         }
     }
     
@@ -228,6 +330,7 @@ public enum DriveEngine {
             }
             
             // Rimuovi attivazione se terminal
+            // Ref: retract.c:284-286 - RemoveActivation se marker != NULL
             if let production = joinPtr.ruleToActivate {
                 // Estrai fact IDs dal PartialMatch
                 var factIDs: Set<Int> = []
@@ -238,13 +341,24 @@ public enum DriveEngine {
                     }
                 }
                 
-                // Rimuovi attivazioni che usano questi fatti
-                for fid in factIDs {
-                    theEnv.agendaQueue.removeByFactID(fid)
-                }
-                
-                if theEnv.watchRete {
-                    print("[RETE] PosEntryRetractBeta: removed activation(s) for '\(production.ruleName)'")
+                // ✅ USA marker per trovare e rimuovere l'attivazione specifica
+                let factIDsKey = Array(factIDs).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                if let _ = theEnv.activationToPartialMatch[activationKey] {
+                    theEnv.agendaQueue.removeByFactID(factIDs.first ?? -1)
+                    theEnv.activationToPartialMatch.removeValue(forKey: activationKey)
+                    
+                    if theEnv.watchRete {
+                        print("[RETE] PosEntryRetractBeta: removed activation for '\(production.ruleName)' using marker")
+                    }
+                } else {
+                    // Fallback
+                    for fid in factIDs {
+                        theEnv.agendaQueue.removeByFactID(fid)
+                    }
+                    if theEnv.watchRete {
+                        print("[RETE] PosEntryRetractBeta: removed activation(s) for '\(production.ruleName)' (fallback)")
+                    }
                 }
             }
             
@@ -316,13 +430,34 @@ public enum DriveEngine {
             linker.hashValue = hashValue
             
             // UpdateBetaPMLinks: aggiungi a beta memory PRIMA di propagare
-            // Ref: drive.c linea 956
+            // Ref: drive.c linea 956, reteutil.c linee 209-295
+            // CRITICO: Collega parent-child relationships come in CLIPS C
             if currentLink.enterDirection == LHS {
                 if ReteUtil.AddToLeftMemory(targetJoin, linker) {
+                    // Collega linker come child di lhsBinds
+                    linker.leftParent = lhsBinds
+                    if lhsBinds.children == nil {
+                        lhsBinds.children = linker
+                    } else {
+                        linker.nextLeftChild = lhsBinds.children
+                        lhsBinds.children?.prevLeftChild = linker
+                        lhsBinds.children = linker
+                    }
                     NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
                 }
             } else {
                 if ReteUtil.AddToRightMemory(targetJoin, linker) {
+                    // Collega linker come child di rhsBinds (se presente)
+                    if let rhsParent = rhsBinds {
+                        linker.rightParent = rhsParent
+                        if rhsParent.children == nil {
+                            rhsParent.children = linker
+                        } else {
+                            linker.nextRightChild = rhsParent.children
+                            rhsParent.children?.prevRightChild = linker
+                            rhsParent.children = linker
+                        }
+                    }
                     NetworkAssertRight(&theEnv, linker, targetJoin, operation)
                 }
             }
@@ -450,12 +585,21 @@ public enum DriveEngine {
         _ operation: Int
     ) {
         // ✅ CRITICO: Se è l'ultimo join (ha ruleToActivate), crea attivazione direttamente
-        // Ref: drive.c linee 351-355
+        // Ref: drive.c linee 351-355, agenda.c:187 - binds->marker = newActivation
         if let production = join.ruleToActivate {
             if theEnv.watchRete {
                 print("[RETE] NetworkAssertLeft: TERMINAL join, creating activation for '\(production.ruleName)'")
             }
             let token = partialMatchToBetaToken(lhsBinds, env: theEnv, ruleName: production.ruleName)
+            
+            // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+            // Questo permette a NetworkRetract di trovare l'attivazione associata
+            // In CLIPS C, il marker viene impostato in AddActivation (agenda.c:187)
+            // Per ora, tracciamo tramite activationToPartialMatch usando factIDs come key
+            let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+            let activationKey = "\(production.ruleName):\(factIDsKey)"
+            theEnv.activationToPartialMatch[activationKey] = lhsBinds
+            
             production.activate(token: token, env: &theEnv)
             return
         }
@@ -649,7 +793,55 @@ public enum DriveEngine {
             if let production = join.ruleToActivate {
                 if theEnv.watchRete {
                     print("[RETE] EmptyDrive: CREATING ACTIVATION for rule '\(production.ruleName)'")
+                    print("[RETE] EmptyDrive: rhsBinds bcount=\(rhsBinds.bcount)")
+                    for i in 0..<Int(rhsBinds.bcount) {
+                        if let alphaMatch = rhsBinds.binds[i].theMatch,
+                           let entity = alphaMatch.matchingItem as? FactPatternEntity {
+                            print("  rhsBinds binds[\(i)]: factID=\(entity.factID)")
+                        }
+                    }
+                    print("  leftMemory count: \(join.leftMemory?.count ?? 0)")
                 }
+                
+                // ✅ CRITICO: Per un firstJoin terminale, dobbiamo combinare leftMemory e rhsBinds
+                // Il leftMemory contiene i token del pattern precedente (se presente)
+                // Ref: drive.c - quando firstJoin è terminale, AddActivation riceve un PartialMatch combinato
+                var combinedPM: PartialMatch
+                if let leftMem = join.leftMemory, leftMem.count > 0 {
+                    // C'è un leftMemory: dobbiamo combinare il primo token con rhsBinds
+                    // Per un firstJoin, il leftMemory dovrebbe contenere un solo token (dal ROOT)
+                    var leftToken: PartialMatch? = nil
+                    for i in 0..<leftMem.size {
+                        if let pm = leftMem.beta[i] {
+                            leftToken = pm
+                            break  // Prendi il primo token
+                        }
+                    }
+                    
+                    if let left = leftToken {
+                        if theEnv.watchRete {
+                            print("  Found leftMemory token with bcount=\(left.bcount)")
+                        }
+                        // Combina left e rhsBinds
+                        combinedPM = mergePartialMatches(left, rhsBinds)
+                        if theEnv.watchRete {
+                            print("  Combined PM bcount=\(combinedPM.bcount)")
+                        }
+                    } else {
+                        // Nessun token nel leftMemory, usa solo rhsBinds
+                        combinedPM = rhsBinds
+                        if theEnv.watchRete {
+                            print("  No leftMemory token found, using only rhsBinds")
+                        }
+                    }
+                } else {
+                    // Nessun leftMemory, usa solo rhsBinds
+                    combinedPM = rhsBinds
+                    if theEnv.watchRete {
+                        print("  No leftMemory, using only rhsBinds")
+                    }
+                }
+                
                 // Per EXISTS, crea token vuoto (senza binding di fatti)
                 // Ref: drive.c linee 1128-1129 - EXISTS genera empty partial match
                 let token: BetaToken
@@ -657,13 +849,36 @@ public enum DriveEngine {
                     // Token vuoto per EXISTS (no bindings, no usedFacts)
                     token = BetaToken(bindings: [:], usedFacts: [])
                 } else {
-                    // Pattern normale: usa rhsBinds
+                    // Pattern normale: usa combinedPM
                     token = partialMatchToBetaToken(
-                        rhsBinds,
+                        combinedPM,
                         env: theEnv,
                         ruleName: production.ruleName
                     )
+                    if theEnv.watchRete {
+                        print("  Token created with factIDs: \(token.usedFacts.sorted())")
+                    }
                 }
+                
+                // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+                // (come in NetworkAssertLeft sopra)
+                let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                if join.patternIsExists {
+                    // Per EXISTS, usa existsParent se disponibile, altrimenti combinedPM
+                    if let parent = existsParent {
+                        theEnv.activationToPartialMatch[activationKey] = parent
+                    } else {
+                        theEnv.activationToPartialMatch[activationKey] = combinedPM
+                    }
+                } else {
+                    theEnv.activationToPartialMatch[activationKey] = combinedPM
+                }
+                
+                if theEnv.watchRete {
+                    print("  Activation key: '\(activationKey)'")
+                }
+                
                 production.activate(token: token, env: &theEnv)
             } else {
                 if theEnv.watchRete {
@@ -721,13 +936,32 @@ public enum DriveEngine {
                     }
                 }
             } else {
-                // Pattern normale
+                // Pattern normale: collega linker come child di rhsBinds
+                // Ref: reteutil.c linee 267-287 - UpdateBetaPMLinks collega parent-child
                 if currentLink.enterDirection == LHS {
                     if ReteUtil.AddToLeftMemory(targetJoin, linker) {
+                        // Collega linker come child di rhsBinds (rightParent)
+                        linker.rightParent = rhsBinds
+                        if rhsBinds.children == nil {
+                            rhsBinds.children = linker
+                        } else {
+                            linker.nextRightChild = rhsBinds.children
+                            rhsBinds.children?.prevRightChild = linker
+                            rhsBinds.children = linker
+                        }
                         NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
                     }
                 } else {
                     if ReteUtil.AddToRightMemory(targetJoin, linker) {
+                        // Collega linker come child di rhsBinds (rightParent)
+                        linker.rightParent = rhsBinds
+                        if rhsBinds.children == nil {
+                            rhsBinds.children = linker
+                        } else {
+                            linker.nextRightChild = rhsBinds.children
+                            rhsBinds.children?.prevRightChild = linker
+                            rhsBinds.children = linker
+                        }
                         NetworkAssertRight(&theEnv, linker, targetJoin, operation)
                     }
                 }

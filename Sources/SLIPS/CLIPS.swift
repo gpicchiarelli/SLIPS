@@ -88,6 +88,10 @@ public final class Environment {
     // Quando un PartialMatch viene creato da un fatto, viene aggiunto a questa lista
     // per permettere a NetworkRetract di trovare tutti i PartialMatch da rimuovere
     public var factPartialMatches: [Int: [PartialMatch]] = [:]
+    // Tracking attivazioni -> PartialMatch (per retract)
+    // Ref: agenda.c:187 - binds->marker = newActivation
+    // Permette di trovare il PartialMatch associato a un'attivazione per rimuoverla correttamente
+    public var activationToPartialMatch: [String: PartialMatch] = [:]  // key: "ruleName:factIDs"
     public var rules: [Rule] = []
     public var agendaQueue: Agenda = Agenda()
     public var rete: ReteNetwork = ReteNetwork()
