@@ -417,20 +417,32 @@ public enum DriveEngine {
                     print("[RETE] PPDrive: no nextLinks, but join is TERMINAL (ruleToActivate=\(production.ruleName))")
                 }
                 
-                // Merge lhs e rhs (se rhs è NULL, usa solo lhs per EXISTS)
-                let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
-                
-                // Crea token dal linker combinato
-                let token = partialMatchToBetaToken(linker, env: theEnv, ruleName: production.ruleName)
-                
-                if theEnv.watchRete {
-                    print("[RETE] PPDrive: creating activation with factIDs: \(token.usedFacts.sorted())")
+                // ✅ CRITICO: Gestione EXISTS - come in EmptyDrive (linee 898-908)
+                // Per EXISTS, crea token vuoto (senza binding di fatti)
+                // Ref: drive.c linee 1128-1129 - EXISTS genera empty partial match
+                let token: BetaToken
+                if join.patternIsExists {
+                    // Token vuoto per EXISTS (no bindings, no usedFacts)
+                    token = BetaToken(bindings: [:], usedFacts: [])
+                    if theEnv.watchRete {
+                        print("[RETE] PPDrive: EXISTS pattern, creating empty token")
+                    }
+                } else {
+                    // Pattern normale: Merge lhs e rhs (se rhs è NULL, usa solo lhs)
+                    let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
+                    
+                    // Crea token dal linker combinato
+                    token = partialMatchToBetaToken(linker, env: theEnv, ruleName: production.ruleName)
+                    
+                    if theEnv.watchRete {
+                        print("[RETE] PPDrive: creating activation with factIDs: \(token.usedFacts.sorted())")
+                    }
+                    
+                    // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+                    let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+                    let activationKey = "\(production.ruleName):\(factIDsKey)"
+                    theEnv.activationToPartialMatch[activationKey] = linker
                 }
-                
-                // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
-                let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
-                let activationKey = "\(production.ruleName):\(factIDsKey)"
-                theEnv.activationToPartialMatch[activationKey] = linker
                 
                 production.activate(token: token, env: &theEnv)
             }
