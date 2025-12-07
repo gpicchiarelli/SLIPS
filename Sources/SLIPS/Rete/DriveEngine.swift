@@ -48,31 +48,39 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
-        guard let firstLink = join.nextLinks.first?.link else {
-            if let production = join.ruleToActivate {
-                let token = partialMatchToBetaToken(
-                    lhsBinds,
-                    env: theEnv,
-                    ruleName: production.ruleName
-                )
-                production.activate(token: token, env: &theEnv)
-            }
-            return
-        }
+        // Ref: drive.c linea 917
+        guard let firstLink = join.nextLinks.first?.link else { return }
         
         var listOfJoins: JoinLink? = firstLink
         
         while let currentLink = listOfJoins {
+            guard let targetJoin = currentLink.join else {
+                listOfJoins = currentLink.next
+                continue
+            }
+            
             // Merge lhs e rhs (se rhs è NULL, usa solo lhs)
+            // Ref: drive.c linea 931
             let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
             
-            // Calcola hash
-            linker.hashValue = 0  // Semplificato
+            // Calcola hash usando BetaMemoryHashValue
+            // Ref: drive.c linee 937-950
+            var hashValue: UInt = 0
+            if currentLink.enterDirection == LHS {
+                hashValue = BetaMemoryHashValue(&theEnv, targetJoin.leftHash, linker, nil, targetJoin)
+            } else {
+                hashValue = BetaMemoryHashValue(&theEnv, targetJoin.rightHash, linker, nil, targetJoin)
+            }
+            linker.hashValue = hashValue
             
-            if let targetJoin = currentLink.join {
-                if currentLink.enterDirection == LHS {
+            // UpdateBetaPMLinks: aggiungi a beta memory PRIMA di propagare
+            // Ref: drive.c linea 956
+            if currentLink.enterDirection == LHS {
+                if ReteUtil.AddToLeftMemory(targetJoin, linker) {
                     NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
-                } else {
+                }
+            } else {
+                if ReteUtil.AddToRightMemory(targetJoin, linker) {
                     NetworkAssertRight(&theEnv, linker, targetJoin, operation)
                 }
             }
@@ -158,79 +166,31 @@ public enum DriveEngine {
             }
             
             // Evalua network test
-            var joinExpr = true
-            if let networkTest = join.networkTest {
-                // Setup evaluation environment
-                // (GlobalLHSBinds/GlobalRHSBinds in C - qui semplifico con localBindings)
-                let oldBindings = theEnv.localBindings
-                
-                // Merge bindings da LHS e RHS
-                for _ in 0..<Int(currentLHS.bcount) {
-                    // Binding da partial match (da implementare conversione)
-                }
-                
-                // Evalua test
-                let result = evaluateReteTest(&theEnv, networkTest)
-                
-                theEnv.localBindings = oldBindings
-                
-                switch result {
-                case .boolean(let b): joinExpr = b
-                case .int(let i): joinExpr = (i != 0)
-                default: joinExpr = false
-                }
-                
-                if !joinExpr {
-                    lhsBinds = nextBind
-                    continue
-                }
+            // Ref: drive.c linee 229-257
+            var joinExpr = EvaluateJoinExpression(&theEnv, join.networkTest, join, currentLHS, rhsBinds)
+            
+            // Secondary network test
+            // Ref: drive.c linee 259-265
+            if joinExpr, let secondaryTest = join.secondaryNetworkTest {
+                joinExpr = EvaluateJoinExpression(&theEnv, secondaryTest, join, currentLHS, rhsBinds)
             }
             
-            // JOIN RIUSCITO: propaga attraverso nextLinks
-            var listOfJoins = join.nextLinks.first?.link
-            while listOfJoins != nil {
-                // Crea nuovo partial match combinando LHS + RHS
-                let newPM = mergePartialMatches(currentLHS, rhsBinds)
-                
-                // Calcola hash value per il nuovo match
-                var hashValue: UInt = 0
-                if let targetJoin = listOfJoins?.join {
-                    if listOfJoins?.enterDirection == LHS {
-                        hashValue = targetJoin.leftHash != nil ? 
-                            computeHashValue(for: newPM, using: targetJoin.leftHash) : 0
-                    } else {
-                        hashValue = targetJoin.rightHash != nil ?
-                            computeHashValue(for: newPM, using: targetJoin.rightHash) : 0
-                    }
-                }
-                newPM.hashValue = hashValue
-                
-                // Aggiungi a beta memory appropriata e propaga
-                if let targetJoin = listOfJoins?.join {
-                    if listOfJoins?.enterDirection == LHS {
-                        // ✅ CRITICO: Aggiungi E propaga (come in CLIPS C)
-                        ReteUtil.AddToLeftMemory(targetJoin, newPM)
-                        NetworkAssertLeft(&theEnv, newPM, targetJoin, operation)
-                    } else {
-                        ReteUtil.AddToRightMemory(targetJoin, newPM)
-                        NetworkAssertRight(&theEnv, newPM, targetJoin, operation)
-                    }
-                }
-                
-                listOfJoins = listOfJoins?.next
+            if !joinExpr {
+                lhsBinds = nextBind
+                continue
             }
             
-            // Se non ci sono nextLinks, siamo al nodo terminale: crea attivazione
-            if join.nextLinks.isEmpty, let production = join.ruleToActivate {
-                if theEnv.watchRete {
-                    print("[RETE] NetworkAssertRight: TERMINAL - creating activation for '\(production.ruleName)'")
-                }
-                let token = partialMatchToBetaToken(
-                    mergePartialMatches(currentLHS, rhsBinds),
-                    env: theEnv,
-                    ruleName: production.ruleName
-                )
-                production.activate(token: token, env: &theEnv)
+            // JOIN RIUSCITO: propaga attraverso PPDrive (come in C linee 292)
+            // Ref: drive.c linee 274-292
+            if join.patternIsExists {
+                // EXISTS: AddBlockedLink e propaga senza merge (linee 276-280)
+                // TODO: Implementare AddBlockedLink
+                PPDrive(&theEnv, currentLHS, nil, join, operation)
+                lhsBinds = nextBind
+                continue
+            } else {
+                // Normal join: usa PPDrive con merge (linea 292)
+                PPDrive(&theEnv, currentLHS, rhsBinds, join, operation)
             }
             
             lhsBinds = nextBind
@@ -260,7 +220,8 @@ public enum DriveEngine {
         }
         
         // Aggiungi a leftMemory
-        ReteUtil.AddToLeftMemory(join, lhsBinds)
+        let added = ReteUtil.AddToLeftMemory(join, lhsBinds)
+        if !added { return }
         
         // Cerca match nel rightMemory
         var rhsBinds = ReteUtil.GetRightBetaMemory(join, hashValue: lhsBinds.hashValue)
@@ -286,38 +247,14 @@ public enum DriveEngine {
             // Verifica compatibilità e crea join
             if isCompatible(lhsBinds, currentRHS, join, &theEnv) {
                 compatibleCount += 1
-                let newPM = mergePartialMatches(lhsBinds, currentRHS)
                 
                 if theEnv.watchRete {
-                    print("[RETE] NetworkAssertLeft: compatible match found, merged PM has \(newPM.bcount) patterns")
+                    print("[RETE] NetworkAssertLeft: compatible match found")
                 }
                 
-                // Propaga attraverso nextLinks
-                for weakLink in join.nextLinks {
-                    if let link = weakLink.link, let targetJoin = link.join {
-                        if theEnv.watchRete {
-                            print("[RETE] NetworkAssertLeft: propagating to level \(targetJoin.level) via \(link.enterDirection == LHS ? "LHS" : "RHS")")
-                        }
-                        if link.enterDirection == LHS {
-                            NetworkAssertLeft(&theEnv, newPM, targetJoin, operation)
-                        } else {
-                            NetworkAssertRight(&theEnv, newPM, targetJoin, operation)
-                        }
-                    }
-                }
-                
-                // Se è terminal, crea attivazione
-                if join.nextLinks.isEmpty, let production = join.ruleToActivate {
-                    if theEnv.watchRete {
-                        print("[RETE] NetworkAssertLeft: TERMINAL - creating activation for '\(production.ruleName)'")
-                    }
-                    let token = partialMatchToBetaToken(
-                        newPM,
-                        env: theEnv,
-                        ruleName: production.ruleName
-                    )
-                    production.activate(token: token, env: &theEnv)
-                }
+                // Propaga attraverso PPDrive (come in C)
+                // Ref: drive.c linea 503
+                PPDrive(&theEnv, lhsBinds, currentRHS, join, operation)
             }
             
             rhsBinds = currentRHS.nextInMemory
@@ -341,42 +278,19 @@ public enum DriveEngine {
     ) {
         if theEnv.watchRete {
             print("[RETE] EmptyDrive: firstJoin handling for join level \(join.level)")
+            print("[RETE] EmptyDrive: nextLinks.count=\(join.nextLinks.count), ruleToActivate=\(join.ruleToActivate?.ruleName ?? "nil")")
         }
         
         // Evalua network test
-        if let networkTest = join.networkTest {
-            let oldBindings = theEnv.localBindings
-            
-            // Setup per evaluation (GlobalRHSBinds = rhsBinds in C)
-            // Estrai binding da rhsBinds e metti in localBindings
-            
-            let result = evaluateReteTest(&theEnv, networkTest)
-            theEnv.localBindings = oldBindings
-            
-            var joinExpr: Bool
-            switch result {
-            case .boolean(let b): joinExpr = b
-            case .int(let i): joinExpr = (i != 0)
-            default: joinExpr = false
-            }
-            
-            if !joinExpr { return }
+        // Ref: drive.c linee 1026-1047
+        if !EvaluateJoinExpression(&theEnv, join.networkTest, join, nil, rhsBinds) {
+            return
         }
         
         // Secondary network test
-        if let secondaryTest = join.secondaryNetworkTest {
-            let oldBindings = theEnv.localBindings
-            let result = evaluateReteTest(&theEnv, secondaryTest)
-            theEnv.localBindings = oldBindings
-            
-            var joinExpr: Bool
-            switch result {
-            case .boolean(let b): joinExpr = b
-            case .int(let i): joinExpr = (i != 0)
-            default: joinExpr = false
-            }
-            
-            if !joinExpr { return }
+        // Ref: drive.c linee 1049-1069
+        if !EvaluateJoinExpression(&theEnv, join.secondaryNetworkTest, join, nil, rhsBinds) {
+            return
         }
         
         // ✅ FEDELE A CLIPS C (drive.c:1075-1106)
@@ -438,6 +352,7 @@ public enum DriveEngine {
         if listOfJoins == nil {
             if theEnv.watchRete {
                 print("[RETE] EmptyDrive: no nextLinks, checking if terminal")
+                print("[RETE] EmptyDrive: ruleToActivate=\(join.ruleToActivate?.ruleName ?? "nil")")
             }
             
             // Se è terminal (ruleToActivate), crea attivazione
@@ -461,7 +376,13 @@ public enum DriveEngine {
         }
         
         while let currentLink = listOfJoins {
+            guard let targetJoin = currentLink.join else {
+                listOfJoins = currentLink.next
+                continue
+            }
+            
             // Crea linker (nuovo partial match)
+            // Ref: drive.c linee 1128-1136
             let linker: PartialMatch
             if join.patternIsExists {
                 linker = CreateEmptyPartialMatch()
@@ -469,20 +390,24 @@ public enum DriveEngine {
                 linker = rhsBinds.copy()
             }
             
-            // Hash value già calcolato in linker.copy() o CreateEmptyPartialMatch
-            // Non sovrascrivere! (In CLIPS C usa leftHash/rightHash functions, qui usiamo hash già presente)
-            if theEnv.watchRete {
-                print("[RETE] EmptyDrive: linker hash=\(linker.hashValue) for propagation")
+            // Calcola hash usando BetaMemoryHashValue
+            // Ref: drive.c linee 1142-1155
+            var hashValue: UInt = 0
+            if currentLink.enterDirection == LHS {
+                hashValue = BetaMemoryHashValue(&theEnv, targetJoin.leftHash, linker, nil, targetJoin)
+            } else {
+                hashValue = BetaMemoryHashValue(&theEnv, targetJoin.rightHash, linker, nil, targetJoin)
             }
+            linker.hashValue = hashValue
             
-            // Aggiungi a beta memory e propaga
-            if let targetJoin = currentLink.join {
-                if theEnv.watchRete {
-                    print("[RETE] EmptyDrive: propagating to join level \(targetJoin.level) via \(currentLink.enterDirection == LHS ? "LHS" : "RHS")")
-                }
-                if currentLink.enterDirection == LHS {
+            // UpdateBetaPMLinks: aggiungi a beta memory PRIMA di propagare
+            // Ref: drive.c linea 1162-1164
+            if currentLink.enterDirection == LHS {
+                if ReteUtil.AddToLeftMemory(targetJoin, linker) {
                     NetworkAssertLeft(&theEnv, linker, targetJoin, operation)
-                } else {
+                }
+            } else {
+                if ReteUtil.AddToRightMemory(targetJoin, linker) {
                     NetworkAssertRight(&theEnv, linker, targetJoin, operation)
                 }
             }
@@ -492,6 +417,182 @@ public enum DriveEngine {
     }
     
     // MARK: - Helper Functions
+    
+    /// Estrae binding da PartialMatch usando il join context
+    /// (ref: GlobalLHSBinds/GlobalRHSBinds in CLIPS C)
+    private static func extractBindingsFromPartialMatch(
+        _ pm: PartialMatch,
+        _ join: JoinNodeClass,
+        _ theEnv: Environment
+    ) -> [String: Value] {
+        var bindings: [String: Value] = [:]
+        
+        // Tenta di ottenere la regola dal join per avere i pattern
+        var rule: Rule? = nil
+        if let production = join.ruleToActivate {
+            rule = theEnv.rules.first { $0.name == production.ruleName || $0.displayName == production.ruleName }
+        }
+        
+        // Estrai binding da ogni pattern nel partial match
+        for i in 0..<Int(pm.bcount) {
+            guard let alphaMatch = pm.binds[i].theMatch,
+                  let entity = alphaMatch.matchingItem as? FactPatternEntity else {
+                continue
+            }
+            
+            let fact = entity.fact
+            
+            // Prova a usare il pattern dalla regola se disponibile
+            if let rule = rule, i < rule.patterns.count {
+                let pattern = rule.patterns[i]
+                let factBindings = Propagation.extractBindings(fact: fact, pattern: pattern)
+                bindings.merge(factBindings) { _, new in new }
+            }
+            // Altrimenti, usa il pattern del rightInput se è il primo pattern
+            else if i == 0, let rightAlpha = join.rightInput {
+                let factBindings = Propagation.extractBindings(fact: fact, pattern: rightAlpha.pattern)
+                bindings.merge(factBindings) { _, new in new }
+            }
+            // Fallback: estrai da fact slots direttamente (meno preciso)
+            else {
+                for (slotName, value) in fact.slots {
+                    bindings[slotName] = value
+                }
+            }
+        }
+        
+        return bindings
+    }
+    
+    /// Valuta join expression con binding da LHS e RHS
+    /// Port FEDELE di EvaluateJoinExpression (drive.c linee 590-729)
+    private static func EvaluateJoinExpression(
+        _ theEnv: inout Environment,
+        _ joinExpr: ExpressionNode?,
+        _ join: JoinNodeClass,
+        _ lhsBinds: PartialMatch?,
+        _ rhsBinds: PartialMatch?
+    ) -> Bool {
+        guard let joinExpr = joinExpr else { return true }
+        
+        // Estrai binding da LHS e RHS
+        var combinedBindings: [String: Value] = [:]
+        if let lhsBinds = lhsBinds {
+            let lhsBindings = extractBindingsFromPartialMatch(lhsBinds, join, theEnv)
+            combinedBindings.merge(lhsBindings) { _, new in new }
+        }
+        if let rhsBinds = rhsBinds {
+            let rhsBindings = extractBindingsFromPartialMatch(rhsBinds, join, theEnv)
+            combinedBindings.merge(rhsBindings) { _, new in new }
+        }
+        
+        // Salva binding esistenti
+        let oldBindings = theEnv.localBindings
+        
+        // Imposta binding per evaluation
+        theEnv.localBindings = combinedBindings
+        
+        // Valuta expression
+        let result = evaluateReteTest(&theEnv, joinExpr)
+        
+        // Ripristina binding
+        theEnv.localBindings = oldBindings
+        
+        switch result {
+        case .boolean(let b): return b
+        case .int(let i): return i != 0
+        default: return false
+        }
+    }
+    
+    /// Calcola hash value per beta memory usando hash expression
+    /// Port FEDELE di BetaMemoryHashValue (drive.c linee 768-891)
+    public static func BetaMemoryHashValue(
+        _ theEnv: inout Environment,
+        _ hashExpr: ExpressionNode?,
+        _ lbinds: PartialMatch?,
+        _ rbinds: PartialMatch?,
+        _ join: JoinNodeClass
+    ) -> UInt {
+        // Se hashExpr è nil, usa joinKeys come fallback (calcolo hash basato su variabili di join)
+        guard let hashExpr = hashExpr else {
+            // Fallback: calcola hash usando joinKeys
+            var bindings: [String: Value] = [:]
+            if let lbinds = lbinds {
+                bindings.merge(extractBindingsFromPartialMatch(lbinds, join, theEnv)) { _, new in new }
+            }
+            if let rbinds = rbinds {
+                bindings.merge(extractBindingsFromPartialMatch(rbinds, join, theEnv)) { _, new in new }
+            }
+            
+            // Calcola hash basato su joinKeys
+            var hasher = Hasher()
+            for key in join.joinKeys.sorted() {
+                if let value = bindings[key] {
+                    switch value {
+                    case .int(let i): hasher.combine(i)
+                    case .float(let f): hasher.combine(f)
+                    case .string(let s), .symbol(let s): hasher.combine(s)
+                    case .boolean(let b): hasher.combine(b)
+                    default: break
+                    }
+                }
+            }
+            return UInt(bitPattern: hasher.finalize())
+        }
+        
+        // Estrai binding da LHS e RHS
+        var combinedBindings: [String: Value] = [:]
+        if let lbinds = lbinds {
+            let lhsBindings = extractBindingsFromPartialMatch(lbinds, join, theEnv)
+            combinedBindings.merge(lhsBindings) { _, new in new }
+        }
+        if let rbinds = rbinds {
+            let rhsBindings = extractBindingsFromPartialMatch(rbinds, join, theEnv)
+            combinedBindings.merge(rhsBindings) { _, new in new }
+        }
+        
+        // Salva binding esistenti
+        let oldBindings = theEnv.localBindings
+        
+        // Imposta binding per evaluation
+        theEnv.localBindings = combinedBindings
+        
+        var hashValue: UInt = 0
+        var multiplier: UInt = 1
+        
+        // Valuta ogni espressione nella lista hash
+        var currentExpr: ExpressionNode? = hashExpr
+        while let expr = currentExpr {
+            let result = evaluateReteTest(&theEnv, expr)
+            
+            // Calcola hash basato sul tipo (come in C linee 838-868)
+            switch result {
+            case .int(let i):
+                hashValue += UInt(i) * multiplier
+            case .float(let f):
+                hashValue += UInt(f.bitPattern) * multiplier
+            case .string(let s), .symbol(let s):
+                var hasher = Hasher()
+                hasher.combine(s)
+                hashValue += UInt(bitPattern: hasher.finalize()) * multiplier
+            case .boolean(let b):
+                hashValue += (b ? 1 : 0) * multiplier
+            default:
+                break
+            }
+            
+            // Multiplier come in C (linea 875): multiplier = multiplier * 509
+            multiplier = multiplier * 509
+            
+            currentExpr = expr.nextArg
+        }
+        
+        // Ripristina binding
+        theEnv.localBindings = oldBindings
+        
+        return hashValue
+    }
     
     /// Merge due partial match (combinazione LHS + RHS)
     private static func mergePartialMatches(
@@ -558,8 +659,27 @@ public enum DriveEngine {
             print("[RETE] isCompatible: OK - LHS facts=\(lhsFactIDs), RHS facts=\(rhsFactIDs)")
         }
         
-        // 2. TODO: Applicare join.networkTest se presente
-        // Per ora, compatibilità basata solo su fact uniqueness
+        // 2. Valuta join.networkTest se presente
+        if let networkTest = join.networkTest {
+            let exprResult = EvaluateJoinExpression(&theEnv, networkTest, join, lhs, rhs)
+            if !exprResult {
+                if theEnv.watchRete {
+                    print("[RETE] isCompatible: FAIL - network test failed")
+                }
+                return false
+            }
+        }
+        
+        // 3. Valuta secondary network test se presente
+        if let secondaryTest = join.secondaryNetworkTest {
+            let exprResult = EvaluateJoinExpression(&theEnv, secondaryTest, join, lhs, rhs)
+            if !exprResult {
+                if theEnv.watchRete {
+                    print("[RETE] isCompatible: FAIL - secondary network test failed")
+                }
+                return false
+            }
+        }
         
         return true
     }

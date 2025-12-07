@@ -67,30 +67,34 @@ public enum ReteUtil {
     
     /// Aggiunge partial match a left memory
     /// (ref: AddToken logic in drive.c)
+    @discardableResult
     public static func AddToLeftMemory(
         _ theJoin: JoinNodeClass,
         _ match: PartialMatch
-    ) {
+    ) -> Bool {
         if theJoin.leftMemory == nil {
             theJoin.leftMemory = BetaMemoryHash(initialSize: 17)
         }
         
-        theJoin.leftMemory?.addMatch(match)
-        theJoin.memoryLeftAdds += 1
+        let inserted = theJoin.leftMemory?.addMatch(match) ?? false
+        if inserted { theJoin.memoryLeftAdds += 1 }
+        return inserted
     }
     
     /// Aggiunge partial match a right memory
     /// (ref: AddToken logic in drive.c)
+    @discardableResult
     public static func AddToRightMemory(
         _ theJoin: JoinNodeClass,
         _ match: PartialMatch
-    ) {
+    ) -> Bool {
         if theJoin.rightMemory == nil {
             theJoin.rightMemory = BetaMemoryHash(initialSize: 17)
         }
         
-        theJoin.rightMemory?.addMatch(match)
-        theJoin.memoryRightAdds += 1
+        let inserted = theJoin.rightMemory?.addMatch(match) ?? false
+        if inserted { theJoin.memoryRightAdds += 1 }
+        return inserted
     }
     
     /// Rimuove partial match da left memory
@@ -111,4 +115,3 @@ public enum ReteUtil {
         theJoin.memoryRightDeletes += 1
     }
 }
-

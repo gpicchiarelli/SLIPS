@@ -264,7 +264,8 @@ public final class JoinNodeClass: ReteNode {
         }
         pm.hashValue = joinKeys.isEmpty ? 0 : UInt(bitPattern: hasher.finalize())
         
-        ReteUtil.AddToLeftMemory(self, pm)
+        let inserted = ReteUtil.AddToLeftMemory(self, pm)
+        if !inserted { return }
         if env.watchRete {
             print("[RETE] JoinNode: added token to leftMemory (size=\(leftMemory?.count ?? 0), hash=\(pm.hashValue))")
         }
@@ -452,25 +453,20 @@ public final class JoinNodeClass: ReteNode {
         let factToken = BetaToken(bindings: bindings, usedFacts: [fact.id])
         let rhsPM = PartialMatchBridge.createPartialMatch(from: factToken, env: env)
         
-        // ✅ CRITICO: Calcola hash usando rightHash expression o joinKeys
+        // ✅ CRITICO: Calcola hash usando rightHash expression (come in CLIPS C)
         // Ref: drive.c:947 - hashValue = BetaMemoryHashValue(..., join->rightHash, ...)
-        var hasher = Hasher()
-        for key in joinKeys.sorted() {
-            if let value = bindings[key] {
-                switch value {
-                case .int(let i): hasher.combine(i)
-                case .float(let f): hasher.combine(f)
-                case .string(let s), .symbol(let s): hasher.combine(s)
-                case .boolean(let b): hasher.combine(b)
-                default: break
-                }
-            }
+        // Per join non-firstJoin, usa rightHash per garantire hash matching con leftMemory
+        if !self.firstJoin {
+            rhsPM.hashValue = DriveEngine.BetaMemoryHashValue(&env, self.rightHash, nil, rhsPM, self)
+        } else {
+            // Per firstJoin, hash può essere 0 o calcolato semplicemente
+            rhsPM.hashValue = 0
         }
-        rhsPM.hashValue = joinKeys.isEmpty ? 0 : UInt(bitPattern: hasher.finalize())
         
         // CRITICO: Aggiungi fatto a rightMemory PRIMA di propagare (come in CLIPS C)
         if !self.firstJoin {
-            ReteUtil.AddToRightMemory(self, rhsPM)
+            let inserted = ReteUtil.AddToRightMemory(self, rhsPM)
+            if !inserted { return }
             if env.watchRete {
                 print("[RETE] JoinNodeClass.activateFromRight: added to rightMemory (level=\(self.level), size=\(self.rightMemory?.count ?? 0), hash=\(rhsPM.hashValue))")
             }

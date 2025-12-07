@@ -247,17 +247,13 @@ final class ReteExplicitNodesTests: XCTestCase {
         _ = createEnv()
         
         // Regola con 5 pattern (semplifico senza test constraints per ora)
-        print("defining templates/rule")
         _ = CLIPS.eval(expr: "(deftemplate node (slot id) (slot value))")
         _ = CLIPS.eval(expr: "(defrule complex-rule (node (id 1)) (node (id 2)) (node (id 3)) (node (id 4)) (node (id 5)) => (printout t \"Chain\" crlf))")
-        print("starting asserts")
         
         // Assert fatti in ordine crescente
         for i in 1...5 {
-            print("assert \(i)")
             _ = CLIPS.eval(expr: "(assert node id \(i) value \(i * 10))")
         }
-        print("asserts done")
         
         guard let env = CLIPS.currentEnvironment else {
             XCTFail("No env after asserts")

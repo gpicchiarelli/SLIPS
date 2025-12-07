@@ -175,16 +175,16 @@ public enum NetworkBuilder {
                     )
                     env.rete.joinNodes.append(joinNode)
                     
-                    // ✅ CORRETTO: firstJoin = true SOLO se NON c'è predecessore (leftMemory)
+                    // ✅ CORRETTO: firstJoin = true SOLO se NON c'è predecessore join (lastJoinNode == nil)
                     // In CLIPS C (drive.c), firstJoin significa "entra nella rete dall'alpha network"
-                    // senza partial match precedenti da combinare
+                    // senza partial match precedenti da combinare (leftMemory vuoto)
                     // Ref: drive.c:102 - if (join->firstJoin) { EmptyDrive(...); return; }
-                    if index == 0 {
-                        // VERO first join: primo pattern della regola
+                    if lastJoinNode == nil {
+                        // VERO first join: primo join della regola (non c'è join precedente)
                         joinNode.firstJoin = true
                         firstJoinNode = joinNode  // Track for initialization
                         if env.watchRete {
-                            print("[RETE Build]     *** FIRST JOIN marked for rule '\(rule.name)'")
+                            print("[RETE Build]     *** FIRST JOIN marked for rule '\(rule.name)' at pattern index \(index)")
                         }
                     }
                     

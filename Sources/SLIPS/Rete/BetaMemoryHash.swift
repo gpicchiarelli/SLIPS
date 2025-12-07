@@ -50,8 +50,18 @@ public final class BetaMemoryHash {
     
     /// Aggiunge un partial match alla memoria
     /// (ref: AddToken in beta memory - logica inferita da AddBlockedLink e simili)
-    public func addMatch(_ match: PartialMatch) {
+    @discardableResult
+    public func addMatch(_ match: PartialMatch) -> Bool {
         let betaLocation = Int(match.hashValue % UInt(size))
+        
+        // Deduplica: evita di conservare token identici nello stesso bucket
+        var cursor = beta[betaLocation]
+        while let existing = cursor {
+            if BetaMemoryHash.matchesAreEquivalent(existing, match) {
+                return false
+            }
+            cursor = existing.nextInMemory
+        }
         
         // Inserisci in testa alla lista del bucket
         match.nextInMemory = beta[betaLocation]
@@ -71,6 +81,7 @@ public final class BetaMemoryHash {
         if count > size * 2 {
             resize()
         }
+        return true
     }
     
     /// Rimuove un partial match dalla memoria
@@ -94,6 +105,32 @@ public final class BetaMemoryHash {
         }
         
         count -= 1
+    }
+    
+    /// Confronta due partial match verificando che rappresentino la stessa combinazione di fatti.
+    private static func matchesAreEquivalent(_ lhs: PartialMatch, _ rhs: PartialMatch) -> Bool {
+        if lhs.hashValue != rhs.hashValue { return false }
+        if lhs.bcount != rhs.bcount { return false }
+        let leftIDs = collectFactIDs(from: lhs)
+        let rightIDs = collectFactIDs(from: rhs)
+        return leftIDs == rightIDs
+    }
+    
+    private static func collectFactIDs(from match: PartialMatch) -> [Int] {
+        var ids: [Int] = []
+        appendFactIDs(from: match, into: &ids)
+        ids.sort()
+        return ids
+    }
+    
+    private static func appendFactIDs(from match: PartialMatch, into ids: inout [Int]) {
+        for bind in match.binds {
+            if let entity = bind.theMatch?.matchingItem as? FactPatternEntity {
+                ids.append(entity.factID)
+            } else if let nested = bind.theValue as? PartialMatch {
+                appendFactIDs(from: nested, into: &ids)
+            }
+        }
     }
     
     /// Resize della hash table quando load factor troppo alto
@@ -178,4 +215,3 @@ public func computeHashValue(
     
     return UInt(bitPattern: hasher.finalize())
 }
-
