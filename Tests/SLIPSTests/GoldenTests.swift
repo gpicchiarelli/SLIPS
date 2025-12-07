@@ -157,7 +157,7 @@ final class GoldenTests: XCTestCase {
     }
     
     /// Esegue un file .clp e cattura l'output
-    /// I file .clp possono contenere sia definizioni (deftemplate, defrule, etc.) che comandi (clear, reset, run, etc.)
+    /// CLIPS.load esegue già tutti i comandi nel file (definizioni e comandi)
     func executeCLPFile(_ clpPath: String) throws -> String {
         var env = CLIPS.createEnvironment()
         var capturedOutput = ""
@@ -171,64 +171,13 @@ final class GoldenTests: XCTestCase {
             write: { _, _, str in capturedOutput += str }
         )
         
-        // Leggi il file e esegui comando per comando
-        let content = try String(contentsOfFile: clpPath, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines)
+        // CLIPS.load esegue già tutti i comandi nel file
+        try CLIPS.load(clpPath)
         
-        // Prima carica tutte le definizioni (deftemplate, defrule, etc.)
-        // Poi esegui i comandi (clear, reset, run, etc.)
-        var commands: [String] = []
-        
-        // Parse delle S-expressions nel file
-        var i = content.startIndex
-        while i < content.endIndex {
-            // Skip whitespaces
-            while i < content.endIndex, content[i].isWhitespace { i = content.index(after: i) }
-            guard i < content.endIndex else { break }
-            
-            if content[i] == "(" {
-                // Parse balanced parentheses
-                var depth = 0
-                var j = i
-                var inString = false
-                while j < content.endIndex {
-                    let c = content[j]
-                    if c == "\"" { inString.toggle() }
-                    if !inString {
-                        if c == "(" { depth += 1 }
-                        else if c == ")" { depth -= 1; if depth == 0 { j = content.index(after: j); break } }
-                    }
-                    j = content.index(after: j)
-                }
-                if depth == 0 {
-                    let sexpr = String(content[i..<j])
-                    commands.append(sexpr)
-                    i = j
-                } else {
-                    break
-                }
-            } else {
-                // Skip fino a newline
-                while i < content.endIndex, content[i] != "\n" { i = content.index(after: i) }
-            }
-        }
-        
-        // Esegui tutti i comandi
-        for cmd in commands {
-            // Rimuovi commenti inline
-            let cleaned = cmd.split(separator: "\n")
-                .map { line in
-                    if let idx = line.firstIndex(of: ";") {
-                        return String(line[..<idx])
-                    }
-                    return String(line)
-                }
-                .joined(separator: "\n")
-            
-            if !cleaned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                _ = CLIPS.eval(expr: cleaned)
-            }
-        }
+        // Se il file contiene solo definizioni, esegui reset e run
+        // (molti file .clp di test si aspettano questo comportamento)
+        CLIPS.reset()
+        _ = CLIPS.run(limit: nil)
         
         // Cleanup
         RouterRegistry.DeleteRouter(&env, "golden-capture")
@@ -299,13 +248,20 @@ final class GoldenTests: XCTestCase {
         }
     }
     
-    /// Normalizza output per confronto (rimuove spazi extra, normalizza line endings)
+    /// Normalizza output per confronto (rimuove spazi extra, normalizza line endings, rimuove prompt)
     func normalizeOutput(_ output: String) -> String {
         return output
             .replacingOccurrences(of: "\r\n", with: "\n") // Normalizza line endings
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { line in
+                // Rimuovi prompt "CLIPS>" se presente
+                var cleaned = line.trimmingCharacters(in: .whitespaces)
+                if cleaned.hasPrefix("CLIPS>") {
+                    cleaned = String(cleaned.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                }
+                return cleaned
+            }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
     }
