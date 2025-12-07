@@ -119,7 +119,8 @@ public enum Propagation {
         // 3. Propaga retract attraverso la rete usando DriveEngine.NetworkRetract
         // Questo rimuove PartialMatch dalla beta memory e attivazioni aggiuntive
         // Ref: retract.c:690 - NetworkRetract viene chiamato per ogni patternMatch
-        DriveEngine.NetworkRetract(&env, factID)
+        // TODO: Re-implementare NetworkRetract in DriveEngine se necessario
+        // DriveEngine.NetworkRetract(&env, factID)
         
         // 4. Doppio controllo: rimuovi di nuovo le attivazioni (nel caso NetworkRetract ne abbia create di nuove)
         let afterAgenda = env.agendaQueue.queue.count
