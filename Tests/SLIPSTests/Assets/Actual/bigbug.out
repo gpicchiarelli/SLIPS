@@ -46,3 +46,27 @@ TRUE
 SLIPS> (mem-used)
 0
 SLIPS> (dribble-off)
+TRUE
+SLIPS> (clear)
+TRUE
+SLIPS> (progn (release-mem) TRUE)
+TRUE
+SLIPS> (mem-used)
+0
+SLIPS> (load-facts bigbug.fct)
+1
+SLIPS> (clear)
+TRUE
+SLIPS> (progn (release-mem) TRUE)
+TRUE
+SLIPS> (mem-used)
+0
+SLIPS> (load bigbug.clp)
+SLIPS> (reset)
+SLIPS> (clear)
+TRUE
+SLIPS> (progn (release-mem) TRUE)
+TRUE
+SLIPS> (mem-used)
+0
+SLIPS> (dribble-off)

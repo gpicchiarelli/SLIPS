@@ -137,9 +137,41 @@ public enum FileUtil {
     public static func DribbleOff(_ env: inout Environment) -> Bool {
         let data = FileCom.ensureData(&env)
         let was = data.DribbleActive
+        let savedPath = data.DribbleFilePath  // Salva il path prima di rimuoverlo
         
         if was {
-            // Chiama exit callback per scrivere buffer residuo (ref: ExitDribbleCallback in fileutil.c:275)
+            // Scrive buffer residuo su file (ref: ExitDribbleCallback in fileutil.c:275)
+            if let path = savedPath {
+                // Assicurati che il path sia risolto correttamente
+                var fullPath = path
+                if !path.hasPrefix("/") {
+                    let currentDir = FileManager.default.currentDirectoryPath
+                    fullPath = "\(currentDir)/\(path)"
+                }
+                
+                // Crea directory se necessario
+                let dirPath = (fullPath as NSString).deletingLastPathComponent
+                try? FileManager.default.createDirectory(atPath: dirPath, withIntermediateDirectories: true, attributes: nil)
+                
+                // Scrive buffer residuo su file
+                if !data.DribbleBuffer.isEmpty {
+                    if let fileHandle = FileHandle(forWritingAtPath: fullPath) {
+                        fileHandle.seekToEndOfFile()
+                        if let bufferData = data.DribbleBuffer.data(using: .utf8) {
+                            fileHandle.write(bufferData)
+                        }
+                        try? fileHandle.close()
+                    } else {
+                        // Se il file non esiste, crealo e scrivi
+                        try? data.DribbleBuffer.write(toFile: fullPath, atomically: true, encoding: .utf8)
+                    }
+                }
+                
+                // Mantieni il path salvato per permettere la lettura successiva
+                // (ma solo se non è già stato rimosso)
+            }
+            
+            // Chiama exit callback se presente (per cleanup router)
             if let exitFn = RouterEnvData.get(env)?.routers.first(where: { $0.name == "dribble" })?.exit {
                 exitFn(&env, 0)
             }
@@ -149,7 +181,8 @@ public enum FileUtil {
             
             data.DribbleActive = false
             data.DribbleBuffer.removeAll(keepingCapacity: false)
-            data.DribbleFilePath = nil
+            // NON rimuovere DribbleFilePath subito - sarà necessario per leggere il file
+            // Verrà rimosso quando necessario o alla prossima apertura
         }
         
         return was

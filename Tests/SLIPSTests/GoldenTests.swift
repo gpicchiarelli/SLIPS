@@ -228,9 +228,11 @@ final class GoldenTests: XCTestCase {
             }
         }
         
-        // Cattura output prima di dribble-on
-        var outputBeforeDribble = ""
-        var preDribbleCapture = ""
+        // Cattura output prima di dribble-on usando classe reference per catturare mutazioni
+        class CaptureBuffer {
+            var content: String = ""
+        }
+        let preDribbleCapture = CaptureBuffer()
         
         // Se ci sono comandi prima di dribble-on, catturane l'output
         if let dribbleOn = dribbleOnIndex, dribbleOn > 0 {
@@ -241,26 +243,39 @@ final class GoldenTests: XCTestCase {
                 100,  // Priorità alta per intercettare prima di stdout
                 query: { _, name in name == "t" || name == Router.STDOUT },
                 write: { _, _, str in
-                    preDribbleCapture += str
+                    preDribbleCapture.content += str
                 }
             )
+            
+            // Debug: stampa comandi che verranno eseguiti
+            print("DEBUG: Eseguendo comandi prima di dribble-on (0..<\(dribbleOn)):")
+            for index in 0..<dribbleOn {
+                print("  [\(index)]: \(commands[index])")
+            }
             
             // Esegui comandi prima di dribble-on
             for index in 0..<dribbleOn {
                 let command = commands[index]
+                print("DEBUG: Eseguendo comando \(index): \(command)")
                 let result = SLIPSHelpers.evalInternal(&env, expr: command, printPrompt: false, printResult: true)
-                // L'output è già stato catturato dal router
+                print("DEBUG:   Risultato: \(result)")
+                print("DEBUG:   PreDribbleCapture ora: '\(preDribbleCapture.content)'")
             }
             
             // Rimuovi router temporaneo
             RouterRegistry.DeleteRouter(&env, "pre-dribble-capture")
-            outputBeforeDribble = preDribbleCapture
+            print("DEBUG: OutputBeforeDribble finale: '\(preDribbleCapture.content)'")
         }
+        
+        // NOTA: L'output atteso inizia con il risultato di (dribble-on) che è TRUE
+        // Quindi NON includiamo outputBeforeDribble - viene incluso solo output dopo dribble-on
         
         // Esegui tutti i comandi da dribble-on fino a dribble-off (incluso)
         // L'output atteso include tutto dall'inizio fino a dribble-off
         let maxIndex = dribbleOffIndex ?? (commands.count - 1)
         let startIndex = dribbleOnIndex ?? 0
+        
+        print("DEBUG: Eseguendo comandi da dribble-on (\(startIndex)) fino a dribble-off (\(maxIndex))")
         
         for (index, command) in commands.enumerated() where index >= startIndex && index <= maxIndex {
             let isFirstAfterDribble = (index == startIndex)
@@ -275,23 +290,73 @@ final class GoldenTests: XCTestCase {
             }
             
             // Esegui comando e stampa risultato (ref: RouteCommand con printResult=true)
+            print("DEBUG: Eseguendo comando \(index): \(command)")
             let result = SLIPSHelpers.evalInternal(&env, expr: command, printPrompt: false, printResult: true)
+            print("DEBUG:   Risultato: \(result)")
         }
         
-        // Leggi output dal file dribble
-        let data: FileCom.FileCommandData? = Envrnmnt.GetEnvironmentData(env, FileCom.FILECOM_DATA)
-        var dribbleContent = ""
-        if let dribblePath = data?.DribbleFilePath, FileManager.default.fileExists(atPath: dribblePath) {
-            if let content = try? String(contentsOfFile: dribblePath, encoding: .utf8) {
-                dribbleContent = content
+        // Leggi output dal file dribble DOPO che dribble-off è stato eseguito
+        // Il path potrebbe essere stato rimosso da dribble-off, quindi lo estraiamo dal comando
+        var finalDribblePath: String? = nil
+        
+        // Prova prima dal fileCommandData (potrebbe essere ancora presente)
+        if let savedPath: FileCom.FileCommandData = Envrnmnt.GetEnvironmentData(env, FileCom.FILECOM_DATA),
+           let path = savedPath.DribbleFilePath {
+            finalDribblePath = path
+        }
+        
+        // Se non trovato, usa il path estratto precedentemente o estrai dal comando dribble-on
+        if finalDribblePath == nil {
+            finalDribblePath = dribbleFilePath
+        }
+        
+        // Se ancora non trovato, estrai dal comando dribble-on
+        if finalDribblePath == nil, let dribbleOn = dribbleOnIndex {
+            let dribbleCommand = commands[dribbleOn]
+            if let match = dribbleCommand.range(of: #""[^"]+""#, options: .regularExpression) {
+                finalDribblePath = String(dribbleCommand[match]).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
             }
         }
         
-        // Combina output pre-dribble con output dribble
-        // L'output atteso include tutto dall'inizio, quindi concateniamo
-        let combinedOutput = outputBeforeDribble + dribbleContent
+        var dribbleContent = ""
+        if let dribblePath = finalDribblePath {
+            // Prova diversi path (relativo, assoluto da cwd, relativo da Assets)
+            let currentDir = FileManager.default.currentDirectoryPath
+            let assetsDir = (tstPath as NSString).deletingLastPathComponent
+            let pathsToTry = [
+                dribblePath,  // Path originale (potrebbe essere già assoluto o relativo)
+                "\(currentDir)/\(dribblePath)",  // Assoluto da cwd
+                "\(assetsDir)/\(dribblePath)",  // Relativo da Assets
+                dribblePath.replacingOccurrences(of: "//", with: "/")  // Normalizza doppi slash
+            ]
+            
+            for fullPath in pathsToTry {
+                print("DEBUG: Tentativo di leggere file dribble: '\(fullPath)'")
+                if FileManager.default.fileExists(atPath: fullPath) {
+                    if let content = try? String(contentsOfFile: fullPath, encoding: .utf8) {
+                        dribbleContent = content
+                        print("DEBUG: DribbleContent letto da '\(fullPath)' (\(content.count) chars): '\(String(content.prefix(200)))'")
+                        break
+                    }
+                }
+            }
+            
+            if dribbleContent.isEmpty {
+                print("DEBUG: ERRORE: File dribble non trovato o vuoto. Path provati: \(pathsToTry)")
+                // Debug: lista file nella directory Assets/Actual
+                let actualDir = "\(assetsDir)/Actual"
+                if let files = try? FileManager.default.contentsOfDirectory(atPath: actualDir) {
+                    print("DEBUG: File presenti in \(actualDir): \(files)")
+                }
+            }
+        } else {
+            print("DEBUG: DribbleFilePath è nil e non riuscito a estrarre dal comando")
+        }
         
-        return combinedOutput
+        // IMPORTANTE: L'output atteso include solo l'output DOPO (dribble-on)
+        // Non includere outputBeforeDribble - l'output atteso inizia con il risultato di (dribble-on)
+        print("DEBUG: Returning dribbleContent (\(dribbleContent.count) chars)")
+        return dribbleContent
     }
     
     /// Test generico che esegue tutti i file .clp trovati e confronta output
@@ -336,9 +401,31 @@ final class GoldenTests: XCTestCase {
                 // Leggi output atteso
                 let expectedOutput = try String(contentsOfFile: expectedPath, encoding: .utf8)
                 
+                // Debug per bigbug
+                if clpName == "bigbug.clp" {
+                    print("\n=== DEBUG bigbug.clp ===")
+                    print("Actual raw (first 500 chars):")
+                    print(String(actualOutput.prefix(500)))
+                    print("\nActual lines (first 15):")
+                    actualOutput.components(separatedBy: .newlines).prefix(15).enumerated().forEach { i, line in
+                        print("  [\(i)]: '\(line)' (len=\(line.count))")
+                    }
+                }
+                
                 // Normalizza e confronta
                 let normalizedActual = normalizeOutput(actualOutput)
                 let normalizedExpected = normalizeOutput(expectedOutput)
+                
+                if clpName == "bigbug.clp" {
+                    print("\nNormalized actual (first 15 lines):")
+                    normalizedActual.components(separatedBy: .newlines).prefix(15).enumerated().forEach { i, line in
+                        print("  [\(i)]: '\(line)'")
+                    }
+                    print("\nNormalized expected (first 15 lines):")
+                    normalizedExpected.components(separatedBy: .newlines).prefix(15).enumerated().forEach { i, line in
+                        print("  [\(i)]: '\(line)'")
+                    }
+                }
                 
                 if normalizedActual != normalizedExpected {
                     failed += 1

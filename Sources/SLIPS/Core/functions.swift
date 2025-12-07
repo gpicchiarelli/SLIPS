@@ -587,13 +587,18 @@ private func builtin_clear(_ env: inout Environment, _ args: [Value]) throws -> 
 
 private func builtin_set_strategy(_ env: inout Environment, _ args: [Value]) throws -> Value {
     guard let s = args.first?.stringValue?.lowercased() else { return .boolean(false) }
+    // Ref: crstrtgy.c:996 - SetStrategyCommand ritorna la strategia PRECEDENTE
+    let oldStrategy = env.agendaQueue.strategy
+    let oldStrategyName = oldStrategy.rawValue
+    
     switch s {
     case "depth": env.agendaQueue.setStrategy(.depth)
     case "breadth": env.agendaQueue.setStrategy(.breadth)
     case "lex": env.agendaQueue.setStrategy(.lex)
     default: return .boolean(false)
     }
-    return .symbol(s)
+    // Ritorna la strategia PRECEDENTE (non quella appena impostata)
+    return .symbol(oldStrategyName)
 }
 
 private func builtin_get_strategy(_ env: inout Environment, _ args: [Value]) throws -> Value {

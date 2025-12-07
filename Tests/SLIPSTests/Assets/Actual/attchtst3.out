@@ -6,3 +6,7 @@ TRUE
 SLIPS> (batch "attchtst3.bat")
 TRUE
 SLIPS> (dribble-off)
+TRUE
+SLIPS> (batch "attchtst3.bat")
+TRUE
+SLIPS> (dribble-off)
