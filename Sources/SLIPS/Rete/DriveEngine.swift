@@ -397,6 +397,8 @@ public enum DriveEngine {
     
     /// PPDrive: propaga partial match attraverso nextLinks del join
     /// Port FEDELE di PPDrive (drive.c:902-971)
+    /// NOTA: PPDrive propaga ai nextLinks, non gestisce direttamente il join passato.
+    /// Se il join passato è terminale, dovrebbe essere gestito da NetworkAssertLeft/Right prima di chiamare PPDrive.
     public static func PPDrive(
         _ theEnv: inout Environment,
         _ lhsBinds: PartialMatch,
@@ -404,8 +406,36 @@ public enum DriveEngine {
         _ join: JoinNodeClass,
         _ operation: Int
     ) {
-        // Ref: drive.c linea 917
-        guard let firstLink = join.nextLinks.first?.link else { return }
+        // Ref: drive.c linea 917-918
+        // Nel C, PPDrive fa return se listOfJoins == NULL
+        // Il caso terminale viene gestito da NetworkAssertLeft/Right che chiamano PPDrive
+        guard let firstLink = join.nextLinks.first?.link else {
+            // ✅ GESTIONE CUSTOM: Se il join passato è terminale (ha ruleToActivate) ma non ha nextLinks,
+            // dobbiamo creare l'attivazione. Questo può accadere in casi particolari.
+            if let production = join.ruleToActivate {
+                if theEnv.watchRete {
+                    print("[RETE] PPDrive: no nextLinks, but join is TERMINAL (ruleToActivate=\(production.ruleName))")
+                }
+                
+                // Merge lhs e rhs (se rhs è NULL, usa solo lhs per EXISTS)
+                let linker = rhsBinds != nil ? mergePartialMatches(lhsBinds, rhsBinds!) : lhsBinds.copy()
+                
+                // Crea token dal linker combinato
+                let token = partialMatchToBetaToken(linker, env: theEnv, ruleName: production.ruleName)
+                
+                if theEnv.watchRete {
+                    print("[RETE] PPDrive: creating activation with factIDs: \(token.usedFacts.sorted())")
+                }
+                
+                // ✅ CRITICO: Imposta marker sul PartialMatch PRIMA di creare attivazione
+                let factIDsKey = Array(token.usedFacts).sorted().map { String($0) }.joined(separator: ",")
+                let activationKey = "\(production.ruleName):\(factIDsKey)"
+                theEnv.activationToPartialMatch[activationKey] = linker
+                
+                production.activate(token: token, env: &theEnv)
+            }
+            return
+        }
         
         var listOfJoins: JoinLink? = firstLink
         
@@ -784,12 +814,29 @@ public enum DriveEngine {
         }
         
         if listOfJoins == nil {
+            // ✅ FEDELE AL C: EmptyDrive fa semplicemente return se non ci sono nextLinks
+            // Ref: drive.c:1113 - if (listOfJoins == NULL) return;
+            // Questo significa che EmptyDrive NON gestisce direttamente il caso terminale.
+            // Se un firstJoin è terminale, probabilmente significa che la regola ha un solo pattern,
+            // quindi rhsBinds contiene già tutti i fatti necessari, ma in questo caso
+            // dovremmo chiamare direttamente NetworkAssertLeft invece di EmptyDrive.
+            // 
+            // Tuttavia, nella nostra implementazione, abbiamo casi dove un join può essere
+            // sia firstJoin che terminale (per regole con 2+ pattern dove il secondo pattern
+            // è l'ultimo). In questo caso, dobbiamo combinare leftMemory (pattern precedente)
+            // con rhsBinds (pattern corrente) per creare l'attivazione corretta.
+            //
+            // NOTA: Questa è una differenza rispetto al C, ma necessaria per gestire correttamente
+            // le attivazioni con tutti i factIDs necessari per il retract.
+            
             if theEnv.watchRete {
-                print("[RETE] EmptyDrive: no nextLinks, checking if terminal")
+                print("[RETE] EmptyDrive: no nextLinks (FEDELE AL C: dovrebbe fare return)")
                 print("[RETE] EmptyDrive: ruleToActivate=\(join.ruleToActivate?.ruleName ?? "nil")")
+                print("[RETE] EmptyDrive: ATTENZIONE - gestione custom per firstJoin terminale")
             }
             
-            // Se è terminal (ruleToActivate), crea attivazione
+            // ✅ GESTIONE CUSTOM: Se è terminal (ruleToActivate), crea attivazione
+            // Questo NON è equivalente al C, ma necessario per il nostro caso d'uso
             if let production = join.ruleToActivate {
                 if theEnv.watchRete {
                     print("[RETE] EmptyDrive: CREATING ACTIVATION for rule '\(production.ruleName)'")
