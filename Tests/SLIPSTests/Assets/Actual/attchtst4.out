@@ -1,0 +1,8 @@
+TRUE
+SLIPS> (batch "attchtst4.bat")
+TRUE
+SLIPS> (dribble-off)
+TRUE
+SLIPS> (batch "attchtst4.bat")
+TRUE
+SLIPS> (dribble-off)

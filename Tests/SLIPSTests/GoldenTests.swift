@@ -191,69 +191,107 @@ final class GoldenTests: XCTestCase {
     func executeTSTFile(_ tstPath: String) throws -> String {
         var env = SLIPS.createEnvironment()
         
-        // Il file .tst gestisce già dribble-on/off internamente
-        // Dobbiamo solo eseguire i comandi e poi leggere il file generato da dribble-on
-        var capturedOutput = ""
-        
-        // Crea router per catturare tutto l'output (backup, priorità bassa)
-        _ = RouterRegistry.AddRouter(
-            &env,
-            "golden-capture",
-            30,  // Priorità inferiore a dribble (40)
-            query: { _, name in name == "t" || name == Router.STDOUT },
-            write: { _, _, str in
-                capturedOutput += str
-            }
-        )
-        
-        // Leggi il file .tst per eseguire comando per comando con prompt
+        // Leggi il file .tst
         let content = try String(contentsOfFile: tstPath, encoding: .utf8)
-        let assetsDir = (tstPath as NSString).deletingLastPathComponent
-        let cwd = FileManager.default.currentDirectoryPath
-        let originalCwd = FileManager.default.currentDirectoryPath
         
         // Cambia directory alla cartella del file per risolvere path relativi
+        let originalCwd = FileManager.default.currentDirectoryPath
         FileManager.default.changeCurrentDirectoryPath((tstPath as NSString).deletingLastPathComponent)
         defer {
             FileManager.default.changeCurrentDirectoryPath(originalCwd)
         }
         
-        // Parse e esegui comandi uno per uno (come in CLIPS CommandLoopBatch)
-        // Ref: CommandLoopBatchDriver in commline.c:743 - esegue comandi da batch file
-        let lines = content.components(separatedBy: .newlines)
-        var currentDribbleFile: String?
-        
-        for line in lines {
+        // Parse comandi
+        var commands: [String] = []
+        for line in content.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty || trimmed.hasPrefix(";") {
                 continue
             }
-            
-            // Esegui il comando con prompt (ref: ExecuteIfCommandComplete stampa prompt dopo)
-            // Il prompt viene stampato PRIMA del comando quando si esegue da batch/interattivo
-            // Per file .tst, il prompt viene incluso nell'output catturato da dribble-on
-            let result = SLIPSHelpers.evalInternal(&env, expr: trimmed, printPrompt: true)
-            
-            // Se il comando è dribble-on, nota il file per riferimento futuro
-            if trimmed.contains("dribble-on") {
-                if let match = trimmed.range(of: #""[^"]+""#, options: .regularExpression) {
-                    let filePath = String(trimmed[match]).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                    currentDribbleFile = filePath
+            commands.append(trimmed)
+        }
+        
+        // Trova indici di dribble-on e dribble-off
+        var dribbleOnIndex: Int? = nil
+        var dribbleOffIndex: Int? = nil
+        var dribbleFilePath: String? = nil
+        
+        for (index, command) in commands.enumerated() {
+            if command.contains("dribble-on") {
+                dribbleOnIndex = index
+                if let match = command.range(of: #""[^"]+""#, options: .regularExpression) {
+                    dribbleFilePath = String(command[match]).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
                 }
             }
-        }
-        
-        RouterRegistry.DeleteRouter(&env, "golden-capture")
-        
-        // Se c'è un file dribble, leggerlo (è l'output catturato)
-        let data: FileCom.FileCommandData? = Envrnmnt.GetEnvironmentData(env, FileCom.FILECOM_DATA)
-        if let dribblePath = data?.DribbleFilePath, FileManager.default.fileExists(atPath: dribblePath) {
-            if let dribbleContent = try? String(contentsOfFile: dribblePath, encoding: .utf8) {
-                return dribbleContent
+            if command.contains("dribble-off") {
+                dribbleOffIndex = index
             }
         }
         
-        return capturedOutput
+        // Cattura output prima di dribble-on
+        var outputBeforeDribble = ""
+        var preDribbleCapture = ""
+        
+        // Se ci sono comandi prima di dribble-on, catturane l'output
+        if let dribbleOn = dribbleOnIndex, dribbleOn > 0 {
+            // Crea router temporaneo per catturare output prima di dribble-on
+            _ = RouterRegistry.AddRouter(
+                &env,
+                "pre-dribble-capture",
+                100,  // Priorità alta per intercettare prima di stdout
+                query: { _, name in name == "t" || name == Router.STDOUT },
+                write: { _, _, str in
+                    preDribbleCapture += str
+                }
+            )
+            
+            // Esegui comandi prima di dribble-on
+            for index in 0..<dribbleOn {
+                let command = commands[index]
+                let result = SLIPSHelpers.evalInternal(&env, expr: command, printPrompt: false, printResult: true)
+                // L'output è già stato catturato dal router
+            }
+            
+            // Rimuovi router temporaneo
+            RouterRegistry.DeleteRouter(&env, "pre-dribble-capture")
+            outputBeforeDribble = preDribbleCapture
+        }
+        
+        // Esegui tutti i comandi da dribble-on fino a dribble-off (incluso)
+        // L'output atteso include tutto dall'inizio fino a dribble-off
+        let maxIndex = dribbleOffIndex ?? (commands.count - 1)
+        let startIndex = dribbleOnIndex ?? 0
+        
+        for (index, command) in commands.enumerated() where index >= startIndex && index <= maxIndex {
+            let isFirstAfterDribble = (index == startIndex)
+            let isAfterDribbleOn = index > startIndex
+            
+            // Stampa prompt + comando PRIMA dell'esecuzione (solo dopo dribble-on)
+            // Ref: l'output atteso mostra "CLIPS> (comando)" prima del risultato
+            if !isFirstAfterDribble && isAfterDribbleOn {
+                Router.WriteString(&env, Router.STDOUT, "SLIPS> ")
+                Router.WriteString(&env, Router.STDOUT, command)
+                Router.Writeln(&env, "")
+            }
+            
+            // Esegui comando e stampa risultato (ref: RouteCommand con printResult=true)
+            let result = SLIPSHelpers.evalInternal(&env, expr: command, printPrompt: false, printResult: true)
+        }
+        
+        // Leggi output dal file dribble
+        let data: FileCom.FileCommandData? = Envrnmnt.GetEnvironmentData(env, FileCom.FILECOM_DATA)
+        var dribbleContent = ""
+        if let dribblePath = data?.DribbleFilePath, FileManager.default.fileExists(atPath: dribblePath) {
+            if let content = try? String(contentsOfFile: dribblePath, encoding: .utf8) {
+                dribbleContent = content
+            }
+        }
+        
+        // Combina output pre-dribble con output dribble
+        // L'output atteso include tutto dall'inizio, quindi concateniamo
+        let combinedOutput = outputBeforeDribble + dribbleContent
+        
+        return combinedOutput
     }
     
     /// Test generico che esegue tutti i file .clp trovati e confronta output
@@ -403,4 +441,5 @@ final class GoldenTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: actualPath))
     }
 }
+
 

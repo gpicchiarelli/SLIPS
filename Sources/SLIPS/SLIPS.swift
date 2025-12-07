@@ -364,8 +364,9 @@ enum SLIPSHelpers {
     }
     
     /// Versione interna di eval che accetta env direttamente
-    /// Se printPrompt è true, stampa il prompt prima del comando (per modalità interattiva/batch)
-    static func evalInternal(_ env: inout Environment, expr: String, printPrompt: Bool = false) -> Value {
+    /// - printPrompt: se true, stampa prompt prima del comando (modalità interattiva)
+    /// - printResult: se true, stampa il risultato dopo l'esecuzione (ref: RouteCommand printResult)
+    static func evalInternal(_ env: inout Environment, expr: String, printPrompt: Bool = false, printResult: Bool = false) -> Value {
         if printPrompt {
             // Stampa prompt prima del comando (ref: ExecuteIfCommandComplete in commline.c:831)
             Router.WriteString(&env, Router.STDOUT, "SLIPS> ")
@@ -385,14 +386,11 @@ enum SLIPSHelpers {
             let ast = try ExprTokenParser.parseTop(&env, logicalName: router)
             let val = try Evaluator.eval(&env, ast)
             
-            // Stampa risultato se non void (ref: RouteCommand in commline.c:1067)
-            // Il risultato viene stampato automaticamente da RouteCommand, ma per evalInternal
-            // dobbiamo farlo manualmente se necessario
-            if printPrompt {
-                // Stampa risultato (ref: RouteCommand:1067-1071)
-                // Solo se non è void e se printResult è true
+            // Stampa risultato se non void (ref: RouteCommand in commline.c:1067-1071)
+            if printResult {
+                // Stampa risultato solo se non è void
                 switch val {
-                case .none: break  // Void, non stampare
+                case .none: break  // Void, non stampare (ref: RouteCommand:1067 - type != VOID_TYPE)
                 default:
                     PrintUtil.PrintAtom(&env, Router.STDOUT, val)
                     Router.Writeln(&env, "")
