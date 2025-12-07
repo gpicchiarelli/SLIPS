@@ -6,13 +6,13 @@ final class ReteGraphNodesTests: XCTestCase {
     func testGraphBuiltAndBetaLevelsPersist() throws {
         throw XCTSkip("Test usa strutture legacy (graphs, betaLevels) non presenti nel sistema esplicito")
         /*
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(set-join-check on)")
-        _ = CLIPS.eval(expr: "(set-join-activate on)")
-        _ = CLIPS.eval(expr: "(deftemplate A (slot v))")
-        _ = CLIPS.eval(expr: "(deftemplate B (slot v))")
-        _ = CLIPS.eval(expr: "(defrule r (A v ?x) (B v ?x) => (printout t \"G\"))")
-        guard let env1 = CLIPS.currentEnvironment else { XCTFail(); return }
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(set-join-check on)")
+        _ = SLIPS.eval(expr: "(set-join-activate on)")
+        _ = SLIPS.eval(expr: "(deftemplate A (slot v))")
+        _ = SLIPS.eval(expr: "(deftemplate B (slot v))")
+        _ = SLIPS.eval(expr: "(defrule r (A v ?x) (B v ?x) => (printout t \"G\"))")
+        guard let env1 = SLIPS.currentEnvironment else { XCTFail(); return }
         // Grafo deve esistere e contenere nodi per i due pattern + terminale
         let g = env1.rete.graphs["r"]
         XCTAssertNotNil(g)
@@ -27,10 +27,10 @@ final class ReteGraphNodesTests: XCTestCase {
         }
 
         // Inserisci fatti e verifica memorie per livello
-        _ = CLIPS.eval(expr: "(assert A v 1)")
-        _ = CLIPS.eval(expr: "(assert B v 1)")
-        XCTAssertEqual(CLIPS.run(limit: nil), 1)
-        guard let env2 = CLIPS.currentEnvironment else { XCTFail(); return }
+        _ = SLIPS.eval(expr: "(assert A v 1)")
+        _ = SLIPS.eval(expr: "(assert B v 1)")
+        XCTAssertEqual(SLIPS.run(limit: nil), 1)
+        guard let env2 = SLIPS.currentEnvironment else { XCTFail(); return }
         let levels = env2.rete.betaLevels["r"] ?? [:]
         XCTAssertEqual(levels.count >= 2, true)
         // Livello terminale deve avere almeno un token

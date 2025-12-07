@@ -4,18 +4,18 @@ import XCTest
 @MainActor
 final class QuickJoinTest: XCTestCase {
     func testSimpleTwoPatternJoinWorks() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate A (slot x))")
-        _ = CLIPS.eval(expr: "(deftemplate B (slot y))")
-        _ = CLIPS.eval(expr: "(defrule join (A) (B) => (printout t \"JOINED\" crlf))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate A (slot x))")
+        _ = SLIPS.eval(expr: "(deftemplate B (slot y))")
+        _ = SLIPS.eval(expr: "(defrule join (A) (B) => (printout t \"JOINED\" crlf))")
         
         print("=== Asserting A ===")
-        _ = CLIPS.eval(expr: "(assert A x 1)")
+        _ = SLIPS.eval(expr: "(assert A x 1)")
         
         print("=== Asserting B ===")
-        _ = CLIPS.eval(expr: "(assert B y 2)")
+        _ = SLIPS.eval(expr: "(assert B y 2)")
         
-        guard let env = CLIPS.currentEnvironment else { XCTFail(); return }
+        guard let env = SLIPS.currentEnvironment else { XCTFail(); return }
         print("\n=== Agenda BEFORE Run ===")
         print("Activations: \(env.agendaQueue.queue.count)")
         for (i, act) in env.agendaQueue.queue.enumerated() {
@@ -30,14 +30,14 @@ final class QuickJoinTest: XCTestCase {
         }
         
         print("\n=== Run ===")
-        let fired = CLIPS.run(limit: nil)
+        let fired = SLIPS.run(limit: nil)
         print("Fired: \(fired)")
         
         // Dopo run(), l'attivazione eseguita viene rimossa dall'agenda
         XCTAssertEqual(fired, 1, "Should fire 1 rule")
         
         // Verifica che l'agenda sia vuota dopo run() (l'attivazione è stata eseguita e rimossa)
-        guard let envAfter = CLIPS.currentEnvironment else { XCTFail(); return }
+        guard let envAfter = SLIPS.currentEnvironment else { XCTFail(); return }
         XCTAssertEqual(envAfter.agendaQueue.queue.count, 0, "Agenda should be empty after run() (activation was fired and removed)")
     }
 }

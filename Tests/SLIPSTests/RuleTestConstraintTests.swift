@@ -4,11 +4,11 @@ import XCTest
 @MainActor
 final class RuleTestConstraintTests: XCTestCase {
     func testTestConstraintFilters() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate ping (slot x))")
-        _ = CLIPS.eval(expr: "(defrule gt10 (ping x 11) => (printout t \"GT\" crlf))")
-        _ = CLIPS.eval(expr: "(assert ping x 11)")
-        let fired = CLIPS.run(limit: nil)
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate ping (slot x))")
+        _ = SLIPS.eval(expr: "(defrule gt10 (ping x 11) => (printout t \"GT\" crlf))")
+        _ = SLIPS.eval(expr: "(assert ping x 11)")
+        let fired = SLIPS.run(limit: nil)
         XCTAssertEqual(fired, 1)
     }
 }

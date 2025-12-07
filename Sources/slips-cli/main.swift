@@ -4,8 +4,8 @@ import SLIPS
 @main
 struct SLIPSCLI {
     static func main() {
-        CLIPS.createEnvironment()
-        CLIPS.commandLoop()
+        SLIPS.createEnvironment()
+        SLIPS.commandLoop()
     }
 }
 

@@ -5,7 +5,7 @@ import XCTest
 final class CLIPSEquivalenceTests: XCTestCase {
     func testBasicScaffold() throws {
         // Placeholder: finché la traduzione non è completa, verifichiamo che la facciata esista.
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         // Prova basica di envrnmnt: set/get context
         let raw = UnsafeMutableRawPointer(bitPattern: 0xdeadbeef)
         let old = Envrnmnt.SetEnvironmentContext(&env, raw)
@@ -18,8 +18,8 @@ final class CLIPSEquivalenceTests: XCTestCase {
         let dup = Envrnmnt.AllocateEnvironmentData(&env, position: 0, size: 8, cleanupFunction: nil)
         XCTAssertFalse(dup)
 
-        CLIPS.reset()
-        XCTAssertEqual(CLIPS.run(limit: 0), 0)
+        SLIPS.reset()
+        XCTAssertEqual(SLIPS.run(limit: 0), 0)
     }
 
     func testFeatureProgramsIfPresent() throws {
@@ -42,7 +42,7 @@ final class CLIPSEquivalenceTests: XCTestCase {
         // Fase corrente: non eseguiamo ancora i file. Verifichiamo caricamento senza crash.
         for file in clpFiles.prefix(3) { // limita per rapidità
             let path = testDir + "/" + file
-            do { try CLIPS.load(path) } catch {
+            do { try SLIPS.load(path) } catch {
                 // In questa fase è accettabile fallire per costrutti non ancora tradotti.
                 // Notiamo comunque i fallimenti per futura copertura.
                 continue
@@ -51,7 +51,7 @@ final class CLIPSEquivalenceTests: XCTestCase {
     }
 
     func testFileUtilDribbleAndBatch() throws {
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         XCTAssertFalse(FileUtil.DribbleActive(env))
         _ = FileUtil.DribbleOn(&env, "dribble.log")
         XCTAssertTrue(FileUtil.DribbleActive(env))
@@ -67,9 +67,9 @@ final class CLIPSEquivalenceTests: XCTestCase {
     }
 
     func testLoadSimpleClp() throws {
-        let env = CLIPS.createEnvironment()
+        let env = SLIPS.createEnvironment()
         let path = FileManager.default.currentDirectoryPath + "/Tests/SLIPSTests/Assets/simple.clp"
-        try CLIPS.load(path)
+        try SLIPS.load(path)
         // Se non crasha e stampa, consideriamo pass
         _ = env // silenzia warning
     }

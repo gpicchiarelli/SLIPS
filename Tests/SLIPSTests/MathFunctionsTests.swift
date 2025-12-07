@@ -10,14 +10,14 @@ import XCTest
 @MainActor
 final class MathFunctionsTests: XCTestCase {
     override func setUp() async throws {
-        CLIPS.reset()
-        CLIPS.createEnvironment()
+        SLIPS.reset()
+        SLIPS.createEnvironment()
     }
     
     // MARK: - Trigonometriche Base
     
     func testCos() throws {
-        let result = CLIPS.eval(expr: "(cos 0)")
+        let result = SLIPS.eval(expr: "(cos 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -26,7 +26,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testSin() throws {
-        let result = CLIPS.eval(expr: "(sin 0)")
+        let result = SLIPS.eval(expr: "(sin 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -35,7 +35,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testTan() throws {
-        let result = CLIPS.eval(expr: "(tan 0)")
+        let result = SLIPS.eval(expr: "(tan 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -44,7 +44,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testCosPi() throws {
-        let result = CLIPS.eval(expr: "(cos (pi))")
+        let result = SLIPS.eval(expr: "(cos (pi))")
         if case .float(let val) = result {
             XCTAssertEqual(val, -1.0, accuracy: 1e-10)
         } else {
@@ -53,7 +53,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testSinPiHalf() throws {
-        let result = CLIPS.eval(expr: "(sin (/ (pi) 2))")
+        let result = SLIPS.eval(expr: "(sin (/ (pi) 2))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -64,7 +64,7 @@ final class MathFunctionsTests: XCTestCase {
     // MARK: - Trigonometriche Inverse
     
     func testAcos() throws {
-        let result = CLIPS.eval(expr: "(acos 1)")
+        let result = SLIPS.eval(expr: "(acos 1)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -73,7 +73,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAsin() throws {
-        let result = CLIPS.eval(expr: "(asin 0)")
+        let result = SLIPS.eval(expr: "(asin 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -82,7 +82,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAtan() throws {
-        let result = CLIPS.eval(expr: "(atan 0)")
+        let result = SLIPS.eval(expr: "(atan 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -91,7 +91,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAtan2() throws {
-        let result = CLIPS.eval(expr: "(atan2 1 1)")
+        let result = SLIPS.eval(expr: "(atan2 1 1)")
         if case .float(let val) = result {
             XCTAssertEqual(val, Double.pi / 4, accuracy: 1e-10)
         } else {
@@ -102,7 +102,7 @@ final class MathFunctionsTests: XCTestCase {
     // MARK: - Iperboliche
     
     func testCosh() throws {
-        let result = CLIPS.eval(expr: "(cosh 0)")
+        let result = SLIPS.eval(expr: "(cosh 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -111,7 +111,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testSinh() throws {
-        let result = CLIPS.eval(expr: "(sinh 0)")
+        let result = SLIPS.eval(expr: "(sinh 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -120,7 +120,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testTanh() throws {
-        let result = CLIPS.eval(expr: "(tanh 0)")
+        let result = SLIPS.eval(expr: "(tanh 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -129,7 +129,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAcosh() throws {
-        let result = CLIPS.eval(expr: "(acosh 1)")
+        let result = SLIPS.eval(expr: "(acosh 1)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -138,7 +138,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAsinh() throws {
-        let result = CLIPS.eval(expr: "(asinh 0)")
+        let result = SLIPS.eval(expr: "(asinh 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -147,7 +147,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testAtanh() throws {
-        let result = CLIPS.eval(expr: "(atanh 0)")
+        let result = SLIPS.eval(expr: "(atanh 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.0, accuracy: 1e-10)
         } else {
@@ -158,7 +158,7 @@ final class MathFunctionsTests: XCTestCase {
     // MARK: - Esponenziali e Logaritmi
     
     func testExp() throws {
-        let result = CLIPS.eval(expr: "(exp 0)")
+        let result = SLIPS.eval(expr: "(exp 0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -167,7 +167,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testExpOne() throws {
-        let result = CLIPS.eval(expr: "(exp 1)")
+        let result = SLIPS.eval(expr: "(exp 1)")
         if case .float(let val) = result {
             XCTAssertEqual(val, Double(M_E), accuracy: 1e-10)
         } else {
@@ -176,7 +176,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testLog() throws {
-        let result = CLIPS.eval(expr: "(log (exp 1))")
+        let result = SLIPS.eval(expr: "(log (exp 1))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -185,7 +185,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testLog10() throws {
-        let result = CLIPS.eval(expr: "(log10 100)")
+        let result = SLIPS.eval(expr: "(log10 100)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 2.0, accuracy: 1e-10)
         } else {
@@ -194,7 +194,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testSqrt() throws {
-        let result = CLIPS.eval(expr: "(sqrt 16)")
+        let result = SLIPS.eval(expr: "(sqrt 16)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 4.0, accuracy: 1e-10)
         } else {
@@ -203,7 +203,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testSqrt2() throws {
-        let result = CLIPS.eval(expr: "(sqrt 2)")
+        let result = SLIPS.eval(expr: "(sqrt 2)")
         if case .float(let val) = result {
             XCTAssertEqual(val, sqrt(2.0), accuracy: 1e-10)
         } else {
@@ -212,7 +212,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testPow() throws {
-        let result = CLIPS.eval(expr: "(** 2 3)")
+        let result = SLIPS.eval(expr: "(** 2 3)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 8.0, accuracy: 1e-10)
         } else {
@@ -221,7 +221,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testPowNegative() throws {
-        let result = CLIPS.eval(expr: "(** 2 -1)")
+        let result = SLIPS.eval(expr: "(** 2 -1)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 0.5, accuracy: 1e-10)
         } else {
@@ -230,7 +230,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testPowFractional() throws {
-        let result = CLIPS.eval(expr: "(** 4 0.5)")
+        let result = SLIPS.eval(expr: "(** 4 0.5)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 2.0, accuracy: 1e-10)
         } else {
@@ -241,17 +241,17 @@ final class MathFunctionsTests: XCTestCase {
     // MARK: - Utilità
     
     func testAbsPositive() throws {
-        let result = CLIPS.eval(expr: "(abs 42)")
+        let result = SLIPS.eval(expr: "(abs 42)")
         XCTAssertEqual(result, .int(42))
     }
     
     func testAbsNegative() throws {
-        let result = CLIPS.eval(expr: "(abs -42)")
+        let result = SLIPS.eval(expr: "(abs -42)")
         XCTAssertEqual(result, .int(42))
     }
     
     func testAbsFloat() throws {
-        let result = CLIPS.eval(expr: "(abs -3.14)")
+        let result = SLIPS.eval(expr: "(abs -3.14)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 3.14, accuracy: 1e-10)
         } else {
@@ -260,7 +260,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testModPositive() throws {
-        let result = CLIPS.eval(expr: "(mod 10 3)")
+        let result = SLIPS.eval(expr: "(mod 10 3)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -269,7 +269,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testModNegative() throws {
-        let result = CLIPS.eval(expr: "(mod -10 3)")
+        let result = SLIPS.eval(expr: "(mod -10 3)")
         if case .float(let val) = result {
             XCTAssertEqual(val, -1.0, accuracy: 1e-10)
         } else {
@@ -278,7 +278,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testModFloat() throws {
-        let result = CLIPS.eval(expr: "(mod 5.5 2.0)")
+        let result = SLIPS.eval(expr: "(mod 5.5 2.0)")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.5, accuracy: 1e-10)
         } else {
@@ -287,29 +287,29 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testRoundUp() throws {
-        let result = CLIPS.eval(expr: "(round 3.7)")
+        let result = SLIPS.eval(expr: "(round 3.7)")
         XCTAssertEqual(result, .int(4))
     }
     
     func testRoundDown() throws {
-        let result = CLIPS.eval(expr: "(round 3.2)")
+        let result = SLIPS.eval(expr: "(round 3.2)")
         XCTAssertEqual(result, .int(3))
     }
     
     func testRoundHalfPositive() throws {
         // CLIPS 6.40+: arrotonda lontano da zero
-        let result = CLIPS.eval(expr: "(round 3.5)")
+        let result = SLIPS.eval(expr: "(round 3.5)")
         XCTAssertEqual(result, .int(4))
     }
     
     func testRoundHalfNegative() throws {
         // CLIPS 6.40+: arrotonda lontano da zero
-        let result = CLIPS.eval(expr: "(round -3.5)")
+        let result = SLIPS.eval(expr: "(round -3.5)")
         XCTAssertEqual(result, .int(-4))
     }
     
     func testPi() throws {
-        let result = CLIPS.eval(expr: "(pi)")
+        let result = SLIPS.eval(expr: "(pi)")
         if case .float(let val) = result {
             XCTAssertEqual(val, Double.pi, accuracy: 1e-10)
         } else {
@@ -320,7 +320,7 @@ final class MathFunctionsTests: XCTestCase {
     // MARK: - Conversioni Angoli
     
     func testDegRad() throws {
-        let result = CLIPS.eval(expr: "(deg-rad 180)")
+        let result = SLIPS.eval(expr: "(deg-rad 180)")
         if case .float(let val) = result {
             XCTAssertEqual(val, Double.pi, accuracy: 1e-10)
         } else {
@@ -329,7 +329,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testDegRad90() throws {
-        let result = CLIPS.eval(expr: "(deg-rad 90)")
+        let result = SLIPS.eval(expr: "(deg-rad 90)")
         if case .float(let val) = result {
             XCTAssertEqual(val, Double.pi / 2, accuracy: 1e-10)
         } else {
@@ -338,7 +338,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testRadDeg() throws {
-        let result = CLIPS.eval(expr: "(rad-deg (pi))")
+        let result = SLIPS.eval(expr: "(rad-deg (pi))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 180.0, accuracy: 1e-10)
         } else {
@@ -347,7 +347,7 @@ final class MathFunctionsTests: XCTestCase {
     }
     
     func testRadDegPiHalf() throws {
-        let result = CLIPS.eval(expr: "(rad-deg (/ (pi) 2))")
+        let result = SLIPS.eval(expr: "(rad-deg (/ (pi) 2))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 90.0, accuracy: 1e-10)
         } else {
@@ -359,7 +359,7 @@ final class MathFunctionsTests: XCTestCase {
     
     func testPythagorean() throws {
         // sqrt(3^2 + 4^2) = 5
-        let result = CLIPS.eval(expr: "(sqrt (+ (** 3 2) (** 4 2)))")
+        let result = SLIPS.eval(expr: "(sqrt (+ (** 3 2) (** 4 2)))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 5.0, accuracy: 1e-10)
         } else {
@@ -369,7 +369,7 @@ final class MathFunctionsTests: XCTestCase {
     
     func testCircleArea() throws {
         // Area cerchio: π * r^2
-        let result = CLIPS.eval(expr: "(* (pi) (** 2 2))")
+        let result = SLIPS.eval(expr: "(* (pi) (** 2 2))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 4 * Double.pi, accuracy: 1e-10)
         } else {
@@ -379,7 +379,7 @@ final class MathFunctionsTests: XCTestCase {
     
     func testLogExpInverse() throws {
         // log(exp(x)) = x
-        let result = CLIPS.eval(expr: "(log (exp 5))")
+        let result = SLIPS.eval(expr: "(log (exp 5))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 5.0, accuracy: 1e-10)
         } else {
@@ -389,7 +389,7 @@ final class MathFunctionsTests: XCTestCase {
     
     func testSinCosIdentity() throws {
         // sin^2(x) + cos^2(x) = 1
-        let result = CLIPS.eval(expr: "(+ (** (sin 1) 2) (** (cos 1) 2))")
+        let result = SLIPS.eval(expr: "(+ (** (sin 1) 2) (** (cos 1) 2))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 1.0, accuracy: 1e-10)
         } else {
@@ -399,7 +399,7 @@ final class MathFunctionsTests: XCTestCase {
     
     func testDegRadRoundtrip() throws {
         // rad-deg(deg-rad(x)) = x
-        let result = CLIPS.eval(expr: "(rad-deg (deg-rad 45))")
+        let result = SLIPS.eval(expr: "(rad-deg (deg-rad 45))")
         if case .float(let val) = result {
             XCTAssertEqual(val, 45.0, accuracy: 1e-10)
         } else {
@@ -411,25 +411,25 @@ final class MathFunctionsTests: XCTestCase {
     
     func testAcosDomainError() throws {
         // acos richiede [-1, 1]
-        let result = CLIPS.eval(expr: "(acos 2)")
+        let result = SLIPS.eval(expr: "(acos 2)")
         // Dovrebbe generare errore o gestirlo gracefully
         _ = result
     }
     
     func testLogDomainError() throws {
         // log richiede > 0
-        let result = CLIPS.eval(expr: "(log -1)")
+        let result = SLIPS.eval(expr: "(log -1)")
         _ = result
     }
     
     func testSqrtDomainError() throws {
         // sqrt richiede >= 0
-        let result = CLIPS.eval(expr: "(sqrt -1)")
+        let result = SLIPS.eval(expr: "(sqrt -1)")
         _ = result
     }
     
     func testModDivisionByZero() throws {
-        let result = CLIPS.eval(expr: "(mod 10 0)")
+        let result = SLIPS.eval(expr: "(mod 10 0)")
         _ = result
     }
 }

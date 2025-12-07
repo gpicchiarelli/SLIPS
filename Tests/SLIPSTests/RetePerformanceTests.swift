@@ -12,7 +12,7 @@ final class RetePerformanceTests: XCTestCase {
     // MARK: - Setup
     
     private func createEnv() -> Environment {
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         env.useExplicitReteNodes = true
         env.watchRete = false
         return env
@@ -28,16 +28,16 @@ final class RetePerformanceTests: XCTestCase {
         // Hash lookup: ~100 confronti (uno per bucket)
         // Linear scan: ~10.000 confronti
         
-        _ = CLIPS.eval(expr: "(deftemplate a (slot x) (slot data))")
-        _ = CLIPS.eval(expr: "(deftemplate b (slot x) (slot value))")
-        _ = CLIPS.eval(expr: "(defrule r (a x ?v data ?d) (b x ?v value ?w) => (printout t \"match\"))")
+        _ = SLIPS.eval(expr: "(deftemplate a (slot x) (slot data))")
+        _ = SLIPS.eval(expr: "(deftemplate b (slot x) (slot value))")
+        _ = SLIPS.eval(expr: "(defrule r (a x ?v data ?d) (b x ?v value ?w) => (printout t \"match\"))")
         
         // Assert 100 fatti 'a'
         for i in 1...100 {
-            _ = CLIPS.eval(expr: "(assert a x \(i) data \"test\")")
+            _ = SLIPS.eval(expr: "(assert a x \(i) data \"test\")")
         }
         
-        guard let env1 = CLIPS.currentEnvironment else {
+        guard let env1 = SLIPS.currentEnvironment else {
             XCTFail("No env after first asserts")
             return
         }
@@ -48,11 +48,11 @@ final class RetePerformanceTests: XCTestCase {
         // Assert 100 fatti 'b' - triggera 10.000 potenziali join
         let start = Date()
         for i in 1...100 {
-            _ = CLIPS.eval(expr: "(assert b x \(i) value 42)")
+            _ = SLIPS.eval(expr: "(assert b x \(i) value 42)")
         }
         let elapsed = Date().timeIntervalSince(start)
         
-        guard let env2 = CLIPS.currentEnvironment else {
+        guard let env2 = SLIPS.currentEnvironment else {
             XCTFail("No env after second asserts")
             return
         }
@@ -76,16 +76,16 @@ final class RetePerformanceTests: XCTestCase {
         _ = createEnv()
         
         // Test scalabilità: 1000 fatti dovrebbero essere gestibili
-        _ = CLIPS.eval(expr: "(deftemplate item (slot id) (slot value))")
-        _ = CLIPS.eval(expr: "(defrule process (item id ?i value ?v) => (printout t \"process\"))")
+        _ = SLIPS.eval(expr: "(deftemplate item (slot id) (slot value))")
+        _ = SLIPS.eval(expr: "(defrule process (item id ?i value ?v) => (printout t \"process\"))")
         
         let start = Date()
         for i in 1...1000 {
-            _ = CLIPS.eval(expr: "(assert item id \(i) value \(i * 10))")
+            _ = SLIPS.eval(expr: "(assert item id \(i) value \(i * 10))")
         }
         let elapsed = Date().timeIntervalSince(start)
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("No env")
             return
         }
@@ -100,20 +100,20 @@ final class RetePerformanceTests: XCTestCase {
     func testJoinMemoryStatistics() {
         _ = createEnv()
         
-        _ = CLIPS.eval(expr: "(deftemplate a (slot x))")
-        _ = CLIPS.eval(expr: "(deftemplate b (slot x))")
-        _ = CLIPS.eval(expr: "(defrule r (a x ?v) (b x ?v) => (printout t \"match\"))")
+        _ = SLIPS.eval(expr: "(deftemplate a (slot x))")
+        _ = SLIPS.eval(expr: "(deftemplate b (slot x))")
+        _ = SLIPS.eval(expr: "(defrule r (a x ?v) (b x ?v) => (printout t \"match\"))")
         
         // Assert alcuni fatti
         for i in 1...10 {
-            _ = CLIPS.eval(expr: "(assert a x \(i))")
+            _ = SLIPS.eval(expr: "(assert a x \(i))")
         }
         
         for i in 1...10 {
-            _ = CLIPS.eval(expr: "(assert b x \(i))")
+            _ = SLIPS.eval(expr: "(assert b x \(i))")
         }
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("No env")
             return
         }
@@ -135,15 +135,15 @@ final class RetePerformanceTests: XCTestCase {
         // Test che hash collisions siano gestite correttamente
         // (linked list in ogni bucket)
         
-        _ = CLIPS.eval(expr: "(deftemplate data (slot id) (slot value))")
-        _ = CLIPS.eval(expr: "(defrule r (data id ?i value ?v) => (printout t \"data\"))")
+        _ = SLIPS.eval(expr: "(deftemplate data (slot id) (slot value))")
+        _ = SLIPS.eval(expr: "(defrule r (data id ?i value ?v) => (printout t \"data\"))")
         
         // Assert molti fatti per forzare collisions
         for i in 1...500 {
-            _ = CLIPS.eval(expr: "(assert data id \(i) value \(i % 17))")  // mod 17 forza collisions
+            _ = SLIPS.eval(expr: "(assert data id \(i) value \(i % 17))")  // mod 17 forza collisions
         }
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("No env")
             return
         }

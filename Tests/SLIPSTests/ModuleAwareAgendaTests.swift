@@ -13,18 +13,18 @@ final class ModuleAwareAgendaTests: XCTestCase {
     
     override func setUp() async throws {
         try await super.setUp()
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
     }
     
     // MARK: - Module Assignment Tests
     
     func testRuleGetsModuleName() {
         // Crea un modulo e una regola in quel modulo
-        _ = CLIPS.eval(expr: "(defmodule TEST)")
-        _ = CLIPS.eval(expr: "(deftemplate item (slot x))")
-        _ = CLIPS.eval(expr: "(defrule test-rule (item (x ?v)) => (printout t \"fired\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule TEST)")
+        _ = SLIPS.eval(expr: "(deftemplate item (slot x))")
+        _ = SLIPS.eval(expr: "(defrule test-rule (item (x ?v)) => (printout t \"fired\" crlf))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -38,13 +38,13 @@ final class ModuleAwareAgendaTests: XCTestCase {
     }
     
     func testActivationGetsModuleName() {
-        _ = CLIPS.eval(expr: "(defmodule MYMODULE)")
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
-        _ = CLIPS.eval(expr: "(defrule my-rule (data (value ?v)) => (printout t ?v crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MYMODULE)")
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.eval(expr: "(defrule my-rule (data (value ?v)) => (printout t ?v crlf))")
         
-        _ = CLIPS.eval(expr: "(assert (data (value 42)))")
+        _ = SLIPS.eval(expr: "(assert (data (value 42)))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -60,22 +60,22 @@ final class ModuleAwareAgendaTests: XCTestCase {
     // MARK: - Agenda Filtering Tests
     
     func testFilterAgendaByModule() {
-        _ = CLIPS.eval(expr: "(defmodule MODULE-A)")
-        _ = CLIPS.eval(expr: "(deftemplate a (slot x))")
-        _ = CLIPS.eval(expr: "(defrule rule-a (a (x ?v)) => (printout t \"A\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MODULE-A)")
+        _ = SLIPS.eval(expr: "(deftemplate a (slot x))")
+        _ = SLIPS.eval(expr: "(defrule rule-a (a (x ?v)) => (printout t \"A\" crlf))")
         
-        _ = CLIPS.eval(expr: "(defmodule MODULE-B)")
-        _ = CLIPS.eval(expr: "(deftemplate b (slot y))")
-        _ = CLIPS.eval(expr: "(defrule rule-b (b (y ?v)) => (printout t \"B\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MODULE-B)")
+        _ = SLIPS.eval(expr: "(deftemplate b (slot y))")
+        _ = SLIPS.eval(expr: "(defrule rule-b (b (y ?v)) => (printout t \"B\" crlf))")
         
         // Torna a MODULE-A e aggiungi fatti
-        _ = CLIPS.eval(expr: "(set-current-module MODULE-A)")
-        _ = CLIPS.eval(expr: "(assert (a (x 1)))")
+        _ = SLIPS.eval(expr: "(set-current-module MODULE-A)")
+        _ = SLIPS.eval(expr: "(assert (a (x 1)))")
         
-        _ = CLIPS.eval(expr: "(set-current-module MODULE-B)")
-        _ = CLIPS.eval(expr: "(assert (b (y 2)))")
+        _ = SLIPS.eval(expr: "(set-current-module MODULE-B)")
+        _ = SLIPS.eval(expr: "(assert (b (y 2)))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -94,22 +94,22 @@ final class ModuleAwareAgendaTests: XCTestCase {
     // MARK: - Focus Stack Sorting Tests
     
     func testFocusStackSorting() {
-        _ = CLIPS.eval(expr: "(defmodule MOD-X)")
-        _ = CLIPS.eval(expr: "(deftemplate x (slot v))")
-        _ = CLIPS.eval(expr: "(defrule x-rule (declare (salience 10)) (x (v ?v)) => (printout t \"X\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MOD-X)")
+        _ = SLIPS.eval(expr: "(deftemplate x (slot v))")
+        _ = SLIPS.eval(expr: "(defrule x-rule (declare (salience 10)) (x (v ?v)) => (printout t \"X\" crlf))")
         
-        _ = CLIPS.eval(expr: "(defmodule MOD-Y)")
-        _ = CLIPS.eval(expr: "(deftemplate y (slot v))")
-        _ = CLIPS.eval(expr: "(defrule y-rule (declare (salience 20)) (y (v ?v)) => (printout t \"Y\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MOD-Y)")
+        _ = SLIPS.eval(expr: "(deftemplate y (slot v))")
+        _ = SLIPS.eval(expr: "(defrule y-rule (declare (salience 20)) (y (v ?v)) => (printout t \"Y\" crlf))")
         
         // Assert fatti in entrambi
-        _ = CLIPS.eval(expr: "(set-current-module MOD-X)")
-        _ = CLIPS.eval(expr: "(assert (x (v 1)))")
+        _ = SLIPS.eval(expr: "(set-current-module MOD-X)")
+        _ = SLIPS.eval(expr: "(assert (x (v 1)))")
         
-        _ = CLIPS.eval(expr: "(set-current-module MOD-Y)")
-        _ = CLIPS.eval(expr: "(assert (y (v 2)))")
+        _ = SLIPS.eval(expr: "(set-current-module MOD-Y)")
+        _ = SLIPS.eval(expr: "(assert (y (v 2)))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -131,25 +131,25 @@ final class ModuleAwareAgendaTests: XCTestCase {
     }
     
     func testFocusCommandChangesPriority() {
-        _ = CLIPS.eval(expr: "(defmodule MAIN)")
-        _ = CLIPS.eval(expr: "(deftemplate main-data (slot x))")
-        _ = CLIPS.eval(expr: "(defrule main-rule (main-data (x ?v)) => (printout t \"MAIN\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule MAIN)")
+        _ = SLIPS.eval(expr: "(deftemplate main-data (slot x))")
+        _ = SLIPS.eval(expr: "(defrule main-rule (main-data (x ?v)) => (printout t \"MAIN\" crlf))")
         
-        _ = CLIPS.eval(expr: "(defmodule UTIL)")
-        _ = CLIPS.eval(expr: "(deftemplate util-data (slot y))")
-        _ = CLIPS.eval(expr: "(defrule util-rule (util-data (y ?v)) => (printout t \"UTIL\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule UTIL)")
+        _ = SLIPS.eval(expr: "(deftemplate util-data (slot y))")
+        _ = SLIPS.eval(expr: "(defrule util-rule (util-data (y ?v)) => (printout t \"UTIL\" crlf))")
         
         // Assert in entrambi
-        _ = CLIPS.eval(expr: "(set-current-module MAIN)")
-        _ = CLIPS.eval(expr: "(assert (main-data (x 1)))")
+        _ = SLIPS.eval(expr: "(set-current-module MAIN)")
+        _ = SLIPS.eval(expr: "(assert (main-data (x 1)))")
         
-        _ = CLIPS.eval(expr: "(set-current-module UTIL)")
-        _ = CLIPS.eval(expr: "(assert (util-data (y 2)))")
+        _ = SLIPS.eval(expr: "(set-current-module UTIL)")
+        _ = SLIPS.eval(expr: "(assert (util-data (y 2)))")
         
         // Imposta focus su UTIL
-        _ = CLIPS.eval(expr: "(focus UTIL)")
+        _ = SLIPS.eval(expr: "(focus UTIL)")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -164,29 +164,29 @@ final class ModuleAwareAgendaTests: XCTestCase {
     
     func testMultiModuleActivationOrder() {
         // Setup 3 moduli con regole di diversa salience
-        _ = CLIPS.eval(expr: "(defmodule A)")
-        _ = CLIPS.eval(expr: "(deftemplate a-data (slot x))")
-        _ = CLIPS.eval(expr: "(defrule a-rule (declare (salience 5)) (a-data (x ?v)) => (printout t \"A\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule A)")
+        _ = SLIPS.eval(expr: "(deftemplate a-data (slot x))")
+        _ = SLIPS.eval(expr: "(defrule a-rule (declare (salience 5)) (a-data (x ?v)) => (printout t \"A\" crlf))")
         
-        _ = CLIPS.eval(expr: "(defmodule B)")
-        _ = CLIPS.eval(expr: "(deftemplate b-data (slot x))")
-        _ = CLIPS.eval(expr: "(defrule b-rule (declare (salience 10)) (b-data (x ?v)) => (printout t \"B\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule B)")
+        _ = SLIPS.eval(expr: "(deftemplate b-data (slot x))")
+        _ = SLIPS.eval(expr: "(defrule b-rule (declare (salience 10)) (b-data (x ?v)) => (printout t \"B\" crlf))")
         
-        _ = CLIPS.eval(expr: "(defmodule C)")
-        _ = CLIPS.eval(expr: "(deftemplate c-data (slot x))")
-        _ = CLIPS.eval(expr: "(defrule c-rule (declare (salience 15)) (c-data (x ?v)) => (printout t \"C\" crlf))")
+        _ = SLIPS.eval(expr: "(defmodule C)")
+        _ = SLIPS.eval(expr: "(deftemplate c-data (slot x))")
+        _ = SLIPS.eval(expr: "(defrule c-rule (declare (salience 15)) (c-data (x ?v)) => (printout t \"C\" crlf))")
         
         // Assert fatti
-        _ = CLIPS.eval(expr: "(set-current-module A)")
-        _ = CLIPS.eval(expr: "(assert (a-data (x 1)))")
+        _ = SLIPS.eval(expr: "(set-current-module A)")
+        _ = SLIPS.eval(expr: "(assert (a-data (x 1)))")
         
-        _ = CLIPS.eval(expr: "(set-current-module B)")
-        _ = CLIPS.eval(expr: "(assert (b-data (x 2)))")
+        _ = SLIPS.eval(expr: "(set-current-module B)")
+        _ = SLIPS.eval(expr: "(assert (b-data (x 2)))")
         
-        _ = CLIPS.eval(expr: "(set-current-module C)")
-        _ = CLIPS.eval(expr: "(assert (c-data (x 3)))")
+        _ = SLIPS.eval(expr: "(set-current-module C)")
+        _ = SLIPS.eval(expr: "(assert (c-data (x 3)))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }

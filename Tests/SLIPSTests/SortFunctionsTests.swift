@@ -9,15 +9,15 @@ import XCTest
 final class SortFunctionsTests: XCTestCase {
     
     override func setUp() async throws {
-        CLIPS.reset()
-        CLIPS.createEnvironment()
+        SLIPS.reset()
+        SLIPS.createEnvironment()
     }
     
     // MARK: - Test Basic Sort
     
     func testSortAscending() throws {
         // Test ordinamento crescente con <
-        let result = CLIPS.eval(expr: "(sort < 3 1 4 1 5 9 2 6)")
+        let result = SLIPS.eval(expr: "(sort < 3 1 4 1 5 9 2 6)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -39,7 +39,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortDescending() throws {
         // Test ordinamento decrescente con >
-        let result = CLIPS.eval(expr: "(sort > 3 1 4 1 5 9 2 6)")
+        let result = SLIPS.eval(expr: "(sort > 3 1 4 1 5 9 2 6)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -61,7 +61,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortFloats() throws {
         // Test ordinamento float
-        let result = CLIPS.eval(expr: "(sort < 3.14 1.41 2.71 0.57)")
+        let result = SLIPS.eval(expr: "(sort < 3.14 1.41 2.71 0.57)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -83,12 +83,12 @@ final class SortFunctionsTests: XCTestCase {
     // SKIP: Richiede deffunction non ancora implementata
     func skip_testSortStrings() throws {
         // Test ordinamento stringhe con str-compare
-        _ = CLIPS.eval(expr: """
+        _ = SLIPS.eval(expr: """
         (deffunction string-less (?a ?b)
           (< (str-compare ?a ?b) 0))
         """)
         
-        let result = CLIPS.eval(expr: #"(sort string-less "dog" "cat" "bird" "ant")"#)
+        let result = SLIPS.eval(expr: #"(sort string-less "dog" "cat" "bird" "ant")"#)
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -109,7 +109,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortWithMultifield() throws {
         // Test sort con multifield come argomento
-        let result = CLIPS.eval(expr: "(sort < (create$ 5 2 8 1 9))")
+        let result = SLIPS.eval(expr: "(sort < (create$ 5 2 8 1 9))")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -130,7 +130,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortMixedMultifields() throws {
         // Test sort con mix di elementi singoli e multifield
-        let result = CLIPS.eval(expr: "(sort < 5 (create$ 2 8) 1 (create$ 9 3))")
+        let result = SLIPS.eval(expr: "(sort < 5 (create$ 2 8) 1 (create$ 9 3))")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -151,7 +151,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortEmpty() throws {
         // Test sort senza elementi (solo funzione)
-        let result = CLIPS.eval(expr: "(sort <)")
+        let result = SLIPS.eval(expr: "(sort <)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -163,7 +163,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortSingleElement() throws {
         // Test sort con un solo elemento
-        let result = CLIPS.eval(expr: "(sort < 42)")
+        let result = SLIPS.eval(expr: "(sort < 42)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -182,12 +182,12 @@ final class SortFunctionsTests: XCTestCase {
     // SKIP: Richiede deffunction non ancora implementata
     func skip_testSortCustomComparison() throws {
         // Test sort con funzione di comparazione personalizzata
-        _ = CLIPS.eval(expr: """
+        _ = SLIPS.eval(expr: """
         (deffunction abs-compare (?a ?b)
           (< (abs ?a) (abs ?b)))
         """)
         
-        let result = CLIPS.eval(expr: "(sort abs-compare -5 2 -8 1 -3)")
+        let result = SLIPS.eval(expr: "(sort abs-compare -5 2 -8 1 -3)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -210,7 +210,7 @@ final class SortFunctionsTests: XCTestCase {
     func testSortStability() throws {
         // Test stabilità: elementi uguali mantengono ordine originale
         // (anche se merge sort non è necessariamente stabile in CLIPS)
-        let result = CLIPS.eval(expr: "(sort <= 1 2 2 3 3 3)")
+        let result = SLIPS.eval(expr: "(sort <= 1 2 2 3 3 3)")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -232,7 +232,7 @@ final class SortFunctionsTests: XCTestCase {
     func testSortLargeList() throws {
         // Test performance con lista più grande
         let numbers = (1...100).shuffled().map { String($0) }.joined(separator: " ")
-        let result = CLIPS.eval(expr: "(sort < \(numbers))")
+        let result = SLIPS.eval(expr: "(sort < \(numbers))")
         
         guard case .multifield(let items) = result else {
             XCTFail("Risultato deve essere multifield")
@@ -256,7 +256,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortNoArguments() throws {
         // Test sort senza argomenti (errore)
-        let result = CLIPS.eval(expr: "(sort)")
+        let result = SLIPS.eval(expr: "(sort)")
         
         // Dovrebbe ritornare errore o false
         if case .symbol(let sym) = result {
@@ -268,7 +268,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortInvalidFunction() throws {
         // Test sort con funzione inesistente
-        let result = CLIPS.eval(expr: "(sort nonexistent-function 1 2 3)")
+        let result = SLIPS.eval(expr: "(sort nonexistent-function 1 2 3)")
         
         // Dovrebbe ritornare errore
         if case .symbol(let sym) = result {
@@ -278,7 +278,7 @@ final class SortFunctionsTests: XCTestCase {
     
     func testSortNonFunctionArgument() throws {
         // Test sort con primo argomento che non è una funzione
-        let result = CLIPS.eval(expr: "(sort 123 1 2 3)")
+        let result = SLIPS.eval(expr: "(sort 123 1 2 3)")
         
         // Dovrebbe ritornare errore
         if case .symbol(let sym) = result {

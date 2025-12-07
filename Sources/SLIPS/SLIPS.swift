@@ -162,10 +162,10 @@ public final class Environment {
     }
 }
 
-// MARK: - Facciata pubblica compatibile con CLIPS
+// MARK: - Facciata pubblica SLIPS
 
 @MainActor
-public enum CLIPS {
+public enum SLIPS {
     private static var currentEnv: Environment? = nil
     public static var currentEnvironment: Environment? { currentEnv }
 
@@ -284,7 +284,7 @@ public enum CLIPS {
     public static func eval(expr: String) -> Value {
         guard var env = currentEnv else { return .none }
         if ProcessInfo.processInfo.environment["SLIPS_DEBUG_EVAL"] == "1" {
-            if let data = "[CLIPS.eval] \(expr)\n".data(using: .utf8) {
+            if let data = "[SLIPS.eval] \(expr)\n".data(using: .utf8) {
                 FileHandle.standardError.write(data)
             }
         }
@@ -311,7 +311,7 @@ public enum CLIPS {
         currentEnv = env
         let stdinHandle = FileHandle.standardInput
         while true {
-            fputs("CLIPS> ", stdout)
+            fputs("SLIPS> ", stdout)
             guard let data = try? stdinHandle.read(upToCount: 4096), !data.isEmpty,
                   let line = String(data: data, encoding: .utf8) else { break }
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -349,3 +349,10 @@ public enum CLIPS {
         }
     }
 }
+
+// MARK: - Compatibilità CLIPS (alias per retrocompatibilità)
+
+/// Tipo alias per retrocompatibilità con codice esistente
+@available(*, deprecated, message: "Usa SLIPS invece di CLIPS")
+public typealias CLIPS = SLIPS
+

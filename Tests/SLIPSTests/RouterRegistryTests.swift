@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class RouterRegistryTests: XCTestCase {
     func testAddQueryDeleteRouter() {
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         XCTAssertFalse(RouterRegistry.QueryRouters(env, "r1"))
         XCTAssertTrue(RouterRegistry.AddRouter(&env, "r1", 10))
         XCTAssertTrue(RouterRegistry.QueryRouters(env, "r1"))

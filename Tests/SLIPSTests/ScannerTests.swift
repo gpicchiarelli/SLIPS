@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class ScannerTests: XCTestCase {
     func testGetTokenFastRouter() {
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         let r = RouterEnvData.ensure(&env)
         r.FastCharGetRouter = "R"
         r.FastCharGetString = "(+ 1 2 \"ciao\")"
@@ -32,7 +32,7 @@ final class ScannerTests: XCTestCase {
     }
 
     func testVariableTokens() {
-        var env = CLIPS.createEnvironment()
+        var env = SLIPS.createEnvironment()
         let r = RouterEnvData.ensure(&env)
         r.FastCharGetRouter = "R2"
         r.FastCharGetString = "(bind ?x 5)"

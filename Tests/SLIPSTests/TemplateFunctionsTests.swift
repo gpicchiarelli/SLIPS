@@ -11,12 +11,12 @@ final class TemplateFunctionsTests: XCTestCase {
     // MARK: - deftemplate-slot-allowed-values Tests
     
     func testSlotAllowedValuesWithRestrictions() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         // Template con allowed-values
-        _ = CLIPS.eval(expr: "(deftemplate person (slot status))")
+        _ = SLIPS.eval(expr: "(deftemplate person (slot status))")
         
         // Per ora senza constraints vere, ritorna FALSE
-        let result = CLIPS.eval(expr: "(deftemplate-slot-allowed-values person status)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-allowed-values person status)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Senza constraints dovrebbe ritornare FALSE")
@@ -26,10 +26,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testSlotAllowedValuesNoRestrictions() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-allowed-values data value)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-allowed-values data value)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Senza allowed-values dovrebbe ritornare FALSE")
@@ -39,11 +39,11 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testSlotAllowedValuesNonExistentSlot() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
         // Slot inesistente dovrebbe causare errore
-        let result = CLIPS.eval(expr: "(deftemplate-slot-allowed-values data nonexistent)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-allowed-values data nonexistent)")
         
         // Dovrebbe ritornare un errore
         // Per ora accettiamo FALSE o errore
@@ -53,10 +53,10 @@ final class TemplateFunctionsTests: XCTestCase {
     // MARK: - deftemplate-slot-defaultp Tests
     
     func testSlotDefaultpStatic() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value (default 42)))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value (default 42)))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-defaultp data value)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-defaultp data value)")
         
         if case .symbol(let s) = result {
             XCTAssertEqual(s, "static", "Default statico dovrebbe ritornare 'static'")
@@ -66,10 +66,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testSlotDefaultpDynamic() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate log (slot timestamp (default-dynamic (gensym))))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate log (slot timestamp (default-dynamic (gensym))))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-defaultp log timestamp)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-defaultp log timestamp)")
         
         if case .symbol(let s) = result {
             XCTAssertEqual(s, "dynamic", "Default dinamico dovrebbe ritornare 'dynamic'")
@@ -79,10 +79,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testSlotDefaultpNoDefault() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate item (slot id))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate item (slot id))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-defaultp item id)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-defaultp item id)")
         
         // Slot senza default esplicito potrebbe avere default implicito
         // CLIPS considera slots senza (default ...) come aventi default statico nil
@@ -91,18 +91,18 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testSlotDefaultpNonExistentTemplate() {
-        _ = CLIPS.createEnvironment()
-        let result = CLIPS.eval(expr: "(deftemplate-slot-defaultp nonexistent slot)")
+        _ = SLIPS.createEnvironment()
+        let result = SLIPS.eval(expr: "(deftemplate-slot-defaultp nonexistent slot)")
         
         // Template inesistente dovrebbe causare errore o ritornare FALSE
         XCTAssertNotNil(result)
     }
     
     func testSlotDefaultpNonExistentSlot() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-defaultp data nonexistent)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-defaultp data nonexistent)")
         
         // Slot inesistente dovrebbe causare errore
         XCTAssertNotNil(result)
@@ -111,10 +111,10 @@ final class TemplateFunctionsTests: XCTestCase {
     // MARK: - deftemplate-slot-facet-existp Tests
     
     func testFacetExistpDefaultFacet() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value (default 10)))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value (default 10)))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp data value default)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp data value default)")
         
         if case .boolean(let b) = result {
             XCTAssertTrue(b, "Facet 'default' dovrebbe esistere")
@@ -124,10 +124,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetExistpTypeFacet() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp data value type)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp data value type)")
         
         if case .boolean(let b) = result {
             // Type facet esiste solo se ci sono constraints sui tipi
@@ -138,10 +138,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetExistpRangeFacet() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp data value range)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp data value range)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Senza range constraints, facet 'range' non dovrebbe esistere")
@@ -151,10 +151,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetExistpNonExistentFacet() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp data value nonexistent)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp data value nonexistent)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Facet inesistente dovrebbe ritornare FALSE")
@@ -164,8 +164,8 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetExistpNonExistentTemplate() {
-        _ = CLIPS.createEnvironment()
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp nonexistent slot default)")
+        _ = SLIPS.createEnvironment()
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp nonexistent slot default)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Template inesistente dovrebbe ritornare FALSE")
@@ -175,10 +175,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetExistpNonExistentSlot() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-existp data nonexistent default)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-existp data nonexistent default)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Slot inesistente dovrebbe ritornare FALSE")
@@ -190,10 +190,10 @@ final class TemplateFunctionsTests: XCTestCase {
     // MARK: - deftemplate-slot-facet-value Tests
     
     func testFacetValueDefaultStatic() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value (default 42)))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value (default 42)))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value data value default)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value data value default)")
         
         if case .int(let i) = result {
             XCTAssertEqual(i, 42, "Facet 'default' dovrebbe ritornare 42")
@@ -203,10 +203,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueDefaultString() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: #"(deftemplate person (slot name (default "unknown")))"#)
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: #"(deftemplate person (slot name (default "unknown")))"#)
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value person name default)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value person name default)")
         
         if case .string(let s) = result {
             XCTAssertEqual(s, "unknown", "Facet 'default' dovrebbe ritornare \"unknown\"")
@@ -216,10 +216,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueCardinality() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (multislot values))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (multislot values))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value data values cardinality)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value data values cardinality)")
         
         if case .multifield(let arr) = result {
             XCTAssertEqual(arr.count, 2, "Cardinality dovrebbe ritornare (min max)")
@@ -232,10 +232,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueCardinalitySingleSlot() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value data value cardinality)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value data value cardinality)")
         
         if case .multifield(let arr) = result {
             XCTAssertEqual(arr.count, 2, "Cardinality dovrebbe ritornare (min max)")
@@ -249,10 +249,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueNonExistentFacet() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value data value nonexistent)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value data value nonexistent)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Facet inesistente dovrebbe ritornare FALSE")
@@ -262,8 +262,8 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueNonExistentTemplate() {
-        _ = CLIPS.createEnvironment()
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value nonexistent slot default)")
+        _ = SLIPS.createEnvironment()
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value nonexistent slot default)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Template inesistente dovrebbe ritornare FALSE")
@@ -273,10 +273,10 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testFacetValueNonExistentSlot() {
-        _ = CLIPS.createEnvironment()
-        _ = CLIPS.eval(expr: "(deftemplate data (slot value))")
+        _ = SLIPS.createEnvironment()
+        _ = SLIPS.eval(expr: "(deftemplate data (slot value))")
         
-        let result = CLIPS.eval(expr: "(deftemplate-slot-facet-value data nonexistent default)")
+        let result = SLIPS.eval(expr: "(deftemplate-slot-facet-value data nonexistent default)")
         
         if case .boolean(let b) = result {
             XCTAssertFalse(b, "Slot inesistente dovrebbe ritornare FALSE")
@@ -288,66 +288,66 @@ final class TemplateFunctionsTests: XCTestCase {
     // MARK: - Integration Tests
     
     func testAllTemplateFunctionsIntegration() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         // Crea un template completo con vari facets
-        _ = CLIPS.eval(expr: "(deftemplate product (slot name (default \"Item\")) (slot price (default 0.0)) (multislot tags))")
+        _ = SLIPS.eval(expr: "(deftemplate product (slot name (default \"Item\")) (slot price (default 0.0)) (multislot tags))")
         
         // Test slot-names
-        let names = CLIPS.eval(expr: "(deftemplate-slot-names product)")
+        let names = SLIPS.eval(expr: "(deftemplate-slot-names product)")
         if case .multifield(let arr) = names {
             XCTAssertTrue(arr.count >= 3, "Dovrebbe avere almeno 3 slot")
         }
         
         // Test slot-existp
-        let exists = CLIPS.eval(expr: "(deftemplate-slot-existp product name)")
+        let exists = SLIPS.eval(expr: "(deftemplate-slot-existp product name)")
         if case .boolean(let b) = exists {
             XCTAssertTrue(b, "Slot 'name' dovrebbe esistere")
         }
         
         // Test slot-multip
-        let isMulti = CLIPS.eval(expr: "(deftemplate-slot-multip product tags)")
+        let isMulti = SLIPS.eval(expr: "(deftemplate-slot-multip product tags)")
         if case .boolean(let b) = isMulti {
             XCTAssertTrue(b, "Slot 'tags' dovrebbe essere multifield")
         }
         
         // Test slot-singlep
-        let isSingle = CLIPS.eval(expr: "(deftemplate-slot-singlep product name)")
+        let isSingle = SLIPS.eval(expr: "(deftemplate-slot-singlep product name)")
         if case .boolean(let b) = isSingle {
             XCTAssertTrue(b, "Slot 'name' dovrebbe essere single-field")
         }
         
         // Test slot-default-value
-        let defaultVal = CLIPS.eval(expr: "(deftemplate-slot-default-value product name)")
+        let defaultVal = SLIPS.eval(expr: "(deftemplate-slot-default-value product name)")
         if case .string(let s) = defaultVal {
             XCTAssertEqual(s, "Item", "Default di 'name' dovrebbe essere \"Item\"")
         }
         
         // Test slot-defaultp
-        let defaultType = CLIPS.eval(expr: "(deftemplate-slot-defaultp product name)")
+        let defaultType = SLIPS.eval(expr: "(deftemplate-slot-defaultp product name)")
         if case .symbol(let s) = defaultType {
             XCTAssertEqual(s, "static", "Default di 'name' dovrebbe essere statico")
         }
         
         // Test facet-existp
-        let facetExists = CLIPS.eval(expr: "(deftemplate-slot-facet-existp product name default)")
+        let facetExists = SLIPS.eval(expr: "(deftemplate-slot-facet-existp product name default)")
         if case .boolean(let b) = facetExists {
             XCTAssertTrue(b, "Facet 'default' dovrebbe esistere per 'name'")
         }
         
         // Test facet-value
-        let facetValue = CLIPS.eval(expr: "(deftemplate-slot-facet-value product name default)")
+        let facetValue = SLIPS.eval(expr: "(deftemplate-slot-facet-value product name default)")
         if case .string(let s) = facetValue {
             XCTAssertEqual(s, "Item", "Valore del facet 'default' dovrebbe essere \"Item\"")
         }
     }
     
     func testModifyWithNewFunctions() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         // Crea template e fatto
-        _ = CLIPS.eval(expr: "(deftemplate item (slot id (default 0)) (slot name (default \"none\")))")
+        _ = SLIPS.eval(expr: "(deftemplate item (slot id (default 0)) (slot name (default \"none\")))")
         
         // Verifica default prima di modify
-        let defaultType = CLIPS.eval(expr: "(deftemplate-slot-defaultp item id)")
+        let defaultType = SLIPS.eval(expr: "(deftemplate-slot-defaultp item id)")
         if case .symbol(let s) = defaultType {
             XCTAssertEqual(s, "static", "Default di 'id' dovrebbe essere statico")
         } else {
@@ -355,7 +355,7 @@ final class TemplateFunctionsTests: XCTestCase {
         }
         
         // Test che deftemplate-slot-defaultp funzioni con slot 'name'
-        let defaultType2 = CLIPS.eval(expr: "(deftemplate-slot-defaultp item name)")
+        let defaultType2 = SLIPS.eval(expr: "(deftemplate-slot-defaultp item name)")
         if case .symbol(let s) = defaultType2 {
             XCTAssertEqual(s, "static", "Default di 'name' dovrebbe essere statico")
         } else {
@@ -364,12 +364,12 @@ final class TemplateFunctionsTests: XCTestCase {
     }
     
     func testDuplicateWithNewFunctions() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         // Crea template
-        _ = CLIPS.eval(expr: "(deftemplate item (slot id (default 0)) (slot name (default \"none\")))")
+        _ = SLIPS.eval(expr: "(deftemplate item (slot id (default 0)) (slot name (default \"none\")))")
         
         // Test che le funzioni template introspection funzionino
-        let names = CLIPS.eval(expr: "(deftemplate-slot-names item)")
+        let names = SLIPS.eval(expr: "(deftemplate-slot-names item)")
         if case .multifield(let arr) = names {
             XCTAssertTrue(arr.count >= 2, "Template 'item' dovrebbe avere almeno 2 slot")
         } else {
@@ -377,12 +377,12 @@ final class TemplateFunctionsTests: XCTestCase {
         }
         
         // Verifica che i due slot esistano
-        let existsId = CLIPS.eval(expr: "(deftemplate-slot-existp item id)")
+        let existsId = SLIPS.eval(expr: "(deftemplate-slot-existp item id)")
         if case .boolean(let b) = existsId {
             XCTAssertTrue(b, "Slot 'id' dovrebbe esistere")
         }
         
-        let existsName = CLIPS.eval(expr: "(deftemplate-slot-existp item name)")
+        let existsName = SLIPS.eval(expr: "(deftemplate-slot-existp item name)")
         if case .boolean(let b) = existsName {
             XCTAssertTrue(b, "Slot 'name' dovrebbe esistere")
         }

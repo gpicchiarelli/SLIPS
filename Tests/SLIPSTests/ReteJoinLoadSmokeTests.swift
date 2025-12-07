@@ -4,9 +4,9 @@ import XCTest
 @MainActor
 final class ReteJoinLoadSmokeTests: XCTestCase {
     func testLoadAndRunJoinSmoke() throws {
-        let env = CLIPS.createEnvironment()
+        let env = SLIPS.createEnvironment()
         let path = FileManager.default.currentDirectoryPath + "/Tests/SLIPSTests/Assets/join_smoke.clp"
-        try CLIPS.load(path)
+        try SLIPS.load(path)
         // Dopo i 2 run nel file, dovremmo avere 2 token finali in beta['r']
         guard let mem = env.rete.beta["r"] else { XCTFail("Missing beta memory for r"); return }
         XCTAssertEqual(mem.tokens.count, 2)

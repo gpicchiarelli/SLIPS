@@ -5,13 +5,13 @@ import XCTest
 final class ModulesTests: XCTestCase {
     
     override func setUp() async throws {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
     }
     
     // MARK: - Basic Module Creation and Management
     
     func testMainModuleCreatedByDefault() {
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -23,7 +23,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testGetCurrentModule() {
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -35,7 +35,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testCreateNewModule() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -52,7 +52,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testCannotCreateDuplicateModule() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -67,7 +67,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testSetCurrentModule() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -86,7 +86,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testListDefmodules() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -111,7 +111,7 @@ final class ModulesTests: XCTestCase {
     // MARK: - Focus Stack Tests
     
     func testFocusStackInitiallyEmpty() {
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -121,7 +121,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testFocusPushAndPop() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -147,7 +147,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testFocusStackMultiplePushes() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -176,7 +176,7 @@ final class ModulesTests: XCTestCase {
     }
     
     func testGetCurrentFocusModule() {
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -199,7 +199,7 @@ final class ModulesTests: XCTestCase {
     // MARK: - Module Item Registration Tests
     
     func testModuleItemsRegistered() {
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -222,7 +222,7 @@ final class ModulesTests: XCTestCase {
     func testModuleWithRules() {
         // Test che le regole siano associate al modulo corrente
         // (Per ora è solo un placeholder - sarà implementato dopo il parsing defmodule)
-        guard var env = CLIPS.currentEnvironment else {
+        guard var env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -246,13 +246,13 @@ final class ModulesTests: XCTestCase {
     // MARK: - Defmodule Parsing Tests
     
     func testDefmoduleParsing() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Definisci un nuovo modulo con parsing
-        let result = CLIPS.eval(expr: "(defmodule TEST-MODULE)")
+        let result = SLIPS.eval(expr: "(defmodule TEST-MODULE)")
         
         // Verifica che il modulo sia stato creato
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -273,12 +273,12 @@ final class ModulesTests: XCTestCase {
     }
     
     func testDefmoduleWithExport() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Definisci modulo con export
-        _ = CLIPS.eval(expr: "(defmodule EXPORT-MODULE (export defrule my-rule))")
+        _ = SLIPS.eval(expr: "(defmodule EXPORT-MODULE (export defrule my-rule))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -291,15 +291,15 @@ final class ModulesTests: XCTestCase {
     }
     
     func testDefmoduleWithImport() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea modulo source
-        _ = CLIPS.eval(expr: "(defmodule SOURCE)")
+        _ = SLIPS.eval(expr: "(defmodule SOURCE)")
         
         // Crea modulo con import da SOURCE
-        _ = CLIPS.eval(expr: "(defmodule IMPORT-MODULE (import SOURCE deftemplate person))")
+        _ = SLIPS.eval(expr: "(defmodule IMPORT-MODULE (import SOURCE deftemplate person))")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -314,12 +314,12 @@ final class ModulesTests: XCTestCase {
     // MARK: - Command Tests
     
     func testFocusCommand() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea modulo
-        _ = CLIPS.eval(expr: "(defmodule MOD-A)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-A)")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -328,7 +328,7 @@ final class ModulesTests: XCTestCase {
         XCTAssertTrue(env.isFocusStackEmpty())
         
         // Esegui focus
-        let result = CLIPS.eval(expr: "(focus MOD-A)")
+        let result = SLIPS.eval(expr: "(focus MOD-A)")
         
         // Verifica che sia riuscito
         if case .boolean(let b) = result {
@@ -338,7 +338,7 @@ final class ModulesTests: XCTestCase {
         }
         
         // Verifica che lo stack contenga il modulo
-        guard let env2 = CLIPS.currentEnvironment else {
+        guard let env2 = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -348,17 +348,17 @@ final class ModulesTests: XCTestCase {
     }
     
     func testFocusMultipleModules() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea moduli
-        _ = CLIPS.eval(expr: "(defmodule MOD-A)")
-        _ = CLIPS.eval(expr: "(defmodule MOD-B)")
-        _ = CLIPS.eval(expr: "(defmodule MOD-C)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-A)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-B)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-C)")
         
         // Focus su più moduli
-        _ = CLIPS.eval(expr: "(focus MOD-A MOD-B MOD-C)")
+        _ = SLIPS.eval(expr: "(focus MOD-A MOD-B MOD-C)")
         
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -368,10 +368,10 @@ final class ModulesTests: XCTestCase {
     }
     
     func testGetCurrentModuleCommand() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Get current module (dovrebbe essere MAIN)
-        let result = CLIPS.eval(expr: "(get-current-module)")
+        let result = SLIPS.eval(expr: "(get-current-module)")
         
         if case .symbol(let s) = result {
             XCTAssertEqual(s, "MAIN")
@@ -381,16 +381,16 @@ final class ModulesTests: XCTestCase {
     }
     
     func testSetCurrentModuleCommand() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea modulo (defmodule lo imposta come corrente automaticamente)
-        _ = CLIPS.eval(expr: "(defmodule MY-MODULE)")
+        _ = SLIPS.eval(expr: "(defmodule MY-MODULE)")
         
         // Ritorna a MAIN
-        _ = CLIPS.eval(expr: "(set-current-module MAIN)")
+        _ = SLIPS.eval(expr: "(set-current-module MAIN)")
         
         // Ora set current module a MY-MODULE dovrebbe ritornare MAIN
-        let result = CLIPS.eval(expr: "(set-current-module MY-MODULE)")
+        let result = SLIPS.eval(expr: "(set-current-module MY-MODULE)")
         
         // Dovrebbe ritornare il modulo precedente (MAIN)
         if case .symbol(let s) = result {
@@ -400,7 +400,7 @@ final class ModulesTests: XCTestCase {
         }
         
         // Verifica che il modulo corrente sia cambiato
-        guard let env = CLIPS.currentEnvironment else {
+        guard let env = SLIPS.currentEnvironment else {
             XCTFail("Environment non disponibile")
             return
         }
@@ -409,14 +409,14 @@ final class ModulesTests: XCTestCase {
     }
     
     func testListDefmodulesCommand() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea alcuni moduli
-        _ = CLIPS.eval(expr: "(defmodule MOD-A)")
-        _ = CLIPS.eval(expr: "(defmodule MOD-B)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-A)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-B)")
         
         // Lista moduli (dovrebbe stampare)
-        let result = CLIPS.eval(expr: "(list-defmodules)")
+        let result = SLIPS.eval(expr: "(list-defmodules)")
         
         if case .boolean(let b) = result {
             XCTAssertTrue(b)
@@ -426,14 +426,14 @@ final class ModulesTests: XCTestCase {
     }
     
     func testGetDefmoduleListCommand() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Crea alcuni moduli
-        _ = CLIPS.eval(expr: "(defmodule MOD-A)")
-        _ = CLIPS.eval(expr: "(defmodule MOD-B)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-A)")
+        _ = SLIPS.eval(expr: "(defmodule MOD-B)")
         
         // Get defmodule list
-        let result = CLIPS.eval(expr: "(get-defmodule-list)")
+        let result = SLIPS.eval(expr: "(get-defmodule-list)")
         
         // Dovrebbe ritornare un multifield
         if case .multifield(let modules) = result {
@@ -448,12 +448,12 @@ final class ModulesTests: XCTestCase {
     }
     
     func testAgendaWithModule() {
-        _ = CLIPS.createEnvironment()
+        _ = SLIPS.createEnvironment()
         
         // Test comando agenda con parametro modulo
         // Per ora non filtra realmente, ma accetta il parametro
-        _ = CLIPS.eval(expr: "(defmodule TEST-MOD)")
-        let result = CLIPS.eval(expr: "(agenda TEST-MOD)")
+        _ = SLIPS.eval(expr: "(defmodule TEST-MOD)")
+        let result = SLIPS.eval(expr: "(agenda TEST-MOD)")
         
         if case .int(let count) = result {
             XCTAssertEqual(count, 0)  // Agenda vuota
