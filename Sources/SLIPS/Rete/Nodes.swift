@@ -514,7 +514,7 @@ public final class JoinNodeClass: ReteNode {
         // Ref: drive.c:947 - hashValue = BetaMemoryHashValue(..., join->rightHash, ...)
         // Per join non-firstJoin, usa rightHash per garantire hash matching con leftMemory
         if !self.firstJoin {
-            rhsPM.hashValue = DriveEngine.BetaMemoryHashValue(&env, self.rightHash, nil, rhsPM, self)
+            rhsPM.hashValue = DriveEngine.BetaMemoryHashValue(&env, self.rightHash, nil as PartialMatch?, rhsPM, self)
         } else {
             // Per firstJoin, hash può essere 0 o calcolato semplicemente
             rhsPM.hashValue = 0
