@@ -205,8 +205,15 @@ final class GoldenTests: XCTestCase {
             print("\n=== Testing \(clpName) ===")
             
             do {
-                // Esegui il file CLIPS
-                let actualOutput = try executeCLPFile(clpPath)
+                // Prova prima con il file .clp diretto
+                var actualOutput = try executeCLPFile(clpPath)
+                
+                // Se esiste un file .tst corrispondente, prova a usare quello
+                let tstPath = clpPath.replacingOccurrences(of: ".clp", with: ".tst")
+                if FileManager.default.fileExists(atPath: tstPath) {
+                    // Usa il file .tst che contiene la sequenza corretta di comandi
+                    actualOutput = try executeTSTFile(tstPath)
+                }
                 
                 // Trova file atteso
                 let expectedPath = (clpPath as NSString).deletingLastPathComponent + "/Expected//\(baseName).out"
@@ -226,8 +233,22 @@ final class GoldenTests: XCTestCase {
                 
                 if normalizedActual != normalizedExpected {
                     failed += 1
-                    let msg = "\(clpName) FAILED:\nExpected:\n\(normalizedExpected)\n\nActual:\n\(normalizedActual)"
-                    failures.append(msg)
+                    // Mostra solo le prime differenze per non sovraccaricare l'output
+                    let actualLines = normalizedActual.components(separatedBy: .newlines)
+                    let expectedLines = normalizedExpected.components(separatedBy: .newlines)
+                    let maxShow = min(10, max(actualLines.count, expectedLines.count))
+                    var diffMsg = "\(clpName) FAILED:\n"
+                    for i in 0..<maxShow {
+                        let actualLine = i < actualLines.count ? actualLines[i] : "<EOF>"
+                        let expectedLine = i < expectedLines.count ? expectedLines[i] : "<EOF>"
+                        if actualLine != expectedLine {
+                            diffMsg += "Line \(i+1):\n  Expected: \(expectedLine)\n  Actual:   \(actualLine)\n"
+                        }
+                    }
+                    if max(actualLines.count, expectedLines.count) > maxShow {
+                        diffMsg += "... (truncated)\n"
+                    }
+                    failures.append(diffMsg)
                     print("  FAIL")
                 } else {
                     passed += 1
