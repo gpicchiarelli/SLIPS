@@ -69,6 +69,16 @@ public enum Functions {
         env.functionTable["set-join-naive-fallback"] = FunctionDefinitionSwift(name: "set-join-naive-fallback", impl: builtin_set_join_naive_fallback)
         env.functionTable["get-join-naive-fallback"] = FunctionDefinitionSwift(name: "get-join-naive-fallback", impl: builtin_get_join_naive_fallback)
         
+        // Comandi file e memoria (ref: filecom.c, memalloc.c, miscfun.c)
+        env.functionTable["mem-used"] = FunctionDefinitionSwift(name: "mem-used", impl: builtin_mem_used)
+        env.functionTable["release-mem"] = FunctionDefinitionSwift(name: "release-mem", impl: builtin_release_mem)
+        env.functionTable["load-facts"] = FunctionDefinitionSwift(name: "load-facts", impl: builtin_load_facts)
+        env.functionTable["load*"] = FunctionDefinitionSwift(name: "load*", impl: builtin_load_star)
+        env.functionTable["batch"] = FunctionDefinitionSwift(name: "batch", impl: builtin_batch)
+        env.functionTable["batch*"] = FunctionDefinitionSwift(name: "batch*", impl: builtin_batch_star)
+        env.functionTable["dribble-on"] = FunctionDefinitionSwift(name: "dribble-on", impl: builtin_dribble_on)
+        env.functionTable["dribble-off"] = FunctionDefinitionSwift(name: "dribble-off", impl: builtin_dribble_off)
+        
         // FASE 3: Funzioni per moduli (ref: modulbsc.c)
         env.functionTable["focus"] = FunctionDefinitionSwift(name: "focus", impl: builtin_focus)
         env.functionTable["get-current-module"] = FunctionDefinitionSwift(name: "get-current-module", impl: builtin_get_current_module)
@@ -591,6 +601,90 @@ private func builtin_get_strategy(_ env: inout Environment, _ args: [Value]) thr
 }
 
 // load come builtin non implementato per evitare dipendenze con MainActor.
+
+// MARK: - Comandi memoria e file
+
+/// mem-used: restituisce la quantità di memoria utilizzata
+/// Ref: miscfun.c:563 - MemUsedCommand
+private func builtin_mem_used(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let used = Memalloc.MemUsed(env)
+    return .int(used)
+}
+
+/// release-mem: rilascia memoria e restituisce la quantità rilasciata
+/// Ref: miscfun.c - ReleaseMemCommand
+private func builtin_release_mem(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let released = Memalloc.ReleaseMem(&env)
+    return .int(released)
+}
+
+/// load-facts: carica fatti da un file .fct
+/// Ref: factfile.c:494 - LoadFactsCommand
+private func builtin_load_facts(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let fileName = args.first?.stringValue else {
+        return .int(-1)
+    }
+    
+    let factCount = FactFile.loadFacts(&env, fileName: fileName)
+    return .int(Int64(factCount))
+}
+
+/// load*: versione di load con output verboso (identico a load per ora)
+/// Ref: filecom.c:292 - LoadStarCommand
+/// Nota: In CLIPS C, load* è identico a load ma con SetPrintWhileLoading attivato
+/// Per ora li trattiamo identici
+private func builtin_load_star(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let fileName = args.first?.stringValue else {
+        return .boolean(false)
+    }
+    
+    // Usa loadInternal che non richiede MainActor
+    do {
+        try SLIPSHelpers.loadInternal(&env, fileName)
+        return .boolean(true)
+    } catch {
+        return .boolean(false)
+    }
+}
+
+/// batch: apre un file batch per esecuzione comandi
+/// Ref: filecom.c:213 - BatchCommand
+private func builtin_batch(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let fileName = args.first?.stringValue else {
+        return .boolean(false)
+    }
+    let success = FileUtil.Batch(&env, fileName)
+    return .boolean(success)
+}
+
+/// batch*: esegue comandi da file batch immediatamente
+/// Ref: filecom.c:233 - BatchStarCommand
+private func builtin_batch_star(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let fileName = args.first?.stringValue else {
+        return .boolean(false)
+    }
+    // Per ora, BatchStar è identico a Batch
+    // In futuro, potremmo implementare l'esecuzione immediata
+    let success = FileUtil.BatchStar(&env, fileName)
+    return .boolean(success)
+}
+
+/// dribble-on: inizia a catturare output su file
+/// Ref: filecom.c:179 - DribbleOnCommand
+private func builtin_dribble_on(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    guard let fileName = args.first?.stringValue else {
+        return .boolean(false)
+    }
+    let success = FileUtil.DribbleOn(&env, fileName)
+    return .boolean(success)
+}
+
+/// dribble-off: termina cattura output
+/// Ref: filecom.c:199 - DribbleOffCommand
+private func builtin_dribble_off(_ env: inout Environment, _ args: [Value]) throws -> Value {
+    let wasActive = FileUtil.DribbleOff(&env)
+    return .boolean(wasActive)
+}
 
 // Helper per ottenere env corrente
 // removed CLIPSInternal helper; builtins receive env by inout

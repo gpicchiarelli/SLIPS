@@ -187,44 +187,9 @@ public enum SLIPS {
     }
 
     public static func load(_ path: String) throws {
-        // In CLIPS: carica un file .clp e ne elabora i costrutti.
-        var contents = try String(contentsOfFile: path, encoding: .utf8)
-        // Rimuovi commenti ';' fino a fine riga (semplificato)
-        contents = contents.split(separator: "\n", omittingEmptySubsequences: false).map { line in
-            if let idx = line.firstIndex(of: ";") { return String(line[..<idx]) } else { return String(line) }
-        }.joined(separator: "\n")
-        // Estrai S-expression top-level e valuta
-        var i = contents.startIndex
-        while i < contents.endIndex {
-            // Skip whitespaces
-            while i < contents.endIndex, contents[i].isWhitespace { i = contents.index(after: i) }
-            guard i < contents.endIndex else { break }
-            if contents[i] != "(" { // ignora linee non s-exp in questa fase
-                // salta fino a newline
-                while i < contents.endIndex, contents[i] != "\n" { i = contents.index(after: i) }
-                continue
-            }
-            // parse balanced parentheses
-            var depth = 0
-            var j = i
-            var inString = false
-            while j < contents.endIndex {
-                let c = contents[j]
-                if c == "\"" { inString.toggle() }
-                if !inString {
-                    if c == "(" { depth += 1 }
-                    else if c == ")" { depth -= 1; if depth == 0 { j = contents.index(after: j); break } }
-                }
-                j = contents.index(after: j)
-            }
-            if depth == 0 {
-                let sexpr = String(contents[i..<j])
-                _ = eval(expr: sexpr)
-                i = j
-            } else {
-                break
-            }
-        }
+        guard var env = currentEnv else { return }
+        try SLIPSHelpers.loadInternal(&env, path)
+        currentEnv = env
     }
 
     public static func reset() {
@@ -346,6 +311,97 @@ public enum SLIPS {
             PrintUtil.PrintAtom(&e, Router.STDOUT, result)
             Router.Writeln(&e, "")
             currentEnv = e
+        }
+    }
+}
+
+// MARK: - Helper non-isolati per chiamate da contesti non-MainActor
+
+/// Helper functions che non richiedono MainActor isolation
+/// Usate dalle builtin functions che devono operare in contesti sincroni
+enum SLIPSHelpers {
+    /// Versione interna che accetta env direttamente (non richiede MainActor)
+    static func loadInternal(_ env: inout Environment, _ path: String) throws {
+        // In CLIPS: carica un file .clp e ne elabora i costrutti.
+        var contents = try String(contentsOfFile: path, encoding: .utf8)
+        // Rimuovi commenti ';' fino a fine riga (semplificato)
+        contents = contents.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+            if let idx = line.firstIndex(of: ";") { return String(line[..<idx]) } else { return String(line) }
+        }.joined(separator: "\n")
+        // Estrai S-expression top-level e valuta
+        var i = contents.startIndex
+        while i < contents.endIndex {
+            // Skip whitespaces
+            while i < contents.endIndex, contents[i].isWhitespace { i = contents.index(after: i) }
+            guard i < contents.endIndex else { break }
+            if contents[i] != "(" { // ignora linee non s-exp in questa fase
+                // salta fino a newline
+                while i < contents.endIndex, contents[i] != "\n" { i = contents.index(after: i) }
+                continue
+            }
+            // parse balanced parentheses
+            var depth = 0
+            var j = i
+            var inString = false
+            while j < contents.endIndex {
+                let c = contents[j]
+                if c == "\"" { inString.toggle() }
+                if !inString {
+                    if c == "(" { depth += 1 }
+                    else if c == ")" { depth -= 1; if depth == 0 { j = contents.index(after: j); break } }
+                }
+                j = contents.index(after: j)
+            }
+            if depth == 0 {
+                let sexpr = String(contents[i..<j])
+                // Usa eval interno che non richiede MainActor
+                _ = evalInternal(&env, expr: sexpr)
+                i = j
+            } else {
+                break
+            }
+        }
+    }
+    
+    /// Versione interna di eval che accetta env direttamente
+    /// Se printPrompt è true, stampa il prompt prima del comando (per modalità interattiva/batch)
+    static func evalInternal(_ env: inout Environment, expr: String, printPrompt: Bool = false) -> Value {
+        if printPrompt {
+            // Stampa prompt prima del comando (ref: ExecuteIfCommandComplete in commline.c:831)
+            Router.WriteString(&env, Router.STDOUT, "SLIPS> ")
+        }
+        
+        if ProcessInfo.processInfo.environment["SLIPS_DEBUG_EVAL"] == "1" {
+            if let data = "[SLIPS.eval] \(expr)\n".data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
+        }
+        let router = "***EVAL***"
+        let r = RouterEnvData.ensure(&env)
+        r.FastCharGetRouter = router
+        r.FastCharGetString = expr
+        r.FastCharGetIndex = 0
+        do {
+            let ast = try ExprTokenParser.parseTop(&env, logicalName: router)
+            let val = try Evaluator.eval(&env, ast)
+            
+            // Stampa risultato se non void (ref: RouteCommand in commline.c:1067)
+            // Il risultato viene stampato automaticamente da RouteCommand, ma per evalInternal
+            // dobbiamo farlo manualmente se necessario
+            if printPrompt {
+                // Stampa risultato (ref: RouteCommand:1067-1071)
+                // Solo se non è void e se printResult è true
+                switch val {
+                case .none: break  // Void, non stampare
+                default:
+                    PrintUtil.PrintAtom(&env, Router.STDOUT, val)
+                    Router.Writeln(&env, "")
+                }
+            }
+            
+            return val
+        } catch {
+            return .none
         }
     }
 }

@@ -6,8 +6,125 @@ public enum FileUtil {
     @discardableResult
     public static func DribbleOn(_ env: inout Environment, _ fileName: String) -> Bool {
         let data = FileCom.ensureData(&env)
+        
+        // Se già attivo, chiudi il precedente
+        if data.DribbleActive {
+            _ = DribbleOff(&env)
+        }
+        
+        // Apri file per scrittura (ref: fileutil.c:310)
+        let filePath: String
+        if fileName.hasPrefix("/") {
+            filePath = fileName
+        } else {
+            let cwd = FileManager.default.currentDirectoryPath
+            filePath = "\(cwd)/\(fileName)"
+        }
+        
+        // Crea directory se necessario
+        let dirPath = (filePath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dirPath, withIntermediateDirectories: true, attributes: nil)
+        
+        // Crea file vuoto per indicare che è aperto
+        FileManager.default.createFile(atPath: filePath, contents: nil, attributes: nil)
+        
         data.DribbleActive = true
-        // In questa fase non apriamo file, ma segnaliamo attivo
+        data.DribbleFilePath = filePath
+        data.DribbleBuffer = ""  // Reset buffer
+        
+        // Registra router dribble (ref: fileutil.c:321)
+        // Il router intercetta stdout/stdin/stderr/stdwrn e scrive anche nel file
+        _ = RouterRegistry.AddRouter(
+            &env,
+            "dribble",
+            40,  // Priorità alta (ref: fileutil.c:321)
+            query: { _, logicalName in
+                // Query callback: intercetta stdout/stdin/stderr/stdwrn
+                logicalName == Router.STDOUT || logicalName == Router.STDIN ||
+                logicalName == Router.STDERR || logicalName == Router.STDWRN ||
+                logicalName == "t"  // 't' è anche stdout
+            },
+            write: { envWrite, logicalName, str in
+                // Write callback: scrive nel file dribble E passa al router successivo
+                guard DribbleActive(envWrite) else { return }
+                let fileData = FileCom.ensureData(&envWrite)
+                
+                // Accumula nel buffer
+                fileData.DribbleBuffer.append(str)
+                
+                // Scrive immediatamente su file (ref: PutcDribbleBuffer in fileutil.c:182)
+                if let path = fileData.DribbleFilePath {
+                    if let fileHandle = FileHandle(forWritingAtPath: path) {
+                        fileHandle.seekToEndOfFile()
+                        if let data = str.data(using: .utf8) {
+                            fileHandle.write(data)
+                        }
+                        try? fileHandle.close()
+                    } else {
+                        // Se il file non esiste o è chiuso, crealo
+                        if let data = str.data(using: .utf8) {
+                            FileManager.default.createFile(atPath: path, contents: data, attributes: nil)
+                        }
+                    }
+                }
+                
+                // Passa al router successivo (ref: WriteDribbleCallback in fileutil.c:140)
+                // IMPORTANTE: Deattiva temporaneamente dribble per evitare loop infiniti
+                // Poi chiama WriteString che cercherà il prossimo router o userà fallback (stdout)
+                RouterRegistry.DeactivateRouter(&envWrite, "dribble")
+                
+                // Scrivi direttamente al fallback (stdout/stderr) per evitare loop
+                // In alternativa, potremmo cercare il prossimo router, ma per semplicità
+                // usiamo il fallback diretto
+                if logicalName == Router.STDERR || logicalName == Router.STDWRN {
+                    fputs(str, stderr)
+                } else {
+                    fputs(str, stdout)
+                }
+                
+                RouterRegistry.ActivateRouter(&envWrite, "dribble")
+            },
+            read: { envRead, logicalName in
+                // Read callback: passa al router successivo e aggiunge al buffer
+                RouterRegistry.DeactivateRouter(&envRead, "dribble")
+                let ch = Router.ReadRouter(&envRead, logicalName)
+                RouterRegistry.ActivateRouter(&envRead, "dribble")
+                
+                // Aggiungi al buffer se non EOF
+                if ch != -1 {
+                    AppendDribble(&envRead, String(Character(UnicodeScalar(ch)!)))
+                }
+                return ch
+            },
+            unread: { envUnread, logicalName, ch in
+                // Unread callback: rimuovi dal buffer e passa al router successivo
+                let fileData = FileCom.ensureData(&envUnread)
+                if !fileData.DribbleBuffer.isEmpty {
+                    fileData.DribbleBuffer.removeLast()
+                }
+                
+                RouterRegistry.DeactivateRouter(&envUnread, "dribble")
+                let result = Router.UnreadRouter(&envUnread, logicalName, ch)
+                RouterRegistry.ActivateRouter(&envUnread, "dribble")
+                return result
+            },
+            exit: { envExit, _ in
+                // Exit callback: scrivi buffer residuo e chiudi
+                let fileData = FileCom.ensureData(&envExit)
+                if let path = fileData.DribbleFilePath, !fileData.DribbleBuffer.isEmpty {
+                    if let fileHandle = FileHandle(forWritingAtPath: path) {
+                        fileHandle.seekToEndOfFile()
+                        if let data = fileData.DribbleBuffer.data(using: .utf8) {
+                            fileHandle.write(data)
+                        }
+                        try? fileHandle.close()
+                    }
+                }
+                fileData.DribbleBuffer.removeAll()
+                fileData.DribbleFilePath = nil
+            }
+        )
+        
         return true
     }
 
@@ -20,8 +137,21 @@ public enum FileUtil {
     public static func DribbleOff(_ env: inout Environment) -> Bool {
         let data = FileCom.ensureData(&env)
         let was = data.DribbleActive
-        data.DribbleActive = false
-        data.DribbleBuffer.removeAll(keepingCapacity: false)
+        
+        if was {
+            // Chiama exit callback per scrivere buffer residuo (ref: ExitDribbleCallback in fileutil.c:275)
+            if let exitFn = RouterEnvData.get(env)?.routers.first(where: { $0.name == "dribble" })?.exit {
+                exitFn(&env, 0)
+            }
+            
+            // Rimuovi router (ref: fileutil.c:388 - DeleteRouter)
+            _ = RouterRegistry.DeleteRouter(&env, "dribble")
+            
+            data.DribbleActive = false
+            data.DribbleBuffer.removeAll(keepingCapacity: false)
+            data.DribbleFilePath = nil
+        }
+        
         return was
     }
 

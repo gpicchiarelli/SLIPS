@@ -23,6 +23,7 @@ public enum FileCom {
         // DEBUGGING_FUNCTIONS blocco dribble semplificato
         public var DribbleActive: Bool = false
         public var DribbleBuffer: String = ""
+        public var DribbleFilePath: String? = nil  // Path del file dribble aperto
         public var DribbleStatusFunction: ((inout Environment, Bool) -> Int)? = nil
 
         // Batch

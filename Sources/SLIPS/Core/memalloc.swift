@@ -54,12 +54,49 @@ public enum Memalloc {
     // Metriche basilari
     @discardableResult
     public static func UpdateMemoryUsed(_ env: inout Environment, _ delta: Int64) -> Int64 {
-        // In questa fase non persistiamo una vera struttura
-        return delta
+        // Ottieni o crea MemoryDataStruct
+        if let data: MemoryDataStruct = Envrnmnt.GetEnvironmentData(env, MEMORY_DATA) {
+            var mutable = data
+            mutable.MemoryAmount += delta
+            Envrnmnt.SetEnvironmentData(&env, MEMORY_DATA, mutable)
+            return mutable.MemoryAmount
+        } else {
+            var newData = MemoryDataStruct()
+            newData.MemoryAmount = delta
+            Envrnmnt.SetEnvironmentData(&env, MEMORY_DATA, newData)
+            return newData.MemoryAmount
+        }
     }
 
     @discardableResult
     public static func UpdateMemoryRequests(_ env: inout Environment, _ delta: Int64) -> Int64 {
-        return delta
+        if let data: MemoryDataStruct = Envrnmnt.GetEnvironmentData(env, MEMORY_DATA) {
+            var mutable = data
+            mutable.MemoryCalls += delta
+            Envrnmnt.SetEnvironmentData(&env, MEMORY_DATA, mutable)
+            return mutable.MemoryCalls
+        } else {
+            var newData = MemoryDataStruct()
+            newData.MemoryCalls = delta
+            Envrnmnt.SetEnvironmentData(&env, MEMORY_DATA, newData)
+            return newData.MemoryCalls
+        }
+    }
+    
+    /// MemUsed: restituisce la quantità di memoria utilizzata
+    /// Ref: memalloc.c:222 - MemUsed
+    public static func MemUsed(_ env: Environment) -> Int64 {
+        if let data: MemoryDataStruct = Envrnmnt.GetEnvironmentData(env, MEMORY_DATA) {
+            return data.MemoryAmount
+        }
+        return 0
+    }
+    
+    /// ReleaseMem: rilascia memoria e restituisce la quantità rilasciata
+    /// Ref: memalloc.c:266 - ReleaseMem
+    public static func ReleaseMem(_ env: inout Environment, _ maximum: Int64 = 0) -> Int64 {
+        // Per ora semplificato: non gestiamo tabelle di memoria
+        // In CLIPS C, questo rilascia memoria dalla tabella
+        return 0
     }
 }

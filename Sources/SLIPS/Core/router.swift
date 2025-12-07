@@ -10,18 +10,36 @@ public enum Router {
 
     public static func WriteString(_ env: inout Environment, _ logicalName: String, _ message: String) {
         // Tenta di inoltrare ai router registrati che dichiarano interesse
+        // I router sono ordinati per priorità (più alta = eseguito prima)
+        // Ref: router.c - WriteString cerca router interessati e li chiama
+        // IMPORTANTE: Il router dribble deve scrivere nel file E poi passare al router successivo/stdout
         let data = RouterEnvData.ensure(&env)
+        
+        // Cerca il primo router attivo interessato
+        var handledByRouter = false
         for entry in data.routers where entry.active {
             if let q = entry.query, q(&env, logicalName) {
+                // Il router gestisce il messaggio (es. dribble scrive su file)
                 entry.write?(&env, logicalName, message)
-                return
+                handledByRouter = true
+                // IMPORTANTE: In CLIPS, il router write callback DEVE gestire anche il passaggio
+                // al router successivo. Quindi NON facciamo break qui - il router stesso decide
+                // se passare al successivo (vedi fileutil.c:140 - WriteDribbleCallback fa
+                // DeactivateRouter, WriteString, ActivateRouter)
+                // Per router che NON passano al successivo, devono fare return nel loro callback
+                // Per ora, assumiamo che il router dribble gestisca il passaggio internamente
+                // Altri router potrebbero fermarsi qui
+                break
             }
         }
-        // Fallback: 't' e STDOUT su stdout; STDERR/STDWRN su stderr
-        if logicalName == STDERR || logicalName == STDWRN {
-            fputs(message, stderr)
-        } else {
-            fputs(message, stdout)
+        
+        // Se nessun router ha gestito, usa fallback standard (stdout/stderr)
+        if !handledByRouter {
+            if logicalName == STDERR || logicalName == STDWRN {
+                fputs(message, stderr)
+            } else {
+                fputs(message, stdout)
+            }
         }
     }
 

@@ -187,32 +187,72 @@ final class GoldenTests: XCTestCase {
     
     /// Esegue un file .tst completo (interpreta la sequenza di comandi)
     /// I file .tst contengono sequenze di comandi CLIPS che vengono eseguiti in ordine
+    /// Ref: CLIPS esegue file .tst attraverso batch/load e cattura output via dribble-on
     func executeTSTFile(_ tstPath: String) throws -> String {
         var env = SLIPS.createEnvironment()
-        var capturedOutput = ""
-        var inDribble = false
         
-        // Crea router per catturare tutto l'output
+        // Il file .tst gestisce già dribble-on/off internamente
+        // Dobbiamo solo eseguire i comandi e poi leggere il file generato da dribble-on
+        var capturedOutput = ""
+        
+        // Crea router per catturare tutto l'output (backup, priorità bassa)
         _ = RouterRegistry.AddRouter(
             &env,
             "golden-capture",
-            100,
+            30,  // Priorità inferiore a dribble (40)
             query: { _, name in name == "t" || name == Router.STDOUT },
             write: { _, _, str in
-                if inDribble {
-                    capturedOutput += str
-                }
+                capturedOutput += str
             }
         )
         
+        // Leggi il file .tst per eseguire comando per comando con prompt
         let content = try String(contentsOfFile: tstPath, encoding: .utf8)
         let assetsDir = (tstPath as NSString).deletingLastPathComponent
+        let cwd = FileManager.default.currentDirectoryPath
+        let originalCwd = FileManager.default.currentDirectoryPath
         
-        // Usa SLIPS.load per eseguire tutti i comandi nel file .tst
-        // SLIPS.load già fa il parsing e l'esecuzione corretta
-        try SLIPS.load(tstPath)
+        // Cambia directory alla cartella del file per risolvere path relativi
+        FileManager.default.changeCurrentDirectoryPath((tstPath as NSString).deletingLastPathComponent)
+        defer {
+            FileManager.default.changeCurrentDirectoryPath(originalCwd)
+        }
+        
+        // Parse e esegui comandi uno per uno (come in CLIPS CommandLoopBatch)
+        // Ref: CommandLoopBatchDriver in commline.c:743 - esegue comandi da batch file
+        let lines = content.components(separatedBy: .newlines)
+        var currentDribbleFile: String?
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix(";") {
+                continue
+            }
+            
+            // Esegui il comando con prompt (ref: ExecuteIfCommandComplete stampa prompt dopo)
+            // Il prompt viene stampato PRIMA del comando quando si esegue da batch/interattivo
+            // Per file .tst, il prompt viene incluso nell'output catturato da dribble-on
+            let result = SLIPSHelpers.evalInternal(&env, expr: trimmed, printPrompt: true)
+            
+            // Se il comando è dribble-on, nota il file per riferimento futuro
+            if trimmed.contains("dribble-on") {
+                if let match = trimmed.range(of: #""[^"]+""#, options: .regularExpression) {
+                    let filePath = String(trimmed[match]).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                    currentDribbleFile = filePath
+                }
+            }
+        }
         
         RouterRegistry.DeleteRouter(&env, "golden-capture")
+        
+        // Se c'è un file dribble, leggerlo (è l'output catturato)
+        let data: FileCom.FileCommandData? = Envrnmnt.GetEnvironmentData(env, FileCom.FILECOM_DATA)
+        if let dribblePath = data?.DribbleFilePath, FileManager.default.fileExists(atPath: dribblePath) {
+            if let dribbleContent = try? String(contentsOfFile: dribblePath, encoding: .utf8) {
+                return dribbleContent
+            }
+        }
+        
         return capturedOutput
     }
     
