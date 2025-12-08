@@ -1,0 +1,98 @@
+# GitHub Labels per SLIPS
+
+- name: bug
+  color: d73a4a
+  description: Qualcosa non funziona come previsto
+
+- name: enhancement
+  color: a2eeef
+  description: Nuova feature o richiesta
+
+- name: question
+  color: d876e3
+  description: Domande o discussioni
+
+- name: documentation
+  color: 0075ca
+  description: Miglioramenti alla documentazione
+
+- name: good first issue
+  color: 7057ff
+  description: Buona per nuovi contributor
+
+- name: help wanted
+  color: 008672
+  description: Serve aiuto dalla community
+
+- name: performance
+  color: fbca04
+  description: Miglioramenti alle performance
+
+- name: refactoring
+  color: e99695
+  description: Refactoring del codice
+
+- name: testing
+  color: 0e8a16
+  description: Aggiunta o modifica di test
+
+- name: wontfix
+  color: ffffff
+  description: Non verrà fixato
+
+- name: duplicate
+  color: cfd3d7
+  description: Questo problema è già stato segnalato
+
+- name: invalid
+  color: e4e669
+  description: Questo non è valido o non è un bug
+
+- name: priority: critical
+  color: b60205
+  description: Blocca il rilascio
+
+- name: priority: high
+  color: d93f0b
+  description: Importante da fixare
+
+- name: priority: medium
+  color: fbca04
+  description: Media priorità
+
+- name: priority: low
+  color: 0e8a16
+  description: Bassa priorità
+
+- name: area: core
+  color: 1d76db
+  description: Core engine
+
+- name: area: rete
+  color: 1d76db
+  description: RETE network
+
+- name: area: agenda
+  color: 1d76db
+  description: Agenda management
+
+- name: area: modules
+  color: 1d76db
+  description: Sistema moduli
+
+- name: area: functions
+  color: 1d76db
+  description: Builtin functions
+
+- name: area: testing
+  color: 1d76db
+  description: Test suite
+
+- name: status: in-progress
+  color: ededed
+  description: Lavoro in corso
+
+- name: status: blocked
+  color: d93f0b
+  description: Bloccato da altro
+

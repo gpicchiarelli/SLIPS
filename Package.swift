@@ -1,10 +1,15 @@
 // swift-tools-version: 6.0
+// SLIPS - Swift Language Implementation of Production Systems
+// Copyright (c) 2025 SLIPS Contributors
+// Licensed under the MIT License
+
 import PackageDescription
 
 let package = Package(
     name: "SLIPS",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v14),
+        .linux
     ],
     products: [
         .library(name: "SLIPS", targets: ["SLIPS"]),

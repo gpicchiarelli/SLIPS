@@ -1,82 +1,39 @@
 ---
-name: ✨ Feature Request
-about: Proponi una nuova funzionalità o miglioramento
+name: Feature Request
+about: Suggerisci una nuova feature o miglioramento
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''
 ---
 
-## ✨ Descrizione Feature
+## 🎯 Descrizione della Feature
 
-<!-- Descrizione chiara e concisa della feature proposta -->
+Breve descrizione della feature che vorresti vedere.
 
-## 🎯 Problema da Risolvere
+## 💡 Motivazione
 
-<!-- Qual è il problema o il caso d'uso che questa feature risolverebbe? -->
+Perché questa feature sarebbe utile? Quale problema risolve?
 
-## 💡 Soluzione Proposta
+## 🔧 Proposta di Implementazione
 
-<!-- Descrivi come immagini l'implementazione di questa feature -->
+Come pensi che dovrebbe funzionare?
 
-### Esempio d'Uso
-
-```swift
-// Come si userebbe questa feature
+```clp
+; Esempio di come vorresti usarla
+(defrule example
+  (pattern ?x)
+  =>
+  (new-feature ?x))
 ```
-
-## 🔗 Riferimento a CLIPS
-
-<!-- Se la feature esiste in CLIPS originale -->
-
-- [ ] Feature presente in CLIPS 6.4.2
-- File C di riferimento: `clips_core_source_642/core/NOMEFILE.c`
-- Funzioni corrispondenti: `funzione1()`, `funzione2()`
-
-### Esempio in CLIPS
-
-```clips
-; Come funziona in CLIPS C originale
-```
-
-## 🔄 Alternative Considerate
-
-<!-- Hai considerato soluzioni alternative? Descrivile qui -->
-
-## 📊 Priorità
-
-<!-- Quanto è importante questa feature per te? -->
-
-- [ ] 🔥 Critica - blocca l'uso del progetto
-- [ ] ⚡ Alta - feature molto utile
-- [ ] 📌 Media - nice to have
-- [ ] 💡 Bassa - idea per il futuro
-
-## 🏗️ Impatto Stimato
-
-<!-- Se hai idea della complessità dell'implementazione -->
-
-- [ ] 🟢 Bassa complessità (poche ore)
-- [ ] 🟡 Media complessità (alcuni giorni)
-- [ ] 🔴 Alta complessità (settimane)
-- [ ] ❓ Non saprei
-
-## 🤝 Contributo
-
-<!-- Saresti disposto/a a contribuire all'implementazione? -->
-
-- [ ] Posso implementare questa feature
-- [ ] Posso aiutare con i test
-- [ ] Posso aiutare con la documentazione
-- [ ] Preferisco che qualcun altro la implementi
-
-## 📝 Note Aggiuntive
-
-<!-- Qualsiasi altra informazione utile -->
 
 ## 📚 Riferimenti
 
-<!-- Link a documentazione, discussioni, esempi, etc. -->
+- [ ] Questa feature esiste in CLIPS C?
+- [ ] Se sì, quale file/funzione?
+- [ ] Link a documentazione esterna (se presente)
 
-- [CLIPS Reference Manual](http://clipsrules.sourceforge.net/)
-- Altri riferimenti...
+## ✅ Checklist
 
+- [ ] Ho verificato che questa feature non esista già
+- [ ] Ho controllato [AGENTS.md](AGENTS.md) per linee guida
+- [ ] Ho verificato [docs/ROADMAP.md](docs/ROADMAP.md) per vedere se è già pianificata

@@ -15,8 +15,22 @@ Package.resolved
 
 # Logs
 *.log
+test_output.txt
+test_results*.log
+test_run_*.log
 
-# Agent files (local only)
-AGENTS.md
-**/AGENTS.md
+# Coverage
+*.profraw
+default.profraw
+
+# Xcode user data
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.swp
+*~
+.#*
 

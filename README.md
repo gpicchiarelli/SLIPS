@@ -7,8 +7,8 @@
 
 **SLIPS** è un'implementazione moderna di un sistema di produzione (production system / rule engine) ispirata a [CLIPS](https://www.clipsrules.net/), scritta interamente in Swift 6.2.
 
-> **🎯 Stato Attuale**: Beta 0.80 - **Core engine stabile**, moduli avanzati in sviluppo  
-> **📖 Per analisi dettagliata**: Vedi [PROJECT_STATUS_REAL.md](PROJECT_STATUS_REAL.md) e [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
+> **🎯 Stato Attuale**: Beta 0.96 - **Core engine stabile**, moduli avanzati in sviluppo  
+> **📖 Per dettagli**: Vedi [USER_GUIDE.md](USER_GUIDE.md) e [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -96,7 +96,7 @@ CLIPS.run()
   - Hash-based join optimization
   - Propagazione efficiente assert/retract
 
-### ✅ 156 Funzioni Builtin
+### ✅ 160 Funzioni Builtin
 
 **Matematiche** (36 funzioni)
 ```clp
@@ -152,7 +152,7 @@ CLIPS.run()
 (do-for-all-facts ((?p person)) TRUE ...)
 ```
 
-Vedi lista completa in [FUNZIONI_REFERENCE.md](FUNZIONI_REFERENCE.md)
+Vedi lista completa in [USER_GUIDE.md](USER_GUIDE.md) sezione "Funzioni Builtin"
 
 ### ⚠️ Moduli (Parziale)
 
@@ -185,7 +185,7 @@ Vedi lista completa in [FUNZIONI_REFERENCE.md](FUNZIONI_REFERENCE.md)
 |------------|-------------|--------|------|
 | **Core Engine** | 90% | ✅ Stabile | Production-ready |
 | **Pattern Matching** | 95% | ✅ Stabile | Manca FORALL |
-| **Builtin Functions** | 100% | ✅ Completo | 156 funzioni |
+| **Builtin Functions** | 100% | ✅ Completo | 160 funzioni |
 | **RETE Network** | 85% | ✅ Stabile | Legacy ottimizzato |
 | **Moduli Base** | 70% | ⚠️ Parziale | Solo MAIN completo |
 | **Cross-Module** | 10% | ❌ Limitato | In sviluppo |
@@ -212,7 +212,7 @@ Coverage: ~75% (stimato)
 ❌ Module-Aware: 20% (1/5 pass)
 ```
 
-**Per analisi completa**: [PROJECT_STATUS_REAL.md](PROJECT_STATUS_REAL.md)
+**Per dettagli**: Vedi [CHANGELOG.md](CHANGELOG.md) e [USER_GUIDE.md](USER_GUIDE.md)
 
 ---
 
@@ -225,17 +225,17 @@ Coverage: ~75% (stimato)
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/your-repo/SLIPS.git", from: "0.80.0")
+    .package(url: "https://github.com/gpicchiarelli/SLIPS.git", from: "0.96.0")
 ]
 ```
 
 #### Build da Sorgente
 
 ```bash
-git clone https://github.com/your-repo/SLIPS.git
+git clone https://github.com/gpicchiarelli/SLIPS.git
 cd SLIPS
 swift build
-swift test  # Esegui test
+swift test  # Esegui test (250+ test, 99.6% pass rate)
 ```
 
 ### Uso Base
@@ -479,7 +479,7 @@ SLIPS/
 7. **No binary load/save** 🟡
 8. **No concurrency** 🟡
 
-**Dettagli completi**: [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
+**Dettagli completi**: Vedi [USER_GUIDE.md](USER_GUIDE.md) sezione "Limitazioni Note"
 
 ---
 
@@ -526,7 +526,7 @@ SLIPS/
 - ✅ Performance >100k facts
 - ✅ Rule/template inheritance
 
-**Dettagli**: [ROADMAP_REALISTIC.md](ROADMAP_REALISTIC.md) (da creare)
+**Dettagli**: Vedi [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 
@@ -534,9 +534,9 @@ SLIPS/
 
 Contributi benvenuti! Per favore:
 
-1. Leggi [CONTRIBUTING.md](CONTRIBUTING.md)
+1. Leggi [CONTRIBUTING.md](CONTRIBUTING.md) per linee guida generali
 2. Leggi [AGENTS.md](AGENTS.md) per linee guida agenti AI
-3. Controlla [KNOWN_ISSUES.md](KNOWN_ISSUES.md) per problemi noti
+3. Controlla [CHANGELOG.md](CHANGELOG.md) per ultime modifiche
 4. Apri issue per discutere feature grandi
 
 ### Setup Sviluppo
@@ -607,10 +607,10 @@ swift test --enable-code-coverage
 
 ### Sviluppatore
 
-- [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md) - Architettura sistema
-- [PROJECT_STATUS_REAL.md](PROJECT_STATUS_REAL.md) - Analisi stato reale
-- [KNOWN_ISSUES.md](KNOWN_ISSUES.md) - Problemi e limitazioni
-- [AGENTS.md](AGENTS.md) - Linee guida contributor
+- [AGENTS.md](AGENTS.md) - Linee guida per agenti AI e contributor
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Come contribuire al progetto
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Codice di condotta
+- [docs/ROADMAP.md](docs/ROADMAP.md) - Roadmap dettagliata
 
 ### Libro (LaTeX)
 
@@ -622,7 +622,7 @@ swift test --enable-code-coverage
 ## FAQ
 
 **Q: SLIPS è production-ready?**  
-A: Sì per casi d'uso base (modulo MAIN, <10k facts). No per enterprise multi-modulo complesso. Vedi [PROJECT_STATUS_REAL.md](PROJECT_STATUS_REAL.md).
+A: Sì per casi d'uso base (modulo MAIN, <10k facts). Core engine stabile con 99.6% test pass rate. Moduli avanzati in sviluppo. Vedi [USER_GUIDE.md](USER_GUIDE.md).
 
 **Q: È compatibile con CLIPS?**  
 A: Parzialmente. Core semantics sì, ma sintassi e alcune feature differiscono. Non c'è interoperabilità binaria.
@@ -692,16 +692,16 @@ SOFTWARE.
 
 ## Link Utili
 
-- **Repository**: https://github.com/your-repo/SLIPS
-- **Issues**: https://github.com/your-repo/SLIPS/issues
-- **Discussions**: https://github.com/your-repo/SLIPS/discussions
+- **Repository**: https://github.com/gpicchiarelli/SLIPS
+- **Documentazione**: https://gpicchiarelli.github.io/SLIPS/
+- **Issues**: https://github.com/gpicchiarelli/SLIPS/issues
 - **CLIPS Official**: https://www.clipsrules.net/
 - **Swift**: https://swift.org/
 
 ---
 
-**Ultimo aggiornamento**: 16 Ottobre 2025  
-**Versione**: 0.80.0-dev  
-**Status**: Beta - Core Stabile, Moduli in Sviluppo
+**Ultimo aggiornamento**: Dicembre 2025  
+**Versione**: 0.96.0  
+**Status**: Beta - Core Stabile, Test Coverage 99.6%
 
 **🚀 Pronto per iniziare? Vedi [Quick Start](#quick-start) sopra!**

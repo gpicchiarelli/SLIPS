@@ -37,3 +37,7 @@ Tutte le modifiche notevoli al progetto sono documentate in questo file.
 
 Documentazione completa delle versioni pre-0.96.0 disponibile in git history.
 
+---
+
+**Formato Changelog**: Questo file segue [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), e questo progetto aderisce a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+

@@ -1,13 +1,7 @@
-# Configurazione Dependabot per mantenere aggiornate le GitHub Actions
 version: 2
 updates:
-  # Mantieni aggiornate le GitHub Actions
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "swift"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "github-actions"
-
+      interval: "monthly"
+    open-pull-requests-limit: 10

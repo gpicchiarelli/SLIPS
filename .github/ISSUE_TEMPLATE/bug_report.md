@@ -1,6 +1,6 @@
 ---
-name: 🐛 Bug Report
-about: Segnala un bug o comportamento non corretto
+name: Bug Report
+about: Segnala un bug o un comportamento inatteso
 title: '[BUG] '
 labels: bug
 assignees: ''
@@ -8,81 +8,46 @@ assignees: ''
 
 ## 🐛 Descrizione del Bug
 
-<!-- Descrizione chiara e concisa del bug -->
+Breve descrizione del problema.
 
-## 🔄 Come Riprodurre
+## 📋 Steps per Riprodurre
 
-Passi per riprodurre il comportamento:
-
-1. Crea environment: `let env = CLIPS.createEnvironment()`
-2. Esegui: `CLIPS.eval(expr: "...")`
-3. Osserva l'errore: `...`
-
-### Codice Minimale
-
-```swift
-import SLIPS
-
-// Codice minimo per riprodurre il bug
+1. Carica questo codice:
+```clp
+(deftemplate person (slot name))
 ```
 
-### File CLIPS (.clp)
+2. Esegui:
+```swift
+CLIPS.assert(fact: "(person (name Alice))")
+```
 
-```clips
-; Se applicabile, fornisci il file CLIPS che causa il problema
+3. Osserva l'errore:
+```
+[Errore descritto qui]
 ```
 
 ## ✅ Comportamento Atteso
 
-<!-- Cosa dovrebbe succedere invece -->
+Cosa ti aspettavi che succedesse.
 
 ## ❌ Comportamento Attuale
 
-<!-- Cosa succede attualmente -->
+Cosa succede invece.
 
-### Output / Errore
+## 🔧 Ambiente
 
-```
-Incolla qui l'output o il messaggio di errore
-```
+- **Versione SLIPS**: 0.96.0
+- **Swift Version**: 6.2
+- **OS**: macOS 14.0 / Ubuntu 22.04
+- **Build**: Release / Debug
 
-## 🔍 Confronto con CLIPS Originale
-
-<!-- Se hai testato lo stesso codice in CLIPS C, riporta il comportamento -->
-
-- [ ] Testato in CLIPS 6.4.2 originale
-- Comportamento in CLIPS C: 
+## 📝 Log/Output
 
 ```
-Output di CLIPS C
+[Incolla qui log o output rilevanti]
 ```
 
-## 🖥️ Ambiente
+## 💡 Contesto Aggiuntivo
 
-- **OS:** [es. macOS 14.0, Ubuntu 22.04]
-- **Swift Version:** [es. 6.0]
-- **SLIPS Version:** [es. 0.1.0 o commit hash]
-- **Xcode Version:** [se su macOS]
-
-```bash
-swift --version
-```
-
-## 📝 Informazioni Aggiuntive
-
-<!-- Qualsiasi altra informazione utile -->
-
-### Log / Stack Trace
-
-```
-Se disponibile, incolla stack trace o log dettagliati
-```
-
-### Possibile Soluzione
-
-<!-- Se hai idea di cosa potrebbe causare il bug o come risolverlo -->
-
-## 📎 Allegati
-
-<!-- Screenshot, file .clp, output, etc. -->
-
+Altri dettagli che potrebbero essere utili.
